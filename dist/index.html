@@ -56,7 +56,7 @@ async function sbDelete(table, filter) {
     return res.ok;
 }
 // ─── CONSTANTS ──────────────────────────────────────────────────────────────
-const CLASS_ORDER = ["Beer & Seltzer", "Liquor", "Wine", "Kegs", "Extras"];
+const CLASS_ORDER = ["Beer & Seltzer", "Liquor", "Wine", "Kegs", "Liqueur & Extras", "Extras"];
 const SELENA_LOCS = ["Office", "Pepsi Cooler", "Display", "Closet", "Window/Party Room", "Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"];
 const ERIKA_LOCS = ["Behind Bar", "Keg Cooler"];
 const ALL_LOCS = ["Office", "Pepsi Cooler", "Display", "Closet", "Window/Party Room", "Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"];
@@ -901,7 +901,7 @@ function OrderGuideScreen({ orders, setOrders, calcTotal, onBack }) {
     };
 
     // Build flat row list from master
-    const CLASS_ORDER_OG = ["Beer & Seltzer","Liquor","Wine","Kegs","Extras"];
+    const CLASS_ORDER_OG = ["Beer & Seltzer","Liquor","Wine","Kegs","Liqueur & Extras","Extras"];
     const flatRows = [];
     CLASS_ORDER_OG.forEach(cls => {
         const clsItems = master.filter(i => i.class === cls);
