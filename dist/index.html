@@ -22,7 +22,7 @@
 const { useState, useEffect, useCallback, useRef, Fragment } = React;
 // ─── SUPABASE ───────────────────────────────────────────────────────────────
 const SUPABASE_URL = "https://wkzhmfyfxlfkkqevzxvf.supabase.co";
-const SUPABASE_KEY = "sb_publishable_B1EXocVYT57f5fpvVLONZA_YZx5trib";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndremhtZnlmeGxma2txZXZ6eHZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5NDM0MjgsImV4cCI6MjA5NjUxOTQyOH0.aHqG8nGPwuf_OCbjoexkPU1CD17pr50k3Aq2cRPDfcY";
 async function sbGet(table, params) {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params || "select=*"}`, {
         headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` }
