@@ -1,0 +1,1826 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Zazzo's Inventory">
+  <title>Zazzo's Liquor Inventory</title>
+  <script crossorigin src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { margin: 0; padding: 0; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script>
+const { useState, useEffect, useCallback, useRef, Fragment } = React;
+// ─── SUPABASE ───────────────────────────────────────────────────────────────
+const SUPABASE_URL = "https://wkzhmfyfxlfkkqevzxvf.supabase.co";
+const SUPABASE_KEY = "sb_publishable_B1EXocVYT57f5fpvVLONZA_YZx5trib";
+async function sbGet(table, params) {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params || "select=*"}`, {
+        headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` }
+    });
+    if (!res.ok)
+        throw new Error(`sbGet ${table} failed: ${res.status}`);
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+}
+async function sbPost(table, body) {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+        method: "POST",
+        headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json", "Prefer": "return=minimal" },
+        body: JSON.stringify(body)
+    });
+    return res.ok;
+}
+async function sbUpsert(table, body, onConflict) {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?on_conflict=${onConflict}`, {
+        method: "POST",
+        headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json", "Prefer": "resolution=merge-duplicates,return=minimal" },
+        body: JSON.stringify(body)
+    });
+    return res.ok;
+}
+async function sbDelete(table, filter) {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${filter}`, {
+        method: "DELETE",
+        headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` }
+    });
+    return res.ok;
+}
+// ─── CONSTANTS ──────────────────────────────────────────────────────────────
+const CLASS_ORDER = ["Beer & Seltzer", "Liquor", "Wine", "Kegs", "Extras"];
+const SELENA_LOCS = ["Office", "Pepsi Cooler", "Display", "Closet", "Window/Party Room", "Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"];
+const ERIKA_LOCS = ["Behind Bar", "Keg Cooler"];
+const ALL_LOCS = ["Office", "Pepsi Cooler", "Display", "Closet", "Window/Party Room", "Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"];
+const VENDOR_ORDER = ["Breakthrough", "Cello", "Euclid", "Sch", "Southern", "Superior", "TBD"];
+const CORRECT_PIN = "2026";
+// ─── MASTER PRODUCT LIST ────────────────────────────────────────────────────
+
+const NAME_MAP = {
+  "Bulleit Bourbon": "Bulleit Bourbon",
+  "Bulleit Rye": "Bulleit Rye",
+};
+function normalizeName(name) {
+  if (!name) return name;
+  if (NAME_MAP[name]) return NAME_MAP[name];
+  let n = name;
+  n = n.replace(/\(Orange Label\)/gi, "").replace(/\(Green Label\)/gi, "").trim();
+  n = n.replace(/Sauv Blanc/gi, "Sauv Blanc");
+  n = n.replace(/Chard/gi, "Chard");
+  return n.trim();
+}
+const INITIAL_MASTER = [
+    { product: "Bud Light", category: "Beer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "Sch" },
+    { product: "Budweiser", category: "Beer", class: "Beer & Seltzer", locations: ["Pepsi Cooler", "Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "Sch" },
+    { product: "Budweiser Zero", category: "Beer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "Sch" },
+    { product: "Cider Boys", category: "Beer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "Sch" },
+    { product: "Coors Light", category: "Beer", class: "Beer & Seltzer", locations: ["Pepsi Cooler", "Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "Sch" },
+    { product: "Corona", category: "Beer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "Sch" },
+    { product: "Corona Light", category: "Beer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "Sch" },
+    { product: "Daura", category: "Beer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "Euclid" },
+    { product: "Guinness", category: "Beer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "Sch" },
+    { product: "Heineken", category: "Beer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "Breakthrough" },
+    { product: "MGD", category: "Beer", class: "Beer & Seltzer", locations: ["Pepsi Cooler", "Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "TBD" },
+    { product: "Michelob Ultra", category: "Beer", class: "Beer & Seltzer", locations: ["Pepsi Cooler", "Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "Sch" },
+    { product: "Miller High Life", category: "Beer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "Euclid" },
+    { product: "Miller Lite", category: "Beer", class: "Beer & Seltzer", locations: ["Pepsi Cooler", "Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "Sch" },
+    { product: "Modelo", category: "Beer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "TBD" },
+    { product: "Stella N/A", category: "Beer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "Sch" },
+    { product: "Summer Shandy", category: "Beer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "Sch" },
+    { product: "Yuengling Flight", category: "Beer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "Sch" },
+    { product: "Black Cherry White Claw", category: "Seltzer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "TBD" },
+    { product: "High Noon Peach", category: "Seltzer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "Sch" },
+    { product: "High Noon Peach Tea", category: "Seltzer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "Euclid" },
+    { product: "High Noon Pineapple", category: "Seltzer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "Euclid" },
+    { product: "High Noon Tea", category: "Seltzer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "TBD" },
+    { product: "High Noon Watermelon", category: "Seltzer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "Sch" },
+    { product: "Suncruiser", category: "Seltzer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "TBD" },
+    { product: "Vodkade Blue", category: "Seltzer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "TBD" },
+    { product: "Vodkade Orange", category: "Seltzer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "TBD" },
+    { product: "Vodkade Red", category: "Seltzer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "TBD" },
+    { product: "Vodkade S.F Blue", category: "Seltzer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "TBD" },
+    { product: "Vodkade S.F Lime", category: "Seltzer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "TBD" },
+    { product: "Vodkade S.F Orange", category: "Seltzer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "TBD" },
+    { product: "Vodkade S.F Red", category: "Seltzer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "TBD" },
+    { product: "Angel's Envy", category: "Bourbon", class: "Liquor", locations: ["Office"], vendor: "Breakthrough" },
+    { product: "Benchmark", category: "Bourbon", class: "Liquor", locations: ["Behind Bar"], vendor: "Breakthrough" },
+    { product: "Blade and Bow", category: "Bourbon", class: "Liquor", locations: ["Office"], vendor: "Southern" },
+    { product: "Buffalo Trace", category: "Bourbon", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "TBD" },
+    { product: "Bulleit Bourbon", category: "Bourbon", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "TBD" },
+    { product: "Elijah Craig", category: "Bourbon", class: "Liquor", locations: ["Office"], vendor: "Breakthrough" },
+    { product: "High West", category: "Bourbon", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Breakthrough" },
+    { product: "Knob Creek", category: "Bourbon", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Breakthrough" },
+    { product: "Maker's Mark", category: "Bourbon", class: "Liquor", locations: ["Behind Bar"], vendor: "Breakthrough" },
+    { product: "Mitcher's", category: "Bourbon", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Breakthrough" },
+    { product: "Old Forester", category: "Bourbon", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Breakthrough" },
+    { product: "Piggy Back", category: "Bourbon", class: "Liquor", locations: ["Office"], vendor: "TBD" },
+    { product: "Redemption", category: "Bourbon", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Breakthrough" },
+    { product: "Row 94", category: "Bourbon", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Breakthrough" },
+    { product: "Russell's", category: "Bourbon", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Breakthrough" },
+    { product: "Wild Turkey", category: "Bourbon", class: "Liquor", locations: ["Office"], vendor: "TBD" },
+    { product: "E&J", category: "Brandy", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "TBD" },
+    { product: "Hennessy", category: "Cognac", class: "Liquor", locations: ["Office"], vendor: "Southern" },
+    { product: "Hendricks", category: "Gin", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Breakthrough" },
+    { product: "Tanqueray", category: "Gin", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Breakthrough" },
+    { product: "Jameson", category: "Irish Whiskey", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Southern" },
+    { product: "Red Breast", category: "Irish Whiskey", class: "Liquor", locations: ["Behind Bar"], vendor: "Southern" },
+    { product: "Tullamore D.E.W", category: "Irish Whiskey", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "TBD" },
+    { product: "Bacardi", category: "Rum", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Southern" },
+    { product: "Captain Morgan", category: "Rum", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Breakthrough" },
+    { product: "Kahlua", category: "Rum", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Southern" },
+    { product: "Myers's", category: "Rum", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Breakthrough" },
+    { product: "Rumchata", category: "Rum", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Breakthrough" },
+    { product: "Rumhaven", category: "Rum", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Breakthrough" },
+    { product: "Bulleit Rye", category: "Rye", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "TBD" },
+    { product: "Pinhook", category: "Rye", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Breakthrough" },
+    { product: "Sazerac Rye", category: "Rye", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Southern" },
+    { product: "Templeton Rye", category: "Rye", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "TBD" },
+    { product: "Whistle Pig", category: "Rye", class: "Liquor", locations: ["Office"], vendor: "Southern" },
+    { product: "Dewar's", category: "Scotch", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Breakthrough" },
+    { product: "Glenlivet", category: "Scotch", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Southern" },
+    { product: "Don Julio", category: "Tequila", class: "Liquor", locations: ["Behind Bar"], vendor: "Breakthrough" },
+    { product: "Hornitos", category: "Tequila", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Breakthrough" },
+    { product: "Milagro", category: "Tequila", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Breakthrough" },
+    { product: "Belvedere", category: "Vodka", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Southern" },
+    { product: "Grey Goose", category: "Vodka", class: "Liquor", locations: ["Behind Bar"], vendor: "Breakthrough" },
+    { product: "Kettle One", category: "Vodka", class: "Liquor", locations: ["Behind Bar"], vendor: "Breakthrough" },
+    { product: "Sobieski Citron", category: "Vodka", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Southern" },
+    { product: "Sobieski Vanilla", category: "Vodka", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "TBD" },
+    { product: "Tito's", category: "Vodka", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Breakthrough" },
+    { product: "B&B", category: "Whiskey", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "TBD" },
+    { product: "Crown Royal", category: "Whiskey", class: "Liquor", locations: ["Behind Bar"], vendor: "Breakthrough" },
+    { product: "Crown Royal Apple", category: "Whiskey", class: "Liquor", locations: ["Behind Bar"], vendor: "Southern" },
+    { product: "Crown Royal Peach", category: "Whiskey", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Breakthrough" },
+    { product: "Gentleman Jack", category: "Whiskey", class: "Liquor", locations: ["Behind Bar"], vendor: "Breakthrough" },
+    { product: "Horse Soldier", category: "Whiskey", class: "Liquor", locations: ["Office"], vendor: "Breakthrough" },
+    { product: "Jack Daniels", category: "Whiskey", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Breakthrough" },
+    { product: "Jack Daniels Fire 1L", category: "Whiskey", class: "Liquor", locations: ["Office", "Coffin Cooler"], vendor: "Breakthrough" },
+    { product: "Jack Daniels Fire 750", category: "Whiskey", class: "Liquor", locations: ["Office", "Coffin Cooler"], vendor: "Breakthrough" },
+    { product: "Jack Daniels Honey", category: "Whiskey", class: "Liquor", locations: ["Office", "Coffin Cooler"], vendor: "Breakthrough" },
+    { product: "Jim Beam", category: "Whiskey", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Breakthrough" },
+    { product: "Seagram's 7", category: "Whiskey", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Breakthrough" },
+    { product: "Seagram's VO", category: "Whiskey", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Breakthrough" },
+    { product: "Skrewball", category: "Whiskey", class: "Liquor", locations: ["Behind Bar"], vendor: "Breakthrough" },
+    { product: "Southern Comfort", category: "Whiskey", class: "Liquor", locations: ["Behind Bar"], vendor: "Breakthrough" },
+    { product: "Woodford Reserve", category: "Whiskey", class: "Liquor", locations: ["Behind Bar"], vendor: "Breakthrough" },
+    { product: "Zazzo's Bourbon", category: "Zazzo's Liquor", class: "Liquor", locations: ["Display", "Closet", "Window/Party Room", "Behind Bar"], vendor: "TBD" },
+    { product: "Zazzo's Gin", category: "Zazzo's Liquor", class: "Liquor", locations: ["Display", "Closet", "Window/Party Room", "Behind Bar"], vendor: "TBD" },
+    { product: "Zazzo's Rum", category: "Zazzo's Liquor", class: "Liquor", locations: ["Display", "Closet", "Window/Party Room", "Behind Bar"], vendor: "TBD" },
+    { product: "Zazzo's Straight Bourbon", category: "Zazzo's Liquor", class: "Liquor", locations: ["Display", "Closet", "Window/Party Room"], vendor: "TBD" },
+    { product: "Zazzo's Tequila", category: "Zazzo's Liquor", class: "Liquor", locations: ["Display", "Closet", "Window/Party Room", "Behind Bar"], vendor: "TBD" },
+    { product: "Zazzo's Vodka", category: "Zazzo's Liquor", class: "Liquor", locations: ["Display", "Closet", "Window/Party Room", "Behind Bar"], vendor: "TBD" },
+    { product: "Lamarca Splitz", category: "Champagne", class: "Wine", locations: ["Keg Cooler", "Behind Bar", "Outside Cooler"], vendor: "TBD" },
+    { product: "Lyric N/A Champagne", category: "Champagne", class: "Wine", locations: ["Display", "Closet", "Behind Bar"], vendor: "TBD" },
+    { product: "Whycliff Champagne", category: "Champagne", class: "Wine", locations: ["Pepsi Cooler", "Display", "Closet", "Behind Bar"], vendor: "Superior" },
+    { product: "Altos Malbec", category: "Red Wine", class: "Wine", locations: ["Display", "Closet", "Behind Bar"], vendor: "Euclid" },
+    { product: "Canyon Road Cabernet", category: "Red Wine", class: "Wine", locations: ["Display", "Closet", "Behind Bar"], vendor: "Euclid" },
+    { product: "Canyon Road Pinot Noir", category: "Red Wine", class: "Wine", locations: ["Display", "Closet", "Behind Bar"], vendor: "Euclid" },
+    { product: "Decoy Cabernet", category: "Red Wine", class: "Wine", locations: ["Display", "Closet", "Behind Bar"], vendor: "Euclid" },
+    { product: "Decoy Pinot Noir", category: "Red Wine", class: "Wine", locations: ["Display", "Closet", "Behind Bar"], vendor: "Euclid" },
+    { product: "Duckhorn Cabernet", category: "Red Wine", class: "Wine", locations: ["Display", "Closet", "Behind Bar"], vendor: "Sch" },
+    { product: "Franciscan Cabernet", category: "Red Wine", class: "Wine", locations: ["Display", "Closet", "Behind Bar"], vendor: "Superior" },
+    { product: "Hahn Pinot Noir", category: "Red Wine", class: "Wine", locations: ["Display", "Closet", "Behind Bar"], vendor: "Superior" },
+    { product: "Josh Cabernet", category: "Red Wine", class: "Wine", locations: ["Display", "Closet", "Behind Bar"], vendor: "Superior" },
+    { product: "Ruffino Chianti", category: "Red Wine", class: "Wine", locations: ["Display", "Closet", "Behind Bar"], vendor: "Euclid" },
+    { product: "Unshackled Red Blend", category: "Red Wine", class: "Wine", locations: ["Display", "Closet", "Behind Bar"], vendor: "Superior" },
+    { product: "Canyon Road Chard", category: "White Wine", class: "Wine", locations: ["Display", "Closet", "Behind Bar"], vendor: "Euclid" },
+    { product: "Canyon Road Moscato", category: "White Wine", class: "Wine", locations: ["Display", "Closet", "Behind Bar"], vendor: "Euclid" },
+    { product: "Canyon Road Pinot Grigio", category: "White Wine", class: "Wine", locations: ["Pepsi Cooler", "Display", "Closet", "Behind Bar"], vendor: "Cello" },
+    { product: "Canyon Road Sauv Blanc", category: "White Wine", class: "Wine", locations: ["Display", "Closet", "Behind Bar"], vendor: "Euclid" },
+    { product: "Caposaldo Pinot Grigio", category: "White Wine", class: "Wine", locations: ["Pepsi Cooler", "Display", "Closet", "Behind Bar"], vendor: "TBD" },
+    { product: "Harken Chard", category: "White Wine", class: "Wine", locations: ["Display", "Closet", "Behind Bar"], vendor: "Euclid" },
+    { product: "Santa Margherita Pinot Grigio", category: "White Wine", class: "Wine", locations: ["Display", "Closet", "Behind Bar"], vendor: "TBD" },
+    { product: "Whitehaven Sauv Blanc", category: "White Wine", class: "Wine", locations: ["Display", "Closet", "Behind Bar"], vendor: "Euclid" },
+    { product: "Ambiegram", category: "Keg", class: "Kegs", locations: ["Keg Cooler"], vendor: "TBD" },
+    { product: "Blue Moon", category: "Keg", class: "Kegs", locations: ["Keg Cooler"], vendor: "TBD" },
+    { product: "Buenaveza", category: "Keg", class: "Kegs", locations: ["Keg Cooler", "Behind Bar"], vendor: "TBD" },
+    { product: "Center Line", category: "Keg", class: "Kegs", locations: ["Keg Cooler"], vendor: "TBD" },
+    { product: "Dunkel", category: "Keg", class: "Kegs", locations: ["Keg Cooler"], vendor: "TBD" },
+    { product: "Hopular Kid", category: "Keg", class: "Kegs", locations: ["Keg Cooler"], vendor: "TBD" },
+    { product: "Labatt Blue", category: "Keg", class: "Kegs", locations: ["Keg Cooler"], vendor: "TBD" },
+    { product: "Longsnapper", category: "Keg", class: "Kegs", locations: ["Keg Cooler"], vendor: "TBD" },
+    { product: "Miller Lite Keg", category: "Keg", class: "Kegs", locations: ["Keg Cooler"], vendor: "Sch" },
+    { product: "Morretti", category: "Keg", class: "Kegs", locations: ["Keg Cooler", "Behind Bar"], vendor: "TBD" },
+    { product: "Old Style", category: "Keg", class: "Kegs", locations: ["Keg Cooler"], vendor: "TBD" },
+    { product: "Stella Keg", category: "Keg", class: "Kegs", locations: ["Keg Cooler"], vendor: "TBD" },
+    { product: "Stone IPA", category: "Keg", class: "Kegs", locations: ["Keg Cooler"], vendor: "TBD" },
+    { product: "Yuengling Keg", category: "Keg", class: "Kegs", locations: ["Keg Cooler"], vendor: "TBD" },
+    { product: "Zazzo's Point", category: "Keg", class: "Kegs", locations: ["Keg Cooler"], vendor: "TBD" },
+    { product: "Bailey's", category: "Extras", class: "Extras", locations: ["Office"], vendor: "Southern" },
+    { product: "Don Q", category: "Extras", class: "Extras", locations: ["Office", "Behind Bar"], vendor: "Cello" },
+    { product: "Fireball Apple", category: "Extras", class: "Extras", locations: ["Office"], vendor: "Cello" },
+    { product: "Frangelico", category: "Extras", class: "Extras", locations: ["Office", "Behind Bar"], vendor: "Cello" },
+    { product: "Jagermeister", category: "Extras", class: "Extras", locations: ["Office", "Coffin Cooler"], vendor: "TBD" },
+    { product: "Rumple Minze", category: "Extras", class: "Extras", locations: ["Office", "Coffin Cooler"], vendor: "Southern" },
+    { product: "Sambuca", category: "Extras", class: "Extras", locations: ["Office", "Coffin Cooler", "Behind Bar"], vendor: "Breakthrough" },
+    { product: "Aperol", category: "Liqueur", class: "Extras", locations: ["Behind Bar"], vendor: "Breakthrough" },
+    { product: "Chambord", category: "Liqueur", class: "Extras", locations: ["Behind Bar"], vendor: "Breakthrough" },
+    { product: "Cointreau", category: "Liqueur", class: "Extras", locations: ["Office", "Behind Bar"], vendor: "Breakthrough" },
+    { product: "Disaronno", category: "Liqueur", class: "Extras", locations: ["Office", "Behind Bar"], vendor: "Breakthrough" },
+    { product: "Grand Marnier", category: "Liqueur", class: "Extras", locations: ["Behind Bar"], vendor: "TBD" },
+    { product: "Select Aperitif", category: "Liqueur", class: "Extras", locations: ["Behind Bar"], vendor: "Breakthrough" },
+    { product: "Gallo Dry Vermouth", category: "Mixer", class: "Extras", locations: ["Office"], vendor: "Breakthrough" },
+    { product: "Gallo Sweet Vermouth", category: "Mixer", class: "Extras", locations: ["Office", "Behind Bar"], vendor: "TBD" },
+    { product: "LoFi Dry Vermouth", category: "Mixer", class: "Extras", locations: ["Behind Bar"], vendor: "Southern" },
+    { product: "Midori", category: "Mixer", class: "Extras", locations: ["Office", "Behind Bar"], vendor: "TBD" },
+    { product: "Peach Tree", category: "Mixer", class: "Extras", locations: ["Office", "Behind Bar"], vendor: "Breakthrough" },
+    { product: "Tippy Cow", category: "Mixer", class: "Extras", locations: ["Office"], vendor: "Breakthrough" },
+];
+// ─── HELPERS ────────────────────────────────────────────────────────────────
+function getMaster() { return window.__MASTER__ || INITIAL_MASTER; }
+function sorted(arr) {
+    return [...arr].sort((a, b) => {
+        const ci = CLASS_ORDER.indexOf(a.class) - CLASS_ORDER.indexOf(b.class);
+        if (ci !== 0)
+            return ci;
+        if (a.category !== b.category)
+            return a.category.localeCompare(b.category);
+        return a.product.localeCompare(b.product);
+    });
+}
+function forLoc(master, loc) {
+    return sorted(master.filter(i => i.locations.includes(loc)));
+}
+function groupCC(products) {
+    const out = {};
+    CLASS_ORDER.forEach(cls => {
+        const inCls = products.filter(p => p.class === cls);
+        if (!inCls.length)
+            return;
+        out[cls] = {};
+        [...new Set(inCls.map(p => p.category))].sort().forEach(cat => {
+            out[cls][cat] = inCls.filter(p => p.category === cat).sort((a, b) => a.product.localeCompare(b.product));
+        });
+    });
+    return out;
+}
+function weekLabel() {
+    return `Week of ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+}
+function getUnit(item, loc) {
+    return (item.category === "Beer" && loc === "Keg Cooler") ? "cases" : "units";
+}
+const mkSealed = () => { const c = {}; SELENA_LOCS.forEach(l => { c[l] = {}; }); return c; };
+const mkOpen = () => { const c = {}; ERIKA_LOCS.forEach(l => { c[l] = {}; }); return c; };
+
+const LAST_WEEK_COUNTS = {
+  "Bud Light": 230.0,
+  "Budweiser": 102.0,
+  "Budweiser Zero": 61.0,
+  "Cider Boys": 27.0,
+  "Coors Light": 147.0,
+  "Corona": 68.0,
+  "Corona Light": 58.0,
+  "Daura": 9.0,
+  "Guinness": 29.0,
+  "Heineken": 40.0,
+  "MGD": 29.0,
+  "Michelob Ultra": 270.0,
+  "Miller High Life": 6.0,
+  "Miller Lite": 154.0,
+  "Modelo": 37.0,
+  "Stella N/A": 25.0,
+  "Summer Shandy": 24.0,
+  "Yuengling Flight": 27.0,
+  "Angel's Envy": 1.85,
+  "Benchmark": 1.0,
+  "Blade and Bow": 1.7,
+  "Buffalo Trace": 0.85,
+  "Bulleit Bourbon": 2.65,
+  "Elijah Craig": 1.45,
+  "High West": 0.5,
+  "Horse Soldier": 1.5,
+  "Knob Creek": 3.85,
+  "Maker's Mark": 1.6,
+  "Mitcher's": 0.6,
+  "Old Forester": 0.95,
+  "Piggy Back": 3.2,
+  "Redemption": 0.6,
+  "Row 94": 0.6,
+  "Russell's": 0.85,
+  "Wild Turkey": 1.4,
+  "E&J": 0.25,
+  "Hennessy": 1.6,
+  "Lamarca Splitz": 21.0,
+  "Lyric N/A Champagne": 11.0,
+  "Whycliff Champagne": 8.0,
+  "Hendricks": 2.35,
+  "Tanqueray": 2.75,
+  "Jameson": 12.7,
+  "Red Breast": 1.0,
+  "Tullamore D.E.W": 2.5,
+  "Ambiegram": 1.1,
+  "Blue Moon": 0.45,
+  "Buenaveza": 0.05,
+  "Center Line": 1.75,
+  "Dunkel": 0.15,
+  "Hopular Kid": 0.5,
+  "Labatt Blue": 1.05,
+  "Longsnapper": 0.85,
+  "Miller Lite Keg": 1.05,
+  "Morretti": 0.5,
+  "Old Style": 0.9,
+  "Stella Keg": 1.35,
+  "Stone IPA": 0.6,
+  "Yuengling Keg": 2.05,
+  "Zazzo's Point": 0.7,
+  "Aperol": 0.0,
+  "Bailey's": 1.45,
+  "Chambord": 1.5,
+  "Cointreau": 2.25,
+  "Disaronno": 2.75,
+  "Don Q": 0.3,
+  "Fireball Apple": 1.0,
+  "Frangelico": 2.55,
+  "Grand Marnier": 1.85,
+  "Jagermeister": 2.14,
+  "Midori": 0.9,
+  "Peachtree": 18.01,
+  "Rumple Minze": 1.25,
+  "Sambuca": 0.3,
+  "Select Aperitif": 1.85,
+  "Tippy Cow": 1.8,
+  "Gallo Dry Vermouth": 1.33,
+  "Gallo Sweet Vermouth": 2.95,
+  "Lo Fi Dry Vermouth": 1.0,
+  "Altos Malbec": 17.5,
+  "Canyon Road Cabernet": 27.0,
+  "Canyon Road Pinot Noir": 9.5,
+  "Decoy Cabernet": 13.0,
+  "Decoy Pinot Noir": 27.0,
+  "Duckhorn Cabernet": 12.0,
+  "Franciscan Cabernet": 23.5,
+  "Hahn Pinot Noir": 10.75,
+  "Josh Cabernet": 28.25,
+  "Ruffino Chianti": 22.5,
+  "Unshackled Red Blend": 12.0,
+  "Bacardi": 11.95,
+  "Captain Morgan": 12.85,
+  "Kahlua": 2.2,
+  "Myers's": 3.3,
+  "Rumchata": 3.8,
+  "Rumhaven": 3.45,
+  "Bulleit Rye": 2.8,
+  "Pinhook": 0.85,
+  "Sazerac Rye": 0.9,
+  "Templeton Rye": 0.9,
+  "Whistle Pig": 2.95,
+  "Dewar's": 2.45,
+  "Glenlivet": 2.45,
+  "Black Cherry White Claw": 20.0,
+  "High Noon Peach": 18.0,
+  "High Noon Peach Tea": 15.0,
+  "High Noon Pineapple": 43.0,
+  "High Noon Tea": 5.0,
+  "High Noon Watermelon": 25.0,
+  "Suncruiser": 1.0,
+  "Vodkade Blue": 16.0,
+  "Vodkade Orange": 16.0,
+  "Vodkade Red": 10.0,
+  "Vodkade S.F Blue": 6.0,
+  "Vodkade S.F Lime": 6.0,
+  "Vodkade S.F Orange": 4.0,
+  "Vodkade S.F Red": 4.0,
+  "Don Julio": 1.9,
+  "Hornitos": 2.45,
+  "Milagro": 2.01,
+  "Belvedere": 2.25,
+  "Grey Goose": 1.8,
+  "Kettle One": 1.5,
+  "Sobieski Citron": 2.25,
+  "Sobieski Vanilla": 3.75,
+  "Tito's": 8.55,
+  "B&B": 1.0,
+  "Crown Royal": 1.2,
+  "Crown Royal Apple": 1.85,
+  "Crown Royal Peach": 3.0,
+  "Gentleman Jack": 1.75,
+  "Jack Daniels": 2.2,
+  "Jack Daniels Fire 1L": 0.33,
+  "Jack Daniels Fire 750": 1.0,
+  "Jack Daniels Honey": 1.33,
+  "Jim Beam": 2.25,
+  "Seagram's 7": 2.95,
+  "Seagram's VO": 2.4,
+  "Screwball": 1.7,
+  "Southern Comfort": 1.95,
+  "Woodford Reserve": 1.1,
+  "Canyon Road Chard": 25.0,
+  "Canyon Road Moscato": 33.75,
+  "Canyon Road Pinot Grigio": 28.25,
+  "Canyon Road Sauv Blanc": 27.0,
+  "Caposaldo Pinot Grigio": 27.25,
+  "Harken Chard": 25.5,
+  "Santa Margherita Pinot Grigio": 28.0,
+  "Whitehaven Sauv Blanc": 20.75,
+  "Zazzo's Bourbon": 26.25,
+  "Zazzo's Gin": 19.25,
+  "Zazzo's Rum": 16.01,
+  "Zazzo's Straight Bourbon": 17.84,
+  "Zazzo's Tequila": 14.01,
+  "Zazzo's Vodka": 28.3
+};
+const mkOrders = (master) => master.map(i => ({
+    product: i.product, category: i.category, class: i.class,
+    vendor: i.vendor, unit: "", par: "", lastWeek: String(({"Bud Light": 230.0, "Budweiser": 102.0, "Budweiser Zero": 61.0, "Cider Boys": 27.0, "Coors Light": 147.0, "Corona": 68.0, "Corona Light": 58.0, "Daura": 9.0, "Guinness": 29.0, "Heineken": 40.0, "MGD": 29.0, "Michelob Ultra": 270.0, "Miller High Life": 6.0, "Miller Lite": 154.0, "Modelo": 37.0, "Stella N/A": 25.0, "Summer Shandy": 24.0, "Yuengling Flight": 27.0, "Angel's Envy": 1.85, "Benchmark": 1.0, "Blade and Bow": 1.7, "Buffalo Trace": 0.85, "Bulleit Bourbon": 2.65, "Elijah Craig": 1.45, "High West": 0.5, "Horse Soldier": 1.5, "Knob Creek": 3.85, "Maker's Mark": 1.6, "Mitcher's": 0.6, "Old Forester": 0.95, "Piggy Back": 3.2, "Redemption": 0.6, "Row 94": 0.6, "Russell's": 0.85, "Wild Turkey": 1.4, "E&J": 0.25, "Hennessy": 1.6, "Lamarca Splitz": 21.0, "Lyric N/A Champagne": 11.0, "Whycliff Champagne": 8.0, "Hendricks": 2.35, "Tanqueray": 2.75, "Jameson": 12.7, "Red Breast": 1.0, "Tullamore D.E.W": 2.5, "Ambiegram": 1.1, "Blue Moon": 0.45, "Buenaveza": 0.05, "Center Line": 1.75, "Dunkel": 0.15, "Hopular Kid": 0.5, "Labatt Blue": 1.05, "Longsnapper": 0.85, "Miller Lite Keg": 1.05, "Morretti": 0.5, "Old Style": 0.9, "Stella Keg": 1.35, "Stone IPA": 0.6, "Yuengling Keg": 2.05, "Zazzo's Point": 0.7, "Aperol": 0.0, "Bailey's": 1.45, "Chambord": 1.5, "Cointreau": 2.25, "Disaronno": 2.75, "Don Q": 0.3, "Fireball Apple": 1.0, "Frangelico": 2.55, "Grand Marnier": 1.85, "Jagermeister": 2.14, "Midori": 0.9, "Peachtree": 18.01, "Rumple Minze": 1.25, "Sambuca": 0.3, "Select Aperitif": 1.85, "Tippy Cow": 1.8, "Gallo Dry Vermouth": 1.33, "Gallo Sweet Vermouth": 2.95, "Lo Fi Dry Vermouth": 1.0, "Altos Malbec": 17.5, "Canyon Road Cabernet": 27.0, "Canyon Road Pinot Noir": 9.5, "Decoy Cabernet": 13.0, "Decoy Pinot Noir": 27.0, "Duckhorn Cabernet": 12.0, "Franciscan Cabernet": 23.5, "Hahn Pinot Noir": 10.75, "Josh Cabernet": 28.25, "Ruffino Chianti": 22.5, "Unshackled Red Blend": 12.0, "Bacardi": 11.95, "Captain Morgan": 12.85, "Kahlua": 2.2, "Myers's": 3.3, "Rumchata": 3.8, "Rumhaven": 3.45, "Bulleit Rye": 2.8, "Pinhook": 0.85, "Sazerac Rye": 0.9, "Templeton Rye": 0.9, "Whistle Pig": 2.95, "Dewar's": 2.45, "Glenlivet": 2.45, "Black Cherry White Claw": 20.0, "High Noon Peach": 18.0, "High Noon Peach Tea": 15.0, "High Noon Pineapple": 43.0, "High Noon Tea": 5.0, "High Noon Watermelon": 25.0, "Suncruiser": 1.0, "Vodkade Blue": 16.0, "Vodkade Orange": 16.0, "Vodkade Red": 10.0, "Vodkade S.F Blue": 6.0, "Vodkade S.F Lime": 6.0, "Vodkade S.F Orange": 4.0, "Vodkade S.F Red": 4.0, "Don Julio": 1.9, "Hornitos": 2.45, "Milagro": 2.01, "Belvedere": 2.25, "Grey Goose": 1.8, "Kettle One": 1.5, "Sobieski Citron": 2.25, "Sobieski Vanilla": 3.75, "Tito's": 8.55, "B&B": 1.0, "Crown Royal": 1.2, "Crown Royal Apple": 1.85, "Crown Royal Peach": 3.0, "Gentleman Jack": 1.75, "Jack Daniels": 2.2, "Jack Daniels Fire 1L": 0.33, "Jack Daniels Fire 750": 1.0, "Jack Daniels Honey": 1.33, "Jim Beam": 2.25, "Seagram's 7": 2.95, "Seagram's VO": 2.4, "Screwball": 1.7, "Southern Comfort": 1.95, "Woodford Reserve": 1.1, "Canyon Road Chard": 25.0, "Canyon Road Moscato": 33.75, "Canyon Road Pinot Grigio": 28.25, "Canyon Road Sauv Blanc": 27.0, "Caposaldo Pinot Grigio": 27.25, "Harken Chard": 25.5, "Santa Margherita Pinot Grigio": 28.0, "Whitehaven Sauv Blanc": 20.75, "Zazzo's Bourbon": 26.25, "Zazzo's Gin": 19.25, "Zazzo's Rum": 16.01, "Zazzo's Straight Bourbon": 17.84, "Zazzo's Tequila": 14.01, "Zazzo's Vodka": 28.3})[i.product] || ""), received: "", sold: "", order: ""
+}));
+// ─── CSS ────────────────────────────────────────────────────────────────────
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Inter:wght@400;500;600;700&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{background:#EFEFEF;color:#111111;font-family:'Inter',system-ui,sans-serif;font-size:14px;min-height:100vh;-webkit-font-smoothing:antialiased;}
+.H{position:fixed;top:0;left:0;right:0;width:100%;height:60px;background:#C8102E;border-bottom:4px solid #1B6B3A;display:flex;align-items:center;padding:0 16px;gap:10px;flex-shrink:0;z-index:200;}
+.H-logo{font-family:'Libre Baskerville',Georgia,serif;font-size:20px;font-weight:700;color:#FFFFFF;letter-spacing:0.04em;cursor:pointer;user-select:none;flex-shrink:0;}
+.H-logo:hover{opacity:0.85;}
+.H-right{margin-left:auto;display:flex;align-items:center;gap:8px;}
+.B{display:inline-flex;align-items:center;justify-content:center;gap:5px;height:36px;padding:0 14px;border-radius:6px;font-family:'Inter',system-ui,sans-serif;font-size:12px;font-weight:700;letter-spacing:0.02em;cursor:pointer;border:2px solid transparent;white-space:nowrap;transition:background 0.13s,border-color 0.13s,color 0.13s;-webkit-tap-highlight-color:transparent;}
+.B-red{background:#C8102E;border-color:#C8102E;color:#FFFFFF;}.B-red:hover{background:#A50D25;border-color:#A50D25;}
+.B-green{background:#1B6B3A;border-color:#1B6B3A;color:#FFFFFF;}.B-green:hover{background:#145430;border-color:#145430;}
+.B-outline{background:#FFFFFF;border-color:#E2E2E2;color:#111111;}.B-outline:hover{border-color:#C8102E;color:#C8102E;}
+.B-ghost{background:transparent;border-color:rgba(255,255,255,0.5);color:#FFFFFF;}.B-ghost:hover{background:rgba(255,255,255,0.15);border-color:#FFFFFF;}
+.B-lg{height:44px;padding:0 20px;font-size:14px;}
+.LocBar{background:#FFFFFF;border-bottom:1px solid #E2E2E2;padding:10px 16px;flex-shrink:0;margin-top:64px;}
+.LocBar-grid{display:grid;gap:6px;}
+.Pill{display:flex;align-items:center;justify-content:center;gap:3px;height:32px;padding:0 4px;border-radius:8px;font-family:'Inter',system-ui,sans-serif;font-size:11px;font-weight:700;border:2px solid transparent;white-space:nowrap;width:100%;text-align:center;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background 0.13s,border-color 0.13s,color 0.13s;}
+.Pill-done{background:#E8F5ED;border-color:#1B6B3A;color:#1B6B3A;}
+.Pill-active{background:#FDECEA;border-color:#C8102E;color:#C8102E;}
+.Pill-locked{background:#F5F5F5;border-color:#E2E2E2;color:#CCCCCC;cursor:default;}
+.MgrBanner{background:#1B6B3A;color:#FFFFFF;font-family:'Inter',system-ui,sans-serif;font-size:11px;font-weight:700;padding:4px 10px;border-radius:4px;margin-bottom:8px;text-align:center;letter-spacing:0.06em;text-transform:uppercase;}
+.Page{max-width:680px;margin:0 auto;padding:80px 16px 20px;overflow-x:visible;}
+.SHead{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px;}
+.STitle{font-family:'Libre Baskerville',Georgia,serif;font-size:20px;font-weight:700;color:#111111;margin-bottom:3px;}
+.SSub{font-size:13px;color:#777777;}
+.Card{background:#FFFFFF;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,0.08),0 0 0 1px rgba(0,0,0,0.04);margin-bottom:16px;;overflow:visible;}
+.Card-head{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:1px solid #F5F5F5;}
+.Card-title{font-family:'Libre Baskerville',Georgia,serif;font-size:15px;font-weight:700;color:#111111;}
+.Card-badge{font-size:12px;font-weight:600;color:#777777;}
+.ProdList{display:flex;flex-direction:column;}
+.ClassDiv{background:#C8102E;color:#FFFFFF;font-family:'Inter',system-ui,sans-serif;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;padding:7px 16px;}
+.CatDiv{background:#FDECEA;color:#C8102E;font-family:'Inter',system-ui,sans-serif;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;padding:5px 16px;}
+.ProdRow{background:#FFFFFF;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #F5F5F5;gap:10px;width:100%;min-width:0;}
+.ProdRow:last-child{border-bottom:none;}
+.ProdRow-info{flex:1;min-width:0;}
+.ProdRow-name{font-family:'Inter',system-ui,sans-serif;font-size:14px;font-weight:600;color:#111111;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ProdRow-meta{font-size:11px;color:#777777;margin-top:2px;}
+.Stepper{display:flex;align-items:center;flex-shrink:0;width:150px;}
+.StepBtn{width:40px;height:44px;background:#F5F5F5;border:2px solid #E2E2E2;font-size:20px;font-weight:700;color:#111111;display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background 0.12s;user-select:none;}
+.StepBtn:first-child{border-radius:8px 0 0 8px;border-right:none;}
+.StepBtn:last-child{border-radius:0 8px 8px 0;border-left:none;}
+.StepBtn:active{background:#E2E2E2;}
+.StepInput{width:70px;height:44px;border:2px solid #E2E2E2;border-left:none;border-right:none;background:#FFFFFF;color:#111111;font-family:'Inter',system-ui,sans-serif;font-size:17px;font-weight:700;text-align:center;padding:0;-webkit-appearance:none;appearance:none;}
+.StepInput:focus{outline:none;border-color:#C8102E;position:relative;z-index:1;}
+.StepInput::-webkit-inner-spin-button,.StepInput::-webkit-outer-spin-button{-webkit-appearance:none;margin:0;}
+.StepInput.filled{background:#fff8f9;color:#C8102E;}
+.Footer{position:fixed;bottom:0;left:0;right:0;height:60px;background:#C8102E;border-top:4px solid #1B6B3A;display:flex;align-items:center;justify-content:space-between;padding:0 16px;z-index:150;flex-shrink:0;}
+.Footer-prog{font-family:'Inter',system-ui,sans-serif;font-size:12px;font-weight:700;color:rgba(255,255,255,0.9);text-align:center;flex:1;padding:0 8px;}
+.Footer-btn{height:38px;padding:0 14px;border-radius:6px;font-family:'Inter',system-ui,sans-serif;font-size:12px;font-weight:700;cursor:pointer;border:2px solid rgba(255,255,255,0.5);background:transparent;color:#FFFFFF;white-space:nowrap;-webkit-tap-highlight-color:transparent;min-width:70px;}
+.Footer-btn:active{background:rgba(255,255,255,0.15);}
+.Footer-btn-next{background:#FFFFFF;color:#C8102E;border-color:#FFFFFF;}
+.Footer-btn-next:active{background:#f0f0f0;}
+.Footer-spacer{min-width:70px;}
+.ScrollBtn{position:fixed;right:16px;width:40px;height:40px;border-radius:50%;background:#FFFFFF;border:2px solid #E2E2E2;box-shadow:0 2px 8px rgba(0,0,0,0.15);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#111111;cursor:pointer;z-index:140;-webkit-tap-highlight-color:transparent;}
+.ScrollUp{bottom:72px;}.ScrollDown{bottom:120px;}
+.TWrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+.ST{display:flex;border:1px solid #E2E2E2;border-radius:8px;background:#FFFFFF;overflow:visible;}
+.ST-left{flex-shrink:0;width:130px;overflow:hidden;background:#FFFFFF;border-right:2px solid #E2E2E2;}
+.ST-right{flex:1;min-width:0;overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;}
+.ST-left table{border-collapse:collapse;width:130px;font-family:'Inter',system-ui,sans-serif;font-size:13px;}
+.ST-right table{border-collapse:collapse;font-family:'Inter',system-ui,sans-serif;font-size:13px;}
+.ST-left th,.ST-right th{background:#F5F5F5;padding:0 10px;height:36px;text-align:left;font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#777777;border-bottom:2px solid #E2E2E2;white-space:nowrap;}
+.ST-left td,.ST-right td{padding:0 10px;height:38px;color:#111111;border-bottom:1px solid #F5F5F5;white-space:nowrap;vertical-align:middle;}
+.ST-left tr.RC-l td,.ST-right tr.RC-r td{background:#C8102E;color:#FFFFFF;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;height:30px;border-bottom:none;}
+.ST-left tr.RK-l td,.ST-right tr.RK-r td{background:#FDECEA;color:#C8102E;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;height:26px;border-bottom:none;}
+.T{width:100%;border-collapse:collapse;font-family:'Inter',system-ui,sans-serif;font-size:13px;}
+.T th{padding:9px 10px;text-align:left;font-size:11px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:#777777;background:#F5F5F5;border-bottom:2px solid #E2E2E2;white-space:nowrap;}.T th:first-child{position:sticky;left:0;z-index:4;background:#F5F5F5;box-shadow:2px 0 3px rgba(0,0,0,0.1);}
+.T td{padding:8px 10px;color:#111111;border-bottom:1px solid #F5F5F5;vertical-align:middle;}.T td:first-child{position:sticky;left:0;z-index:2;background:#FFFFFF;max-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:2px 0 3px rgba(0,0,0,0.1);}.T .RC td:first-child{position:sticky;left:0;z-index:2;background:#C8102E!important;box-shadow:2px 0 3px rgba(0,0,0,0.2);}.T .RK td:first-child{position:sticky;left:0;z-index:2;background:#FDECEA!important;box-shadow:2px 0 3px rgba(0,0,0,0.1);}
+.T tr:last-child td{border-bottom:none;}
+.T tbody tr:hover td{background:#fafafa;}
+.T .RC td{background:#C8102E!important;color:#FFFFFF!important;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;padding:7px 14px;border-bottom:none!important;}
+.T .RK td{background:#FDECEA!important;color:#C8102E!important;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;padding:5px 14px;border-bottom:none!important;}
+.TInput{height:34px;background:#FFFFFF;border:2px solid #E2E2E2;border-radius:6px;color:#111111;font-family:'Inter',system-ui,sans-serif;font-size:13px;font-weight:600;padding:0 8px;text-align:center;}
+.TInput:focus{outline:none;border-color:#C8102E;}
+.TInput-w70{width:70px;}
+.pos{color:#1B6B3A;font-weight:700;}.neg{color:#C8102E;font-weight:700;}
+.Login{min-height:100vh;background:#EFEFEF;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;gap:40px;}
+.Login-brand{text-align:center;}
+.Login-logo{font-family:'Libre Baskerville',Georgia,serif;font-size:48px;font-weight:700;color:#C8102E;letter-spacing:0.03em;line-height:1;}
+.Login-tag{margin-top:10px;font-family:'Inter',system-ui,sans-serif;font-size:11px;font-weight:700;color:#777777;letter-spacing:0.2em;text-transform:uppercase;}
+.Login-grid{display:grid;grid-template-columns:200px 200px;grid-template-rows:160px 160px 160px;gap:20px;justify-content:center;}
+.LCard{width:200px;height:160px;background:#FFFFFF;border:2px solid #1B6B3A;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.07);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;transition:border-color 0.15s,box-shadow 0.15s,transform 0.15s;user-select:none;-webkit-tap-highlight-color:transparent;}
+.LCard:hover{border-color:#C8102E;box-shadow:0 6px 24px rgba(200,16,46,0.13);transform:translateY(-3px);}
+.LCard:active{transform:translateY(0);}
+.LCard-role{font-family:'Libre Baskerville',Georgia,serif;font-size:17px;font-weight:700;color:#111111;text-align:center;line-height:1.2;}
+.LCard-name{font-family:'Inter',system-ui,sans-serif;font-size:13px;font-weight:600;font-style:italic;color:#C8102E;text-align:center;}
+.Overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:500;padding:20px;}
+.Modal{background:#FFFFFF;border-radius:12px;padding:28px;max-width:420px;width:100%;box-shadow:0 24px 64px rgba(0,0,0,0.22);}
+.Modal-title{font-family:'Libre Baskerville',Georgia,serif;font-size:19px;font-weight:700;color:#111111;margin-bottom:10px;}
+.Modal-body{font-size:14px;color:#444444;line-height:1.65;margin-bottom:24px;}
+.Modal-actions{display:flex;gap:10px;justify-content:flex-end;}
+.PinOverlay{position:fixed;inset:0;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;z-index:600;padding:20px;}
+.PinModal{background:#FFFFFF;border-radius:14px;padding:28px 24px;width:100%;max-width:320px;box-shadow:0 24px 64px rgba(0,0,0,0.25);text-align:center;}
+.PinModal-title{font-family:'Libre Baskerville',Georgia,serif;font-size:20px;font-weight:700;color:#111111;margin-bottom:6px;}
+.PinModal-sub{font-size:13px;color:#777777;margin-bottom:20px;}
+.PinDots{display:flex;justify-content:center;gap:12px;margin-bottom:20px;}
+.PinDot{width:18px;height:18px;border-radius:50%;border:2px solid #CCCCCC;background:#FFFFFF;transition:background 0.15s,border-color 0.15s;}
+.PinDot.on{background:#C8102E;border-color:#C8102E;}
+.PinDot.err{background:#C8102E;border-color:#C8102E;animation:shake 0.3s ease;}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+.PinErr{font-size:12px;font-weight:700;color:#C8102E;margin-bottom:12px;}
+.PinKeys{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;}
+.PinKey{height:56px;background:#F5F5F5;border:2px solid #E2E2E2;border-radius:10px;font-family:'Inter',system-ui,sans-serif;font-size:22px;font-weight:700;color:#111111;cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;transition:background 0.12s;}
+.PinKey:active{background:#E2E2E2;}
+.PinKey-del{font-size:16px;}
+.PinKey-empty{background:transparent;border-color:transparent;pointer-events:none;}
+.Complete{display:flex;flex-direction:column;align-items:center;text-align:center;padding:60px 20px;}
+.Complete-circle{width:80px;height:80px;border-radius:50%;background:#E8F5ED;border:3px solid #1B6B3A;display:flex;align-items:center;justify-content:center;font-size:38px;margin-bottom:20px;}
+.Complete-title{font-family:'Libre Baskerville',Georgia,serif;font-size:24px;font-weight:700;color:#111111;margin-bottom:8px;}
+.Complete-sub{font-size:14px;color:#777777;margin-bottom:28px;}
+.Complete-actions{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;}
+.AList{display:flex;flex-direction:column;gap:10px;}
+.ARow{background:#FFFFFF;border:2px solid #E2E2E2;border-radius:10px;padding:15px 18px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;transition:border-color 0.15s,box-shadow 0.15s;}
+.ARow:hover{border-color:#C8102E;box-shadow:0 4px 16px rgba(200,16,46,0.09);}
+.ARow-label{font-family:'Libre Baskerville',Georgia,serif;font-size:15px;font-weight:700;color:#111111;}
+.ARow-sub{font-size:12px;color:#777777;margin-top:2px;}
+.ARow-arrow{font-size:22px;font-weight:700;color:#C8102E;}
+.ATabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;}
+.ATab{height:34px;padding:0 16px;border-radius:17px;font-family:'Inter',system-ui,sans-serif;font-size:12px;font-weight:700;cursor:pointer;border:2px solid #E2E2E2;background:#FFFFFF;color:#444444;transition:all 0.14s;}
+.ATab.on{background:#C8102E;border-color:#C8102E;color:#FFFFFF;}
+.ATab:hover:not(.on){border-color:#C8102E;color:#C8102E;}
+.TrendRow{padding:14px 16px;border-bottom:1px solid #F5F5F5;display:flex;align-items:center;justify-content:space-between;gap:12px;}
+.TrendRow:last-child{border-bottom:none;}
+.TrendName{font-family:'Inter',system-ui,sans-serif;font-size:13px;font-weight:700;color:#111111;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.TrendMeta{font-size:11px;color:#777777;margin-top:2px;}
+.TrendStats{display:flex;gap:6px;align-items:center;flex-shrink:0;}
+.TStat{text-align:center;min-width:44px;}
+.TStat-val{font-size:13px;font-weight:700;color:#111111;line-height:1;}
+.TStat-label{font-size:8px;font-weight:700;color:#777777;text-transform:uppercase;letter-spacing:0.04em;margin-top:2px;}
+.MasterOverlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:700;display:flex;flex-direction:column;}
+.MasterPanel{background:#FFFFFF;width:100%;height:100%;display:flex;flex-direction:column;}
+.MasterHead{background:#C8102E;border-bottom:4px solid #1B6B3A;height:60px;display:flex;align-items:center;padding:0 16px;gap:10px;flex-shrink:0;}
+.MasterHead-title{font-family:'Libre Baskerville',Georgia,serif;font-size:18px;font-weight:700;color:#FFFFFF;flex:1;}
+.MasterBody{flex:1;overflow-y:auto;padding:16px;}
+.MasterRow{background:#FFFFFF;border:1px solid #E2E2E2;border-radius:8px;padding:12px 14px;margin-bottom:10px;}
+.MasterField{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.MasterField:last-child{margin-bottom:0;}
+.MasterLabel{font-size:11px;font-weight:700;color:#777777;text-transform:uppercase;letter-spacing:0.06em;width:70px;flex-shrink:0;}
+.MasterInput{flex:1;height:34px;background:#F5F5F5;border:2px solid #E2E2E2;border-radius:6px;font-family:'Inter',system-ui,sans-serif;font-size:13px;font-weight:600;color:#111111;padding:0 10px;}
+.MasterInput:focus{outline:none;border-color:#C8102E;background:#FFFFFF;}
+.MasterSelect{flex:1;height:34px;background:#F5F5F5;border:2px solid #E2E2E2;border-radius:6px;font-family:'Inter',system-ui,sans-serif;font-size:13px;font-weight:600;color:#111111;padding:0 8px;}
+.MasterSelect:focus{outline:none;border-color:#C8102E;}
+.LocCheckGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:4px;flex:1;}
+.LocCheck{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#111111;cursor:pointer;}
+.LocCheck input{accent-color:#C8102E;width:15px;height:15px;}
+.MasterDel{height:32px;padding:0 12px;border-radius:5px;font-family:'Inter',system-ui,sans-serif;font-size:11px;font-weight:700;cursor:pointer;border:2px solid #C8102E;background:transparent;color:#C8102E;-webkit-tap-highlight-color:transparent;}
+.MasterDel:hover{background:#C8102E;color:#FFFFFF;}
+.Empty{text-align:center;padding:56px 20px;color:#777777;font-size:14px;}
+.Empty-icon{font-size:44px;margin-bottom:12px;}
+.Banner{display:flex;align-items:center;gap:8px;padding:11px 14px;border-radius:8px;font-size:13px;font-weight:600;margin-bottom:16px;}
+.Banner-g{background:#E8F5ED;color:#1B6B3A;border:1px solid #A8D5B8;}
+.Banner-r{background:#FDECEA;color:#C8102E;border:1px solid #F5C0C8;}
+@media print{
+  .no-print{display:none!important;}
+  .print-show{display:block!important;}
+  body{background:white;}
+  .H{background:white!important;border-bottom:2px solid #000;position:static;}
+  .H-logo{color:black!important;}
+  .Card{box-shadow:none;border:1px solid #ccc;}
+  .ClassDiv,.CatDiv,.T .RC td,.T .RK td{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .T th{background:#f5f5f5!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  @page{margin:1cm;}
+}
+`;
+// ─── PIN MODAL ───────────────────────────────────────────────────────────────
+function PINModal({ show, input, error, onKey, onCancel }) {
+    if (!show)
+        return null;
+    return (React.createElement("div", { className: "PinOverlay" },
+        React.createElement("div", { className: "PinModal" },
+            React.createElement("div", { className: "PinModal-title" }, "Manager Access"),
+            React.createElement("div", { className: "PinModal-sub" }, "Enter your 4-digit PIN"),
+            React.createElement("div", { className: "PinDots" }, [0, 1, 2, 3].map(i => (React.createElement("div", { key: i, className: "PinDot" + (input.length > i ? " on" : "") + (error ? " err" : "") })))),
+            error && React.createElement("div", { className: "PinErr" }, "Incorrect PIN. Try again."),
+            React.createElement("div", { className: "PinKeys" }, ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "⌫"].map((k, i) => (React.createElement("button", { key: i, className: "PinKey" + (k === "" ? " PinKey-empty" : k === "⌫" ? " PinKey-del" : ""), onClick: () => k !== "" && onKey(k) }, k)))),
+            React.createElement("button", { className: "B B-outline", style: { width: "100%" }, onClick: onCancel }, "Cancel"))));
+}
+// ─── usePIN HOOK ─────────────────────────────────────────────────────────────
+function usePIN(onSuccess) {
+    const [show, setShow] = useState(false);
+    const [input, setInput] = useState("");
+    const [error, setError] = useState(false);
+    const [tapCount, setTapCount] = useState(0);
+    const timer = useRef(null);
+    const tap = useCallback(() => {
+        setTapCount(prev => {
+            const next = prev + 1;
+            if (timer.current)
+                clearTimeout(timer.current);
+            timer.current = setTimeout(() => setTapCount(0), 600);
+            if (next >= 3) {
+                setTapCount(0);
+                setShow(true);
+                setInput("");
+                setError(false);
+            }
+            return next;
+        });
+    }, []);
+    const pressKey = (key) => {
+        if (key === "⌫") {
+            setInput(p => p.slice(0, -1));
+            setError(false);
+            return;
+        }
+        const next = input + key;
+        setInput(next);
+        setError(false);
+        if (next.length === 4) {
+            setTimeout(() => {
+                if (next === CORRECT_PIN) {
+                    onSuccess();
+                    setShow(false);
+                    setInput("");
+                }
+                else {
+                    setError(true);
+                    setInput("");
+                }
+            }, 150);
+        }
+    };
+    const cancel = () => { setShow(false); setInput(""); setError(false); };
+    const Modal = React.createElement(PINModal, { show: show, input: input, error: error, onKey: pressKey, onCancel: cancel });
+    return { tap, Modal };
+}
+// ─── PROD ROWS ───────────────────────────────────────────────────────────────
+function ProdRows({ groups, counts, loc, isDecimal, onStep, onChange }) {
+    return Object.entries(groups).map(([cls, cats]) => (React.createElement("div", { key: cls },
+        React.createElement("div", { className: "ClassDiv" }, cls),
+        Object.entries(cats).map(([cat, items]) => (React.createElement("div", { key: cat },
+            React.createElement("div", { className: "CatDiv" }, cat),
+            items.map(item => {
+                var _a, _b;
+                const val = (_b = (_a = counts[loc]) === null || _a === void 0 ? void 0 : _a[item.product]) !== null && _b !== void 0 ? _b : "";
+                return (React.createElement("div", { className: "ProdRow", key: item.product },
+                    React.createElement("div", { className: "ProdRow-info" },
+                        React.createElement("div", { className: "ProdRow-name" }, item.product),
+                        React.createElement("div", { className: "ProdRow-meta" }, getUnit(item, loc))),
+                    React.createElement("div", { className: "Stepper" },
+                        React.createElement("div", { className: "StepBtn", onClick: () => onStep(item.product, -1) }, "\u2212"),
+                        React.createElement("input", { className: "StepInput" + (val !== "" ? " filled" : ""), type: "number", min: "0", step: isDecimal ? "0.25" : "1", inputMode: isDecimal ? "decimal" : "numeric", placeholder: "0", value: val, onChange: e => onChange(item.product, e.target.value) }),
+                        React.createElement("div", { className: "StepBtn", onClick: () => onStep(item.product, 1) }, "+"))));
+            })))))));
+}
+// ─── PRINT SHEET ─────────────────────────────────────────────────────────────
+function PrintSheet({ user, locs, sealed, open, blank }) {
+    const master = getMaster();
+    const counts = user === "selena" ? sealed : open;
+    return (React.createElement("div", null, locs.map((loc, locIdx) => {
+        const products = forLoc(master, loc);
+        const groups = groupCC(products);
+        const isLast = locIdx === locs.length - 1;
+        return (React.createElement("div", { key: loc, style: { pageBreakAfter: isLast ? "auto" : "always", breakAfter: isLast ? "auto" : "always" } },
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "3px solid #000", paddingBottom: 6, marginBottom: 10 } },
+                React.createElement("div", null,
+                    React.createElement("div", { style: { fontFamily: "Georgia,serif", fontSize: 16, fontWeight: "bold", color: "#C8102E" } }, "ZAZZO'S LIQUOR INVENTORY"),
+                    React.createElement("div", { style: { fontSize: 11, fontWeight: "bold", textTransform: "uppercase", letterSpacing: "0.1em", color: "#333", marginTop: 2 } },
+                        user === "selena" ? "Sealed Stock" : "Open Stock",
+                        " \u2014 ",
+                        loc)),
+                React.createElement("div", { style: { textAlign: "right", fontSize: 10, color: "#555" } },
+                    React.createElement("div", null,
+                        "Date: ",
+                        blank ? "_______________" : new Date().toLocaleDateString()),
+                    React.createElement("div", { style: { marginTop: 2 } },
+                        "Counter: ",
+                        blank ? "_______________" : user === "selena" ? "Selena" : "Erika"))),
+            React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 11 } },
+                React.createElement("thead", null,
+                    React.createElement("tr", null,
+                        React.createElement("th", { style: { textAlign: "left", borderBottom: "2px solid #000", padding: "4px 8px", fontSize: 10, textTransform: "uppercase", width: "55%" } }, "Product"),
+                        React.createElement("th", { style: { textAlign: "left", borderBottom: "2px solid #000", padding: "4px 8px", fontSize: 10, textTransform: "uppercase", width: "25%" } }, "Category"),
+                        React.createElement("th", { style: { textAlign: "left", borderBottom: "2px solid #000", padding: "4px 8px", fontSize: 10, textTransform: "uppercase", width: "20%" } }, "Count"))),
+                React.createElement("tbody", null, Object.entries(groups).map(([cls, cats]) => (React.createElement(Fragment, { key: cls },
+                    React.createElement("tr", null,
+                        React.createElement("td", { colSpan: 3, style: { background: "#C8102E", color: "#fff", fontWeight: "bold", padding: "4px 8px", fontSize: 10, textTransform: "uppercase" } }, cls)),
+                    Object.entries(cats).map(([cat, items]) => (React.createElement(Fragment, { key: cat },
+                        React.createElement("tr", null,
+                            React.createElement("td", { colSpan: 3, style: { background: "#FDECEA", color: "#C8102E", padding: "3px 8px", fontSize: 10, textTransform: "uppercase", fontWeight: "bold" } }, cat)),
+                        items.map((item, ii) => {
+                            var _a;
+                            return (React.createElement("tr", { key: item.product, style: { background: ii % 2 === 0 ? "#fff" : "#fafafa" } },
+                                React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #eee" } }, item.product),
+                                React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #eee", color: "#555" } }, item.category),
+                                React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #eee", fontWeight: 600 } }, blank ? React.createElement("div", { style: { width: 52, height: 18, border: "1px solid #999", borderRadius: 2, display: "inline-block" } }) : ((_a = counts[loc]) === null || _a === void 0 ? void 0 : _a[item.product]) || "")));
+                        }))))))))),
+            React.createElement("div", { style: { fontSize: 9, color: "#999", textAlign: "right", borderTop: "1px solid #ddd", paddingTop: 4, marginTop: 8 } },
+                "Page ",
+                locIdx + 1,
+                " of ",
+                locs.length,
+                " \u2014 Zazzo's Liquor Inventory")));
+    })));
+}
+// ─── COUNT SCREEN ─────────────────────────────────────────────────────────────
+function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
+    const [activeIdx, setActiveIdx] = useState(0);
+    const [completed, setCompleted] = useState([]);
+    const [modal, setModal] = useState(false);
+    const [lockWarn, setLockWarn] = useState(false);
+    const [managerMode, setManagerMode] = useState(false);
+    const [printMode, setPrintMode] = useState("filled");
+    const contentRef = useRef(null);
+    const [showUp, setShowUp] = useState(false);
+    const [showDown, setShowDown] = useState(false);
+    const { tap, Modal: PinModal } = usePIN(() => setManagerMode(true));
+    const master = getMaster();
+    const curLoc = locs[activeIdx];
+    const isDecimal = user === "erika";
+    const allDone = completed.length >= locs.length && locs.length > 0;
+    const products = forLoc(master, curLoc);
+    const filled = products.filter(p => { var _a, _b; return ((_a = counts[curLoc]) === null || _a === void 0 ? void 0 : _a[p.product]) !== "" && ((_b = counts[curLoc]) === null || _b === void 0 ? void 0 : _b[p.product]) !== undefined; }).length;
+    const groups = groupCC(products);
+    const cols = Math.min(locs.length, 3);
+    const handleScroll = () => {
+        const el = contentRef.current;
+        if (!el)
+            return;
+        setShowUp(el.scrollTop > 100);
+        setShowDown(el.scrollHeight - el.clientHeight - el.scrollTop > 100);
+    };
+    const scrollTop = () => { if (contentRef.current)
+        contentRef.current.scrollTo({ top: 0, behavior: "smooth" }); };
+    const scrollBot = () => { if (contentRef.current)
+        contentRef.current.scrollTo({ top: contentRef.current.scrollHeight, behavior: "smooth" }); };
+    const step = (product, delta) => {
+        var _a;
+        const cur = Number(((_a = counts[curLoc]) === null || _a === void 0 ? void 0 : _a[product]) || 0);
+        const next = Math.max(0, Math.round((cur + delta) * (isDecimal ? 100 : 1)) / (isDecimal ? 100 : 1));
+        setCounts(prev => (Object.assign(Object.assign({}, prev), { [curLoc]: Object.assign(Object.assign({}, prev[curLoc]), { [product]: String(next) }) })));
+    };
+    const onChange = (product, val) => {
+        setCounts(prev => (Object.assign(Object.assign({}, prev), { [curLoc]: Object.assign(Object.assign({}, prev[curLoc]), { [product]: val }) })));
+        if (val !== "") {
+            sbUpsert("counts", { week_label: "current", user_type: user, location: curLoc, product, count_value: Number(val) }, "week_label,user_type,location,product")
+                .catch(e => console.error("Count save:", e));
+        }
+    };
+    const hasBlank = () => products.some(i => { var _a; const v = (_a = counts[curLoc]) === null || _a === void 0 ? void 0 : _a[i.product]; return v === "" || v === undefined; });
+    const tryAdvance = () => hasBlank() ? setModal(true) : advance();
+    const advance = () => { setCompleted(prev => [...prev, curLoc]); if (activeIdx < locs.length - 1)
+        setActiveIdx(p => p + 1); setModal(false); };
+    return (React.createElement("div", { style: { display: "flex", flexDirection: "column", height: "100vh", overflowY: "hidden", background: "#EFEFEF" } },
+        React.createElement("header", { className: "H no-print" },
+            React.createElement("div", { className: "H-logo", onClick: tap, style: { userSelect: "none" } }, "Zazzo's"),
+            React.createElement("div", { className: "H-right" },
+                React.createElement("button", { className: "B B-ghost", onClick: () => { setPrintMode("blank"); setTimeout(() => window.print(), 50); } }, "\uD83D\uDDA8 Blank"),
+                React.createElement("button", { className: "B B-ghost", onClick: () => { setPrintMode("filled"); setTimeout(() => window.print(), 50); } }, "\uD83D\uDDA8 Filled"),
+                React.createElement("button", { className: "B B-ghost", onClick: onBack }, "\u2190 Home"))),
+        React.createElement("div", { className: "LocBar no-print" },
+            managerMode && React.createElement("div", { className: "MgrBanner" }, "Manager Mode \u2014 Triple Tap Logo to Lock"),
+            React.createElement("div", { className: "LocBar-grid", style: { gridTemplateColumns: `repeat(${cols},1fr)` } }, locs.map((loc, i) => {
+                const done = completed.includes(loc), active = i === activeIdx, locked = !done && !active;
+                return (React.createElement("span", { key: loc, className: `Pill ${done ? "Pill-done" : active ? "Pill-active" : "Pill-locked"}`, onClick: () => { if (done || managerMode)
+                        setActiveIdx(i);
+                    else if (locked)
+                        setLockWarn(true); } },
+                    done ? "✓ " : active ? "● " : "○ ",
+                    loc === "Window/Party Room" ? "Window/Party" : loc));
+            }))),
+        React.createElement("div", { ref: contentRef, onScroll: handleScroll, style: { flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "16px 16px 80px" } },
+            allDone ? (React.createElement("div", { className: "Complete" },
+                React.createElement("div", { className: "Complete-circle" }, "\u2713"),
+                React.createElement("div", { className: "Complete-title" }, "Count Complete"),
+                React.createElement("div", { className: "Complete-sub" },
+                    "All locations counted for ",
+                    user === "selena" ? "Sealed Stock" : "Open Stock",
+                    "."),
+                React.createElement("div", { className: "Complete-actions" },
+                    React.createElement("button", { className: "B B-outline B-lg", onClick: () => { setPrintMode("filled"); setTimeout(() => window.print(), 50); } }, "\uD83D\uDDA8 Print Filled"),
+                    React.createElement("button", { className: "B B-outline B-lg", onClick: () => { setPrintMode("blank"); setTimeout(() => window.print(), 50); } }, "\uD83D\uDDA8 Print Blank"),
+                    React.createElement("button", { className: "B B-outline B-lg", onClick: () => { setActiveIdx(0); setCompleted([]); } }, "Start Over"),
+                    React.createElement("button", { className: "B B-red B-lg", onClick: onBack }, "\u2190 Home")))) : (React.createElement(React.Fragment, null,
+                React.createElement("div", { className: "SHead", style: { marginBottom: 12 } },
+                    React.createElement("div", null,
+                        React.createElement("div", { className: "STitle" }, curLoc),
+                        React.createElement("div", { className: "SSub" },
+                            user === "selena" ? "Full / sealed units only." : "Open / partial units only.",
+                            " ",
+                            activeIdx + 1,
+                            " of ",
+                            locs.length,
+                            "."))),
+                React.createElement("div", { className: "Card" },
+                    React.createElement("div", { className: "Card-head" },
+                        React.createElement("span", { className: "Card-title" }, curLoc),
+                        React.createElement("span", { className: "Card-badge" },
+                            filled,
+                            " / ",
+                            products.length,
+                            " entered")),
+                    React.createElement("div", { className: "ProdList" },
+                        React.createElement(ProdRows, { groups: groups, counts: counts, loc: curLoc, isDecimal: isDecimal, onStep: step, onChange: onChange }))))),
+            React.createElement("div", { style: { display: "none" }, className: "print-show" },
+                React.createElement(PrintSheet, { user: user, locs: locs, sealed: sealed, open: open, blank: printMode === "blank" }))),
+        !allDone && (React.createElement("div", { className: "Footer no-print" },
+            activeIdx > 0 ? React.createElement("button", { className: "Footer-btn", onClick: () => setActiveIdx(p => p - 1) }, "\u2190 Back") : React.createElement("div", { className: "Footer-spacer" }),
+            React.createElement("div", { className: "Footer-prog" },
+                curLoc,
+                " \u00B7 ",
+                filled,
+                " / ",
+                products.length),
+            React.createElement("button", { className: "Footer-btn Footer-btn-next", onClick: tryAdvance }, activeIdx < locs.length - 1 ? "Next →" : "Done ✓"))),
+        showUp && React.createElement("button", { className: "ScrollBtn ScrollUp no-print", onClick: scrollTop }, "\u2191"),
+        showDown && React.createElement("button", { className: "ScrollBtn ScrollDown no-print", onClick: scrollBot }, "\u2193"),
+        modal && (React.createElement("div", { className: "Overlay" },
+            React.createElement("div", { className: "Modal" },
+                React.createElement("div", { className: "Modal-title" }, "Incomplete Count"),
+                React.createElement("div", { className: "Modal-body" },
+                    "Some items in ",
+                    React.createElement("strong", null, curLoc),
+                    " have not been entered. Continue anyway?"),
+                React.createElement("div", { className: "Modal-actions" },
+                    React.createElement("button", { className: "B B-outline", onClick: () => setModal(false) }, "No, Go Back"),
+                    React.createElement("button", { className: "B B-red", onClick: advance }, "Yes, Continue"))))),
+        lockWarn && (React.createElement("div", { className: "Overlay" },
+            React.createElement("div", { className: "Modal" },
+                React.createElement("div", { className: "Modal-title" }, "Location Locked"),
+                React.createElement("div", { className: "Modal-body" }, "Please finalize current location counts before moving on."),
+                React.createElement("div", { className: "Modal-actions" },
+                    React.createElement("button", { className: "B B-red", onClick: () => setLockWarn(false) }, "OK"))))),
+        PinModal,
+        React.createElement("style", null, `@media print{.print-show{display:block!important;}.no-print{display:none!important;}}`)));
+}
+// ─── ORDER GUIDE SCREEN ───────────────────────────────────────────────────────
+function OrderGuideScreen({ orders, setOrders, calcTotal, onBack }) {
+    const master = getMaster();
+    const [isLandscape, setIsLandscape] = useState(window.innerWidth > window.innerHeight);
+    const scrollerRef = useRef(null);
+    const prodInnerRef = useRef(null);
+    const L2dataRef = useRef(null);
+    const L3ref = useRef(null);
+    const L4ref = useRef(null);
+
+    useEffect(() => {
+        function checkOri() { setIsLandscape(window.innerWidth > window.innerHeight); }
+        function checkOriDelayed() { setTimeout(checkOri, 300); }
+        checkOri();
+        window.addEventListener('resize', checkOri);
+        window.addEventListener('orientationchange', checkOriDelayed);
+        return () => {
+            window.removeEventListener('resize', checkOri);
+            window.removeEventListener('orientationchange', checkOriDelayed);
+        };
+    }, []);
+
+    const upd = (product, field, val) => {
+        setOrders(prev => prev.map(r => {
+            if (r.product !== product) return r;
+            const updated = Object.assign(Object.assign({}, r), { [field]: val });
+            const dbRow = {
+                product: updated.product, category: updated.category, class: updated.class,
+                vendor: updated.vendor, unit: updated.unit || "",
+                par: updated.par ? Number(updated.par) : null,
+                last_week: updated.lastWeek ? Number(updated.lastWeek) : null,
+                received: updated.received ? Number(updated.received) : null,
+                sold: updated.sold ? Number(updated.sold) : null,
+                order_qty: updated.order ? Number(updated.order) : null
+            };
+            sbUpsert("orders", dbRow, "product").catch(e => console.error("Order save:", e));
+            return updated;
+        }));
+    };
+
+    // Build flat row list from master
+    const CLASS_ORDER_OG = ["Beer & Seltzer","Liquor","Wine","Kegs","Extras"];
+    const flatRows = [];
+    CLASS_ORDER_OG.forEach(cls => {
+        const clsItems = master.filter(i => i.class === cls);
+        if (!clsItems.length) return;
+        flatRows.push({ type: 'RC', label: cls });
+        const cats = [...new Set(clsItems.map(i => i.category))].sort();
+        cats.forEach(cat => {
+            flatRows.push({ type: 'RK', label: cat });
+            clsItems.filter(i => i.category === cat)
+                .sort((a,b) => a.product.localeCompare(b.product))
+                .forEach(item => flatRows.push({ type: 'data', item }));
+        });
+    });
+
+    // Row heights
+    const RH = { data: 32, RC: 26, RK: 22 };
+
+    // Precompute offsets for overlay detection
+    const rowMeta = [];
+    let off = 0;
+    flatRows.forEach((r, i) => {
+        const h = RH[r.type];
+        rowMeta.push({ ...r, offsetTop: off, height: h });
+        off += h;
+    });
+    const rcRows = rowMeta.filter(r => r.type === 'RC');
+    const rkRows = rowMeta.filter(r => r.type === 'RK');
+
+    useEffect(() => {
+        const scroller = scrollerRef.current;
+        if (!scroller || !isLandscape) return;
+
+        function onScroll() {
+            const st = scroller.scrollTop;
+            const sl = scroller.scrollLeft;
+
+            // Sync header horizontal scroll
+            if (L2dataRef.current) {
+                L2dataRef.current.style.transform = 'translateX(-' + sl + 'px)';
+            }
+
+            // Update class/category overlays from precomputed offsets
+            let ac = null, acTop = -1;
+            for (const r of rcRows) { if (r.offsetTop <= st) { ac = r.label; acTop = r.offsetTop; } }
+            let ak = null;
+            const rkThresh = st + (ac ? RH.RC : 0);
+            for (const r of rkRows) { if (r.offsetTop >= acTop && r.offsetTop <= rkThresh) ak = r.label; }
+
+            if (L3ref.current) { L3ref.current.textContent = ac || ''; L3ref.current.style.display = ac ? 'flex' : 'none'; }
+            if (L4ref.current) { L4ref.current.textContent = ak || ''; L4ref.current.style.display = ak ? 'flex' : 'none'; }
+        }
+
+        scroller.addEventListener('scroll', onScroll, { passive: true });
+        return () => scroller.removeEventListener('scroll', onScroll);
+    }, [isLandscape, orders]);
+
+    // Portrait: rotate prompt
+    if (!isLandscape) {
+        return React.createElement("div", { style: {
+            position: 'fixed', inset: 0, zIndex: 900,
+            background: 'rgba(0,0,0,0.88)',
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            gap: 20, padding: 40
+        }},
+            React.createElement("div", { style: { fontSize: 60 } }, "📱"),
+            React.createElement("div", { style: {
+                color: '#fff', fontFamily: 'Georgia, serif',
+                fontSize: 22, fontWeight: 700, textAlign: 'center', lineHeight: 1.3
+            }}, "Rotate your phone to landscape mode"),
+            React.createElement("div", { style: {
+                color: 'rgba(255,255,255,0.7)', fontSize: 14, textAlign: 'center', lineHeight: 1.5
+            }}, "The Order Guide is designed for landscape view so all columns are visible at once."),
+            React.createElement("button", {
+                className: "B B-ghost",
+                style: { marginTop: 20, pointerEvents: 'auto' },
+                onClick: onBack
+            }, "← Home")
+        );
+    }
+
+    // Landscape: single scroll container — product sticky left, no lag
+    const PROD_W = 180;
+    const _availW = window.innerWidth - PROD_W;
+    const _colW = Math.floor(_availW / 6);
+    const DATA_COLS = [
+        { key: 'total',    label: 'Total',    w: _colW },
+        { key: 'lw',       label: 'Last Wk',  w: _colW },
+        { key: 'received', label: 'Received',  w: _colW },
+        { key: 'sold',     label: 'Sold',      w: _colW },
+        { key: 'diff',     label: 'Diff',      w: _colW },
+        { key: 'order',    label: 'Order',     w: _colW },
+    ];
+    const ALL_COLS = [{ key: 'product', label: 'Product', w: PROD_W }, ...DATA_COLS];
+    const tableWidth = ALL_COLS.reduce((s,c) => s+c.w, 0);
+
+    const ogCSS = `
+        .og-wrap { overflow-x: auto; overflow-y: scroll; -webkit-overflow-scrolling: auto; overscroll-behavior: none; position: fixed; top: 76px; left: 0; right: 0; bottom: 0; }
+        .og-row { display: flex; flex-direction: row; flex-shrink: 0; }
+        .og-cell { flex-shrink: 0; box-sizing: border-box; display: flex; align-items: center; padding: 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .og-prod { position: sticky; left: 0; z-index: 10; }
+        .og-header-inner { display: flex; will-change: transform; }
+        .og-hcell { flex-shrink: 0; box-sizing: border-box; height: 32px; display: flex; align-items: center; padding: 0 10px; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #777; background: #F5F5F5; border-right: 1px solid #999; }
+        .og-hcell-prod { position: sticky; left: 0; z-index: 12; background: #F5F5F5; }
+        .og-L3 { position: fixed; top: 76px; left: 0; right: 0; height: 30px; background: #C8102E; color: #fff; font-size: 11px; font-weight: 700; text-transform: uppercase; display: none; align-items: center; padding: 0 10px; z-index: 500; border-bottom: 1px solid #9B0C23; pointer-events: none; }
+        .og-L4 { position: fixed; top: 106px; left: 0; right: 0; height: 26px; background: #FDECEA; color: #C8102E; font-size: 11px; font-weight: 700; text-transform: uppercase; display: none; align-items: center; padding: 0 10px; z-index: 500; border-bottom: 1px solid #e8b4bc; pointer-events: none; }
+    `;
+
+    return React.createElement("div", { style: { position: 'fixed', inset: 0, background: '#fff', zIndex: 100 } },
+        React.createElement("style", null, ogCSS),
+
+        // App header
+        React.createElement("div", { style: {
+            position: 'fixed', top: 0, left: 0, right: 0, height: 44,
+            background: '#C8102E', borderBottom: '3px solid #1B6B3A',
+            display: 'flex', alignItems: 'center', padding: '0 16px',
+            justifyContent: 'space-between', zIndex: 600
+        }},
+            React.createElement("span", { style: { color:'#fff', fontSize:16, fontWeight:700, fontFamily:'Georgia,serif' }}, "Zazzo's"),
+            React.createElement("button", { className:"B B-ghost", onClick: onBack }, "← Home")
+        ),
+
+        // Column header
+        React.createElement("div", { style: {
+            position: 'fixed', top: 44, left: 0, right: 0, height: 32,
+            background: '#F5F5F5', borderBottom: '2px solid #999', zIndex: 500, overflow: 'hidden'
+        }},
+            React.createElement("div", { ref: L2dataRef, className: "og-header-inner" },
+                ALL_COLS.map((col, ci) => React.createElement("div", {
+                    key: col.key,
+                    className: "og-hcell" + (ci === 0 ? " og-hcell-prod" : ""),
+                    style: { width: col.w }
+                }, col.label))
+            )
+        ),
+
+        // Class overlay
+        React.createElement("div", { ref: L3ref, className: "og-L3" }),
+
+        // Category overlay
+        React.createElement("div", { ref: L4ref, className: "og-L4" }),
+
+        // Single scroll container
+        React.createElement("div", { ref: scrollerRef, className: "og-wrap" },
+            React.createElement("div", { style: { minWidth: tableWidth, width: '100%', display: 'flex', flexDirection: 'column' } },
+                rowMeta.map((r, i) => {
+                    const isRC = r.type === 'RC';
+                    const isRK = r.type === 'RK';
+                    const bdr = isRC ? '1px solid #9B0C23' : isRK ? '1px solid #e8b4bc' : '1px solid #999';
+                    const bg  = isRC ? '#C8102E' : isRK ? '#FDECEA' : '#fff';
+                    return React.createElement("div", { key: i, className: "og-row", style: { height: r.height, width: '100%', minWidth: tableWidth } },
+                        ALL_COLS.map((col, ci) => {
+                            const cellStyle = {
+                                width: col.w, height: r.height,
+                                fontSize: isRC || isRK ? 11 : 13,
+                                fontWeight: isRC || isRK ? 700 : 400,
+                                textTransform: isRC || isRK ? 'uppercase' : 'none',
+                                color: isRC ? '#fff' : isRK ? '#C8102E' : '#111',
+                                background: bg,
+                                borderRight: bdr, borderBottom: bdr
+                            };
+                            const cls = "og-cell" + (ci === 0 ? " og-prod" : "");
+
+                            if (ci === 0) {
+                                return React.createElement("div", { key: col.key, className: cls, style: cellStyle },
+                                    r.type === 'data' ? r.item.product : r.label);
+                            }
+                            if (isRC || isRK) return React.createElement("div", { key: col.key, className: cls, style: cellStyle });
+
+                            const ro = orders.find(x => x.product === r.item.product) || {};
+                            const tot = calcTotal(r.item.product);
+                            const par = Number(ro.par) || 0;
+                            const diff = Math.round((tot - par) * 100) / 100;
+                            const hp = ro.par !== "" && ro.par !== undefined;
+
+                            let cellContent;
+                            if (col.key === 'total') cellContent = React.createElement("span", null, tot > 0 ? tot : "—");
+                            else if (col.key === 'lw') cellContent = React.createElement("span", { style:{color:'#777'} }, ro.lastWeek || "—");
+                            else if (col.key === 'diff') cellContent = React.createElement("span", { className: hp ? (diff >= 0 ? 'pos' : 'neg') : '' }, hp ? (diff >= 0 ? '+'+diff : diff) : "—");
+                            else cellContent = React.createElement("input", {
+                                type: "number", min: "0", inputMode: "numeric",
+                                placeholder: col.key === 'order' ? "—" : "0",
+                                value: ro[col.key] || "",
+                                onChange: e => upd(r.item.product, col.key, e.target.value),
+                                style: { width: col.w - 16, height: 28, border: '1px solid #ddd', borderRadius: 3, textAlign: 'center', fontSize: 12, WebkitAppearance: 'none' }
+                            });
+                            return React.createElement("div", { key: col.key, className: cls, style: cellStyle }, cellContent);
+                        })
+                    );
+                })
+            )
+        )
+    );
+}
+
+function ReceivedScreen({ onBack, setOrders }) {
+    const master = getMaster();
+    const vendors = VENDOR_ORDER.filter(v => master.some(i => i.vendor === v));
+    const [activeVendorIdx, setActiveVendorIdx] = useState(0);
+    const [completedVendors, setCompletedVendors] = useState([]);
+    const [received, setReceived] = useState(() => { const r = {}; master.forEach(i => { r[i.product] = ""; }); return r; });
+    const [modal, setModal] = useState(false);
+    const [lockWarn, setLockWarn] = useState(false);
+    const [managerMode, setManagerMode] = useState(false);
+    const contentRef = useRef(null);
+    const [showUp, setShowUp] = useState(false);
+    const [showDown, setShowDown] = useState(false);
+    const { tap, Modal: PinModal } = usePIN(() => setManagerMode(true));
+    const curVendor = vendors[activeVendorIdx];
+    const vendorProds = sorted(master.filter(i => i.vendor === curVendor));
+    const allDone = completedVendors.length >= vendors.length && vendors.length > 0;
+    const filled = vendorProds.filter(p => received[p.product] !== "" && received[p.product] !== undefined).length;
+    const groups = groupCC(vendorProds);
+    const cols = Math.min(vendors.length, 3);
+    const handleScroll = () => {
+        const el = contentRef.current;
+        if (!el)
+            return;
+        setShowUp(el.scrollTop > 100);
+        setShowDown(el.scrollHeight - el.clientHeight - el.scrollTop > 100);
+    };
+    const scrollTop = () => { if (contentRef.current)
+        contentRef.current.scrollTo({ top: 0, behavior: "smooth" }); };
+    const scrollBot = () => { if (contentRef.current)
+        contentRef.current.scrollTo({ top: contentRef.current.scrollHeight, behavior: "smooth" }); };
+    const step = (product, delta) => {
+        const cur = Number(received[product] || 0);
+        const next = Math.max(0, cur + delta);
+        const val = String(next);
+        setReceived(prev => (Object.assign(Object.assign({}, prev), { [product]: val })));
+        setOrders(prev => prev.map(r => r.product === product ? Object.assign(Object.assign({}, r), { received: val }) : r));
+    };
+    const updateRec = (product, val) => {
+        setReceived(prev => (Object.assign(Object.assign({}, prev), { [product]: val })));
+        setOrders(prev => prev.map(r => r.product === product ? Object.assign(Object.assign({}, r), { received: val }) : r));
+    };
+    const hasBlank = () => vendorProds.some(i => received[i.product] === "" || received[i.product] === undefined);
+    const tryAdvance = () => hasBlank() ? setModal(true) : advance();
+    const advance = () => { setCompletedVendors(prev => [...prev, curVendor]); if (activeVendorIdx < vendors.length - 1)
+        setActiveVendorIdx(p => p + 1); setModal(false); };
+    return (React.createElement("div", { style: { display: "flex", flexDirection: "column", height: "100vh", overflowY: "hidden", background: "#EFEFEF" } },
+        React.createElement("header", { className: "H no-print" },
+            React.createElement("div", { className: "H-logo", onClick: tap, style: { userSelect: "none" } }, "Zazzo's"),
+            React.createElement("div", { className: "H-right" },
+                React.createElement("button", { className: "B B-ghost", onClick: () => window.print() }, "\uD83D\uDDA8 Print"),
+                React.createElement("button", { className: "B B-ghost", onClick: onBack }, "\u2190 Home"))),
+        React.createElement("div", { className: "LocBar no-print" },
+            managerMode && React.createElement("div", { className: "MgrBanner" }, "Manager Mode \u2014 Triple Tap Logo to Lock"),
+            React.createElement("div", { className: "LocBar-grid", style: { gridTemplateColumns: `repeat(${cols},1fr)` } }, vendors.map((v, i) => {
+                const done = completedVendors.includes(v), active = i === activeVendorIdx, locked = !done && !active;
+                return (React.createElement("span", { key: v, className: `Pill ${done ? "Pill-done" : active ? "Pill-active" : "Pill-locked"}`, onClick: () => { if (done || managerMode)
+                        setActiveVendorIdx(i);
+                    else if (locked)
+                        setLockWarn(true); } },
+                    done ? "✓ " : active ? "● " : "○ ",
+                    v));
+            }))),
+        React.createElement("div", { ref: contentRef, onScroll: handleScroll, style: { flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "16px 16px 80px" } }, allDone ? (React.createElement("div", { className: "Complete" },
+            React.createElement("div", { className: "Complete-circle" }, "\u2713"),
+            React.createElement("div", { className: "Complete-title" }, "Receiving Complete"),
+            React.createElement("div", { className: "Complete-sub" }, "All vendor deliveries have been logged."),
+            React.createElement("div", { className: "Complete-actions" },
+                React.createElement("button", { className: "B B-outline B-lg", onClick: () => { setActiveVendorIdx(0); setCompletedVendors([]); } }, "Start Over"),
+                React.createElement("button", { className: "B B-red B-lg", onClick: onBack }, "\u2190 Home")))) : (React.createElement(React.Fragment, null,
+            React.createElement("div", { className: "SHead", style: { marginBottom: 12 } },
+                React.createElement("div", null,
+                    React.createElement("div", { className: "STitle" }, curVendor),
+                    React.createElement("div", { className: "SSub" },
+                        "Enter quantities received. Vendor ",
+                        activeVendorIdx + 1,
+                        " of ",
+                        vendors.length,
+                        "."))),
+            React.createElement("div", { className: "Card" },
+                React.createElement("div", { className: "Card-head" },
+                    React.createElement("span", { className: "Card-title" }, curVendor),
+                    React.createElement("span", { className: "Card-badge" },
+                        filled,
+                        " / ",
+                        vendorProds.length,
+                        " entered")),
+                React.createElement("div", { className: "ProdList" }, Object.entries(groups).map(([cls, cats]) => (React.createElement("div", { key: cls },
+                    React.createElement("div", { className: "ClassDiv" }, cls),
+                    Object.entries(cats).map(([cat, items]) => (React.createElement("div", { key: cat },
+                        React.createElement("div", { className: "CatDiv" }, cat),
+                        items.map(item => {
+                            var _a;
+                            const val = (_a = received[item.product]) !== null && _a !== void 0 ? _a : "";
+                            return (React.createElement("div", { className: "ProdRow", key: item.product },
+                                React.createElement("div", { className: "ProdRow-info" },
+                                    React.createElement("div", { className: "ProdRow-name" }, item.product),
+                                    React.createElement("div", { className: "ProdRow-meta" }, "units")),
+                                React.createElement("div", { className: "Stepper" },
+                                    React.createElement("div", { className: "StepBtn", onClick: () => step(item.product, -1) }, "\u2212"),
+                                    React.createElement("input", { className: "StepInput" + (val !== "" ? " filled" : ""), type: "number", min: "0", step: "1", inputMode: "numeric", placeholder: "0", value: val, onChange: e => updateRec(item.product, e.target.value) }),
+                                    React.createElement("div", { className: "StepBtn", onClick: () => step(item.product, 1) }, "+"))));
+                        })))))))))))),
+        !allDone && (React.createElement("div", { className: "Footer no-print" },
+            activeVendorIdx > 0 ? React.createElement("button", { className: "Footer-btn", onClick: () => setActiveVendorIdx(p => p - 1) }, "\u2190 Back") : React.createElement("div", { className: "Footer-spacer" }),
+            React.createElement("div", { className: "Footer-prog" },
+                curVendor,
+                " \u00B7 ",
+                filled,
+                " / ",
+                vendorProds.length),
+            React.createElement("button", { className: "Footer-btn Footer-btn-next", onClick: tryAdvance }, activeVendorIdx < vendors.length - 1 ? "Next →" : "Done ✓"))),
+        showUp && React.createElement("button", { className: "ScrollBtn ScrollUp no-print", onClick: scrollTop }, "\u2191"),
+        showDown && React.createElement("button", { className: "ScrollBtn ScrollDown no-print", onClick: scrollBot }, "\u2193"),
+        modal && (React.createElement("div", { className: "Overlay" },
+            React.createElement("div", { className: "Modal" },
+                React.createElement("div", { className: "Modal-title" }, "Incomplete Entry"),
+                React.createElement("div", { className: "Modal-body" },
+                    "Some items for ",
+                    React.createElement("strong", null, curVendor),
+                    " have not been entered. Continue anyway?"),
+                React.createElement("div", { className: "Modal-actions" },
+                    React.createElement("button", { className: "B B-outline", onClick: () => setModal(false) }, "No, Go Back"),
+                    React.createElement("button", { className: "B B-red", onClick: advance }, "Yes, Continue"))))),
+        lockWarn && (React.createElement("div", { className: "Overlay" },
+            React.createElement("div", { className: "Modal" },
+                React.createElement("div", { className: "Modal-title" }, "Vendor Locked"),
+                React.createElement("div", { className: "Modal-body" }, "Please finalize current vendor entries before moving on."),
+                React.createElement("div", { className: "Modal-actions" },
+                    React.createElement("button", { className: "B B-red", onClick: () => setLockWarn(false) }, "OK"))))),
+        PinModal));
+}
+// ─── ARCHIVE SCREEN ───────────────────────────────────────────────────────────
+function SoldScreen({ onBack, setOrders }) {
+    const master = getMaster();
+    const vendors = VENDOR_ORDER.filter(v => master.some(i => i.vendor === v));
+    const [activeVendorIdx, setActiveVendorIdx] = useState(0);
+    const [completedVendors, setCompletedVendors] = useState([]);
+    const [sold_counts, setSoldCounts] = useState(() => { const r = {}; master.forEach(i => { r[i.product] = ""; }); return r; });
+    const [modal, setModal] = useState(false);
+    const [lockWarn, setLockWarn] = useState(false);
+    const [managerMode, setManagerMode] = useState(false);
+    const contentRef = useRef(null);
+    const [showUp, setShowUp] = useState(false);
+    const [showDown, setShowDown] = useState(false);
+    const { tap, Modal: PinModal } = usePIN(() => setManagerMode(true));
+    const curVendor = vendors[activeVendorIdx];
+    const vendorProds = sorted(master.filter(i => i.vendor === curVendor));
+    const allDone = completedVendors.length >= vendors.length && vendors.length > 0;
+    const filled = vendorProds.filter(p => sold_counts[p.product] !== "" && sold_counts[p.product] !== undefined).length;
+    const groups = groupCC(vendorProds);
+    const cols = Math.min(vendors.length, 3);
+    const handleScroll = () => {
+        const el = contentRef.current;
+        if (!el)
+            return;
+        setShowUp(el.scrollTop > 100);
+        setShowDown(el.scrollHeight - el.clientHeight - el.scrollTop > 100);
+    };
+    const scrollTop = () => { if (contentRef.current)
+        contentRef.current.scrollTo({ top: 0, behavior: "smooth" }); };
+    const scrollBot = () => { if (contentRef.current)
+        contentRef.current.scrollTo({ top: contentRef.current.scrollHeight, behavior: "smooth" }); };
+    const step = (product, delta) => {
+        const cur = Number(received[product] || 0);
+        const next = Math.max(0, cur + delta);
+        const val = String(next);
+        setSoldCounts(prev => (Object.assign(Object.assign({}, prev), { [product]: val })));
+        setOrders(prev => prev.map(r => r.product === product ? Object.assign(Object.assign({}, r), { received: val }) : r));
+    };
+    const updateSold = (product, val) => {
+        setSoldCounts(prev => (Object.assign(Object.assign({}, prev), { [product]: val })));
+        setOrders(prev => prev.map(r => r.product === product ? Object.assign(Object.assign({}, r), { received: val }) : r));
+    };
+    const hasBlank = () => vendorProds.some(i => received[i.product] === "" || received[i.product] === undefined);
+    const tryAdvance = () => hasBlank() ? setModal(true) : advance();
+    const advance = () => { setCompletedVendors(prev => [...prev, curVendor]); if (activeVendorIdx < vendors.length - 1)
+        setActiveVendorIdx(p => p + 1); setModal(false); };
+    return (React.createElement("div", { style: { display: "flex", flexDirection: "column", height: "100vh", overflowY: "hidden", background: "#EFEFEF" } },
+        React.createElement("header", { className: "H no-print" },
+            React.createElement("div", { className: "H-logo", onClick: tap, style: { userSelect: "none" } }, "Zazzo's"),
+            React.createElement("div", { className: "H-right" },
+                React.createElement("button", { className: "B B-ghost", onClick: () => window.print() }, "\uD83D\uDDA8 Print"),
+                React.createElement("button", { className: "B B-ghost", onClick: onBack }, "\u2190 Home"))),
+        React.createElement("div", { className: "LocBar no-print" },
+            managerMode && React.createElement("div", { className: "MgrBanner" }, "Manager Mode \u2014 Triple Tap Logo to Lock"),
+            React.createElement("div", { className: "LocBar-grid", style: { gridTemplateColumns: `repeat(${cols},1fr)` } }, vendors.map((v, i) => {
+                const done = completedVendors.includes(v), active = i === activeVendorIdx, locked = !done && !active;
+                return (React.createElement("span", { key: v, className: `Pill ${done ? "Pill-done" : active ? "Pill-active" : "Pill-locked"}`, onClick: () => { if (done || managerMode)
+                        setActiveVendorIdx(i);
+                    else if (locked)
+                        setLockWarn(true); } },
+                    done ? "✓ " : active ? "● " : "○ ",
+                    v));
+            }))),
+        React.createElement("div", { ref: contentRef, onScroll: handleScroll, style: { flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "16px 16px 80px" } }, allDone ? (React.createElement("div", { className: "Complete" },
+            React.createElement("div", { className: "Complete-circle" }, "\u2713"),
+            React.createElement("div", { className: "Complete-title" }, "Sold Items Complete"),
+            React.createElement("div", { className: "Complete-sub" }, "All sold quantities have been logged."),
+            React.createElement("div", { className: "Complete-actions" },
+                React.createElement("button", { className: "B B-outline B-lg", onClick: () => { setActiveVendorIdx(0); setCompletedVendors([]); } }, "Start Over"),
+                React.createElement("button", { className: "B B-red B-lg", onClick: onBack }, "\u2190 Home")))) : (React.createElement(React.Fragment, null,
+            React.createElement("div", { className: "SHead", style: { marginBottom: 12 } },
+                React.createElement("div", null,
+                    React.createElement("div", { className: "STitle" }, curVendor),
+                    React.createElement("div", { className: "SSub" },
+                        "Enter quantities received. Vendor ",
+                        activeVendorIdx + 1,
+                        " of ",
+                        vendors.length,
+                        "."))),
+            React.createElement("div", { className: "Card" },
+                React.createElement("div", { className: "Card-head" },
+                    React.createElement("span", { className: "Card-title" }, curVendor),
+                    React.createElement("span", { className: "Card-badge" },
+                        filled,
+                        " / ",
+                        vendorProds.length,
+                        " entered")),
+                React.createElement("div", { className: "ProdList" }, Object.entries(groups).map(([cls, cats]) => (React.createElement("div", { key: cls },
+                    React.createElement("div", { className: "ClassDiv" }, cls),
+                    Object.entries(cats).map(([cat, items]) => (React.createElement("div", { key: cat },
+                        React.createElement("div", { className: "CatDiv" }, cat),
+                        items.map(item => {
+                            var _a;
+                            const val = (_a = sold_counts[item.product]) !== null && _a !== void 0 ? _a : "";
+                            return (React.createElement("div", { className: "ProdRow", key: item.product },
+                                React.createElement("div", { className: "ProdRow-info" },
+                                    React.createElement("div", { className: "ProdRow-name" }, item.product),
+                                    React.createElement("div", { className: "ProdRow-meta" }, "units")),
+                                React.createElement("div", { className: "Stepper" },
+                                    React.createElement("div", { className: "StepBtn", onClick: () => step(item.product, -1) }, "\u2212"),
+                                    React.createElement("input", { className: "StepInput" + (val !== "" ? " filled" : ""), type: "number", min: "0", step: "1", inputMode: "numeric", placeholder: "0", value: val, onChange: e => updateSold(item.product, e.target.value) }),
+                                    React.createElement("div", { className: "StepBtn", onClick: () => step(item.product, 1) }, "+"))));
+                        })))))))))))),
+        !allDone && (React.createElement("div", { className: "Footer no-print" },
+            activeVendorIdx > 0 ? React.createElement("button", { className: "Footer-btn", onClick: () => setActiveVendorIdx(p => p - 1) }, "\u2190 Back") : React.createElement("div", { className: "Footer-spacer" }),
+            React.createElement("div", { className: "Footer-prog" },
+                curVendor,
+                " \u00B7 ",
+                filled,
+                " / ",
+                vendorProds.length),
+            React.createElement("button", { className: "Footer-btn Footer-btn-next", onClick: tryAdvance }, activeVendorIdx < vendors.length - 1 ? "Next →" : "Done ✓"))),
+        showUp && React.createElement("button", { className: "ScrollBtn ScrollUp no-print", onClick: scrollTop }, "\u2191"),
+        showDown && React.createElement("button", { className: "ScrollBtn ScrollDown no-print", onClick: scrollBot }, "\u2193"),
+        modal && (React.createElement("div", { className: "Overlay" },
+            React.createElement("div", { className: "Modal" },
+                React.createElement("div", { className: "Modal-title" }, "Incomplete Entry"),
+                React.createElement("div", { className: "Modal-body" },
+                    "Some items for ",
+                    React.createElement("strong", null, curVendor),
+                    " have not been entered. Continue anyway?"),
+                React.createElement("div", { className: "Modal-actions" },
+                    React.createElement("button", { className: "B B-outline", onClick: () => setModal(false) }, "No, Go Back"),
+                    React.createElement("button", { className: "B B-red", onClick: advance }, "Yes, Continue"))))),
+        lockWarn && (React.createElement("div", { className: "Overlay" },
+            React.createElement("div", { className: "Modal" },
+                React.createElement("div", { className: "Modal-title" }, "Vendor Locked"),
+                React.createElement("div", { className: "Modal-body" }, "Please finalize current vendor entries before moving on."),
+                React.createElement("div", { className: "Modal-actions" },
+                    React.createElement("button", { className: "B B-red", onClick: () => setLockWarn(false) }, "OK"))))),
+        PinModal));
+}
+// ─── ARCHIVE SCREEN ───────────────────────────────────────────────────────────
+function TrendScreen({ archives, calcTotal, onBack }) {
+    const master = getMaster();
+    const [filter, setFilter] = useState("all");
+    const [sortBy, setSortBy] = useState("pct_desc");
+    const [classFilter, setClassFilter] = useState("all");
+    const rows = master.map(item => {
+        const current = calcTotal(item.product);
+        const lastArchive = archives[0];
+        const lw = lastArchive ? (() => {
+            let t = 0;
+            SELENA_LOCS.forEach(l => { var _a; const v = (_a = lastArchive.sealed[l]) === null || _a === void 0 ? void 0 : _a[item.product]; if (v !== "" && v !== undefined)
+                t += Number(v); });
+            ERIKA_LOCS.forEach(l => { var _a; const v = (_a = lastArchive.open[l]) === null || _a === void 0 ? void 0 : _a[item.product]; if (v !== "" && v !== undefined)
+                t += Number(v); });
+            return Math.round(t * 100) / 100;
+        })() : null;
+        const avg = archives.length > 0 ? (() => {
+            const totals = archives.map(a => {
+                let t = 0;
+                SELENA_LOCS.forEach(l => { var _a; const v = (_a = a.sealed[l]) === null || _a === void 0 ? void 0 : _a[item.product]; if (v !== "" && v !== undefined)
+                    t += Number(v); });
+                ERIKA_LOCS.forEach(l => { var _a; const v = (_a = a.open[l]) === null || _a === void 0 ? void 0 : _a[item.product]; if (v !== "" && v !== undefined)
+                    t += Number(v); });
+                return t;
+            });
+            return Math.round((totals.reduce((a, b) => a + b, 0) / totals.length) * 10) / 10;
+        })() : null;
+        const rawChange = lw !== null ? Math.round((current - lw) * 100) / 100 : null;
+        const pctChange = (lw !== null && lw > 0) ? Math.round((rawChange / lw) * 100) : null;
+        return { product: item.product, category: item.category, class: item.class, current, lastWeek: lw, rawChange, pctChange, avg };
+    });
+    let filtered = rows.filter(r => r.current > 0 || r.lastWeek > 0);
+    if (classFilter !== "all")
+        filtered = filtered.filter(r => r.class === classFilter);
+    if (filter === "down")
+        filtered = filtered.filter(r => r.rawChange !== null && r.rawChange < 0);
+    if (filter === "up")
+        filtered = filtered.filter(r => r.rawChange !== null && r.rawChange > 0);
+    if (filter === "below")
+        filtered = filtered.filter(r => r.avg !== null && r.current < r.avg);
+    if (sortBy === "pct_desc")
+        filtered.sort((a, b) => { var _a, _b; return ((_a = a.pctChange) !== null && _a !== void 0 ? _a : 0) - ((_b = b.pctChange) !== null && _b !== void 0 ? _b : 0); });
+    if (sortBy === "pct_asc")
+        filtered.sort((a, b) => { var _a, _b; return ((_a = b.pctChange) !== null && _a !== void 0 ? _a : 0) - ((_b = a.pctChange) !== null && _b !== void 0 ? _b : 0); });
+    if (sortBy === "raw_desc")
+        filtered.sort((a, b) => { var _a, _b; return ((_a = a.rawChange) !== null && _a !== void 0 ? _a : 0) - ((_b = b.rawChange) !== null && _b !== void 0 ? _b : 0); });
+    if (sortBy === "alpha")
+        filtered.sort((a, b) => a.product.localeCompare(b.product));
+    if (sortBy === "class")
+        filtered.sort((a, b) => { const ci = CLASS_ORDER.indexOf(a.class) - CLASS_ORDER.indexOf(b.class); return ci !== 0 ? ci : a.product.localeCompare(b.product); });
+    return (React.createElement("div", { style: { display: "flex", flexDirection: "column", minHeight: "100vh", background: "#EFEFEF" } },
+        React.createElement("header", { className: "H no-print" },
+            React.createElement("div", { className: "H-logo", style: { cursor: "default" } }, "Zazzo's"),
+            React.createElement("div", { className: "H-right" },
+                React.createElement("button", { className: "B B-ghost", onClick: onBack }, "\u2190 Home"))),
+        React.createElement("div", { className: "Page" },
+            React.createElement("div", { className: "SHead", style: { marginBottom: 16 } },
+                React.createElement("div", null,
+                    React.createElement("div", { className: "STitle" }, "Trend Analysis"),
+                    React.createElement("div", { className: "SSub" },
+                        "Week over week changes with running averages.",
+                        archives.length > 0 ? ` ${archives.length} week${archives.length !== 1 ? "s" : ""} of data.` : ""))),
+            archives.length === 0 ? (React.createElement("div", { className: "Empty" },
+                React.createElement("div", { className: "Empty-icon" }, "\uD83D\uDCCA"),
+                "No data yet. Trend Analysis populates after the first weekly rollover.")) : (React.createElement(React.Fragment, null,
+                React.createElement("div", { className: "Card", style: { marginBottom: 16 } },
+                    React.createElement("div", { className: "Card-head" },
+                        React.createElement("span", { className: "Card-title" }, "Filters")),
+                    React.createElement("div", { style: { padding: "12px 16px", display: "flex", flexWrap: "wrap", gap: 12 } },
+                        React.createElement("div", null,
+                            React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "#777777", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 } }, "Movement"),
+                            React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap" } }, [["all", "All"], ["down", "↓ Down"], ["up", "↑ Up"], ["below", "Below Avg"]].map(([val, lbl]) => (React.createElement("button", { key: val, className: `ATab${filter === val ? " on" : ""}`, onClick: () => setFilter(val), style: { height: 30, padding: "0 12px", fontSize: 11 } }, lbl))))),
+                        React.createElement("div", null,
+                            React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "#777777", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 } }, "Class"),
+                            React.createElement("select", { style: { height: 30, background: "#FFFFFF", border: "2px solid #E2E2E2", borderRadius: 6, padding: "0 8px", fontSize: 12, fontWeight: 600, color: "#111111" }, value: classFilter, onChange: e => setClassFilter(e.target.value) },
+                                React.createElement("option", { value: "all" }, "All Classes"),
+                                CLASS_ORDER.map(cls => React.createElement("option", { key: cls, value: cls }, cls)))),
+                        React.createElement("div", null,
+                            React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "#777777", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 } }, "Sort By"),
+                            React.createElement("select", { style: { height: 30, background: "#FFFFFF", border: "2px solid #E2E2E2", borderRadius: 6, padding: "0 8px", fontSize: 12, fontWeight: 600, color: "#111111" }, value: sortBy, onChange: e => setSortBy(e.target.value) },
+                                React.createElement("option", { value: "pct_desc" }, "Biggest Drop % First"),
+                                React.createElement("option", { value: "pct_asc" }, "Biggest Gain % First"),
+                                React.createElement("option", { value: "raw_desc" }, "Biggest Raw Drop First"),
+                                React.createElement("option", { value: "alpha" }, "Alphabetical"),
+                                React.createElement("option", { value: "class" }, "By Class"))))),
+                React.createElement("div", { style: { fontSize: 12, color: "#777777", marginBottom: 10, fontWeight: 600 } },
+                    filtered.length,
+                    " product",
+                    filtered.length !== 1 ? "s" : "",
+                    " shown"),
+                React.createElement("div", { className: "Card" }, filtered.length === 0 ? (React.createElement("div", { className: "Empty", style: { padding: "32px 20px" } }, "No products match the selected filters.")) : filtered.map((row) => {
+                    const isDown = row.rawChange !== null && row.rawChange < 0;
+                    const isUp = row.rawChange !== null && row.rawChange > 0;
+                    const cc = isDown ? "#C8102E" : isUp ? "#1B6B3A" : "#777777";
+                    const belowAvg = row.avg !== null && row.current < row.avg;
+                    return (React.createElement("div", { className: "TrendRow", key: row.product },
+                        React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+                            React.createElement("div", { className: "TrendName" }, row.product),
+                            React.createElement("div", { className: "TrendMeta" },
+                                row.category,
+                                " \u00B7 ",
+                                row.class)),
+                        React.createElement("div", { className: "TrendStats" },
+                            React.createElement("div", { className: "TStat" },
+                                React.createElement("div", { className: "TStat-val" }, row.lastWeek !== null ? row.lastWeek : "—"),
+                                React.createElement("div", { className: "TStat-label" }, "Last Wk")),
+                            React.createElement("div", { className: "TStat" },
+                                React.createElement("div", { className: "TStat-val" }, row.current),
+                                React.createElement("div", { className: "TStat-label" }, "This Wk")),
+                            React.createElement("div", { className: "TStat" },
+                                React.createElement("div", { className: "TStat-val", style: { color: cc } }, row.rawChange !== null ? (row.rawChange > 0 ? `+${row.rawChange}` : row.rawChange) : "—"),
+                                React.createElement("div", { className: "TStat-label" }, "vs Last")),
+                            React.createElement("div", { className: "TStat" },
+                                React.createElement("div", { className: "TStat-val", style: { color: belowAvg ? "#C8102E" : "#444444" } }, row.avg !== null ? (row.current - row.avg > 0 ? "+" + Math.round((row.current - row.avg)*100)/100 : Math.round((row.current - row.avg)*100)/100) : "—"),
+                                React.createElement("div", { className: "TStat-label" }, "vs Avg")))));
+                })))))));
+}
+// ─── MASTER EDITOR ────────────────────────────────────────────────────────────
+function MasterEditor({ master, onSave, onClose }) {
+    const [items, setItems] = useState(JSON.parse(JSON.stringify(master)));
+    const [changes, setChanges] = useState([]);
+    const [confirm, setConfirm] = useState(false);
+    const [newProd, setNewProd] = useState(false);
+    const [draft, setDraft] = useState({ product: "", category: "", class: "Beer & Seltzer", vendor: "TBD", locations: [] });
+    const [activeVendor, setActiveVendor] = useState(VENDOR_ORDER[0]);
+    const vendorItems = sorted(items.filter(i => i.vendor === activeVendor));
+    const update = (idx, field, val) => {
+        setItems(prev => { const next = [...prev]; next[idx] = Object.assign(Object.assign({}, next[idx]), { [field]: val }); return next; });
+        const orig = master[idx];
+        const key = `${(orig === null || orig === void 0 ? void 0 : orig.product) || "New"}|${field}`;
+        const desc = `${(orig === null || orig === void 0 ? void 0 : orig.product) || "New"} — ${field} changed to "${Array.isArray(val) ? val.join(", ") : val}"`;
+        setChanges(prev => { const ex = prev.find(c => c.key === key); if (ex)
+            return prev.map(c => c.key === key ? Object.assign(Object.assign({}, c), { desc }) : c); return [...prev, { key, desc }]; });
+    };
+    const toggleLoc = (idx, loc) => {
+        const locs = items[idx].locations;
+        update(idx, "locations", locs.includes(loc) ? locs.filter(l => l !== loc) : [...locs, loc]);
+    };
+    const removeItem = (idx) => {
+        const name = items[idx].product;
+        setChanges(prev => [...prev, { key: `del|${name}`, desc: `${name} — REMOVED` }]);
+        setItems(prev => prev.filter((_, i) => i !== idx));
+    };
+    const addItem = () => {
+        if (!draft.product.trim() || !draft.category.trim())
+            return;
+        setItems(prev => [...prev, Object.assign({}, draft)]);
+        setChanges(prev => [...prev, { key: `add|${draft.product}`, desc: `${draft.product} — ADDED (${draft.category}, ${draft.class}, ${draft.vendor})` }]);
+        setDraft({ product: "", category: "", class: "Beer & Seltzer", vendor: "TBD", locations: [] });
+        setNewProd(false);
+    };
+    const handleSave = () => { if (changes.length === 0) {
+        onClose();
+        return;
+    } setConfirm(true); };
+    const confirmSave = async () => {
+        window.__MASTER__ = items;
+        onSave(items);
+        try {
+            await sbDelete("master", "id=neq.00000000-0000-0000-0000-000000000000");
+            await Promise.all(items.map(item => sbPost("master", { product: item.product, category: item.category, class: item.class, vendor: item.vendor, locations: item.locations })));
+        }
+        catch (e) {
+            console.error("Master save error:", e);
+        }
+        onClose();
+    };
+    return (React.createElement("div", { className: "MasterOverlay" },
+        React.createElement("div", { className: "MasterPanel" },
+            React.createElement("div", { className: "MasterHead" },
+                React.createElement("div", { className: "MasterHead-title" }, "Master Guide"),
+                React.createElement("button", { className: "B B-ghost", onClick: () => window.print() }, "\uD83D\uDDA8 Print"),
+                React.createElement("button", { className: "B B-outline", onClick: handleSave, style: { color: "#C8102E", borderColor: "rgba(255,255,255,0.5)" } }, "Save Changes"),
+                React.createElement("button", { className: "B B-ghost", onClick: onClose }, "\u2715 Close")),
+            React.createElement("div", { className: "LocBar", style: { flexShrink: 0 } },
+                React.createElement("div", { className: "LocBar-grid", style: { gridTemplateColumns: `repeat(${Math.min(VENDOR_ORDER.length, 3)},1fr)` } }, VENDOR_ORDER.map(v => (React.createElement("span", { key: v, className: "Pill " + (activeVendor === v ? "Pill-active" : "Pill-locked"), style: { cursor: "pointer" }, onClick: () => setActiveVendor(v) }, v))))),
+            React.createElement("div", { className: "MasterBody" },
+                React.createElement("div", { style: { marginBottom: 16 } }, !newProd ? (React.createElement("button", { className: "B B-green B-lg", onClick: () => setNewProd(true) }, "+ Add Product")) : (React.createElement("div", { className: "MasterRow", style: { border: "2px solid #1B6B3A" } },
+                    React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: "#1B6B3A", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.08em" } }, "New Product"),
+                    [["product", "Name"], ["category", "Category"], ["vendor", "Vendor"]].map(([f, lbl]) => (React.createElement("div", { className: "MasterField", key: f },
+                        React.createElement("div", { className: "MasterLabel" }, lbl),
+                        React.createElement("input", { className: "MasterInput", value: draft[f], onChange: e => setDraft(p => (Object.assign(Object.assign({}, p), { [f]: e.target.value }))), placeholder: lbl })))),
+                    React.createElement("div", { className: "MasterField" },
+                        React.createElement("div", { className: "MasterLabel" }, "Class"),
+                        React.createElement("select", { className: "MasterSelect", value: draft.class, onChange: e => setDraft(p => (Object.assign(Object.assign({}, p), { class: e.target.value }))) }, CLASS_ORDER.map(c => React.createElement("option", { key: c }, c)))),
+                    React.createElement("div", { className: "MasterField", style: { alignItems: "flex-start" } },
+                        React.createElement("div", { className: "MasterLabel", style: { paddingTop: 4 } }, "Locations"),
+                        React.createElement("div", { className: "LocCheckGrid" }, ALL_LOCS.map(loc => (React.createElement("label", { className: "LocCheck", key: loc },
+                            React.createElement("input", { type: "checkbox", checked: draft.locations.includes(loc), onChange: () => setDraft(p => (Object.assign(Object.assign({}, p), { locations: p.locations.includes(loc) ? p.locations.filter(x => x !== loc) : [...p.locations, loc] }))) }),
+                            loc))))),
+                    React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 10 } },
+                        React.createElement("button", { className: "B B-green", onClick: addItem }, "Add"),
+                        React.createElement("button", { className: "B B-outline", onClick: () => setNewProd(false) }, "Cancel"))))),
+                vendorItems.map(item => {
+                    const idx = items.indexOf(item);
+                    return (React.createElement("div", { className: "MasterRow", key: idx },
+                        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 } },
+                            React.createElement("div", { style: { fontFamily: "'Libre Baskerville',Georgia,serif", fontSize: 14, fontWeight: 700, color: "#111111" } }, item.product),
+                            React.createElement("button", { className: "MasterDel", onClick: () => removeItem(items.indexOf(item)) }, "Remove")),
+                        [["product", "Name"], ["category", "Category"], ["vendor", "Vendor"]].map(([f, lbl]) => (React.createElement("div", { className: "MasterField", key: f },
+                            React.createElement("div", { className: "MasterLabel" }, lbl),
+                            React.createElement("input", { className: "MasterInput", value: item[f], onChange: e => update(items.indexOf(item), f, e.target.value) })))),
+                        React.createElement("div", { className: "MasterField" },
+                            React.createElement("div", { className: "MasterLabel" }, "Class"),
+                            React.createElement("select", { className: "MasterSelect", value: item.class, onChange: e => update(items.indexOf(item), "class", e.target.value) }, CLASS_ORDER.map(c => React.createElement("option", { key: c }, c)))),
+                        React.createElement("div", { className: "MasterField", style: { alignItems: "flex-start" } },
+                            React.createElement("div", { className: "MasterLabel", style: { paddingTop: 4 } }, "Locations"),
+                            React.createElement("div", { className: "LocCheckGrid" }, ALL_LOCS.map(loc => (React.createElement("label", { className: "LocCheck", key: loc },
+                                React.createElement("input", { type: "checkbox", checked: item.locations.includes(loc), onChange: () => toggleLoc(items.indexOf(item), loc) }),
+                                loc)))))));
+                }))),
+        confirm && (React.createElement("div", { className: "Overlay", style: { zIndex: 800 } },
+            React.createElement("div", { className: "Modal" },
+                React.createElement("div", { className: "Modal-title" }, "Confirm Changes"),
+                React.createElement("div", { className: "Modal-body" },
+                    React.createElement("div", { style: { marginBottom: 12, fontWeight: 600 } }, "The following changes will be applied:"),
+                    React.createElement("div", { style: { maxHeight: 240, overflowY: "auto", background: "#F5F5F5", borderRadius: 6, padding: "10px 12px" } }, changes.map((ch, i) => (React.createElement("div", { key: i, style: { fontSize: 13, color: "#111111", marginBottom: 6, paddingBottom: 6, borderBottom: i < changes.length - 1 ? "1px solid #E2E2E2" : "none" } }, ch.desc))))),
+                React.createElement("div", { className: "Modal-actions" },
+                    React.createElement("button", { className: "B B-outline", onClick: () => setConfirm(false) }, "Go Back"),
+                    React.createElement("button", { className: "B B-red", onClick: confirmSave }, "Confirm & Save")))))));
+}
+// ─── MASTER GUARD MODAL ───────────────────────────────────────────────────────
+function MasterGuardModal({ show, input, error, onKey, onCancel }) {
+    if (!show)
+        return null;
+    return (React.createElement("div", { className: "PinOverlay", style: { zIndex: 950 } },
+        React.createElement("div", { className: "PinModal" },
+            React.createElement("div", { className: "PinModal-title" }, "Master Guide Access"),
+            React.createElement("div", { className: "PinModal-sub" }, "Enter your 4-digit PIN"),
+            React.createElement("div", { className: "PinDots" }, [0, 1, 2, 3].map(i => (React.createElement("div", { key: i, className: "PinDot" + (input.length > i ? " on" : "") + (error ? " err" : "") })))),
+            error && React.createElement("div", { className: "PinErr" }, "Incorrect PIN. Try again."),
+            React.createElement("div", { className: "PinKeys" }, ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "⌫"].map((k, i) => (React.createElement("button", { key: i, className: "PinKey" + (k === "" ? " PinKey-empty" : k === "⌫" ? " PinKey-del" : ""), onClick: () => onKey(k) }, k)))),
+            React.createElement("button", { className: "B B-outline", style: { width: "100%" }, onClick: onCancel }, "Cancel"))));
+}
+// ─── APP ──────────────────────────────────────────────────────────────────────
+function App() {
+    const [screen, setScreen] = useState("login");
+    const [user, setUser] = useState(null);
+    const [sealed, setSealed] = useState(mkSealed);
+    const [open, setOpen] = useState(mkOpen);
+    const [orders, setOrders] = useState(() => mkOrders(INITIAL_MASTER));
+    const [archives, setArchives] = useState([{"label": "Week of Jun 15, 2026", "date": "6/15/2026", "sealed": {"Office": {"Angel's Envy": 1.85, "Blade and Bow": 1.7, "Buffalo Trace": 0.42, "Elijah Craig": 1.45, "High West": 0.25, "Knob Creek": 1.93, "Mitcher's": 0.3, "Old Forester": 0.47, "Piggy Back": 3.2, "Redemption": 0.3, "Row 94": 0.3, "Russell's": 0.42, "Wild Turkey": 1.4, "E&J": 0.12, "Hennessy": 1.6, "Hendricks": 1.18, "Tanqueray": 1.38, "Jameson": 6.35, "Tullamore D.E.W": 1.25, "Bacardi": 5.97, "Captain Morgan": 6.42, "Kahlua": 1.1, "Myers's": 1.65, "Rumchata": 1.9, "Rumhaven": 1.73, "Pinhook": 0.42, "Sazerac Rye": 0.45, "Templeton Rye": 0.45, "Whistle Pig": 2.95, "Dewar's": 1.23, "Glenlivet": 1.23, "Hornitos": 1.23, "Milagro": 1.0, "Belvedere": 1.12, "Sobieski Citron": 1.12, "Sobieski Vanilla": 1.88, "Tito's": 4.28, "B&B": 0.5, "Crown Royal Peach": 1.5, "Horse Soldier": 1.5, "Jack Daniels": 1.1, "Jack Daniels Fire 1L": 0.17, "Jack Daniels Fire 750": 0.5, "Jack Daniels Honey": 0.67, "Jim Beam": 1.12, "Seagram's 7": 1.48, "Seagram's VO": 1.2, "Bailey's": 1.45, "Don Q": 0.15, "Fireball Apple": 1.0, "Frangelico": 1.27, "Jagermeister": 1.07, "Rumple Minze": 0.62, "Sambuca": 0.1, "Cointreau": 1.12, "Disaronno": 1.38, "Gallo Dry Vermouth": 1.33, "Gallo Sweet Vermouth": 1.48, "Midori": 0.45, "Tippy Cow": 1.8}, "Pepsi Cooler": {"Budweiser": 20.4, "Coors Light": 29.4, "MGD": 5.8, "Michelob Ultra": 54.0, "Miller Lite": 30.8, "Whycliff Champagne": 2.0, "Canyon Road Pinot Grigio": 7.06, "Caposaldo Pinot Grigio": 6.81}, "Display": {"Zazzo's Bourbon": 6.56, "Zazzo's Gin": 4.81, "Zazzo's Rum": 4.0, "Zazzo's Straight Bourbon": 5.95, "Zazzo's Tequila": 3.5, "Zazzo's Vodka": 7.08, "Lyric N/A Champagne": 3.67, "Whycliff Champagne": 2.0, "Altos Malbec": 5.83, "Canyon Road Cabernet": 9.0, "Canyon Road Pinot Noir": 3.17, "Decoy Cabernet": 4.33, "Decoy Pinot Noir": 9.0, "Duckhorn Cabernet": 4.0, "Franciscan Cabernet": 7.83, "Hahn Pinot Noir": 3.58, "Josh Cabernet": 9.42, "Ruffino Chianti": 7.5, "Unshackled Red Blend": 4.0, "Canyon Road Moscato": 11.25, "Canyon Road Pinot Grigio": 7.06, "Caposaldo Pinot Grigio": 6.81, "Santa Margherita Pinot Grigio": 9.33}, "Closet": {"Zazzo's Bourbon": 6.56, "Zazzo's Gin": 4.81, "Zazzo's Rum": 4.0, "Zazzo's Straight Bourbon": 5.95, "Zazzo's Tequila": 3.5, "Zazzo's Vodka": 7.08, "Lyric N/A Champagne": 3.67, "Whycliff Champagne": 2.0, "Altos Malbec": 5.83, "Canyon Road Cabernet": 9.0, "Canyon Road Pinot Noir": 3.17, "Decoy Cabernet": 4.33, "Decoy Pinot Noir": 9.0, "Duckhorn Cabernet": 4.0, "Franciscan Cabernet": 7.83, "Hahn Pinot Noir": 3.58, "Josh Cabernet": 9.42, "Ruffino Chianti": 7.5, "Unshackled Red Blend": 4.0, "Canyon Road Moscato": 11.25, "Canyon Road Pinot Grigio": 7.06, "Caposaldo Pinot Grigio": 6.81, "Santa Margherita Pinot Grigio": 9.33}, "Window/Party Room": {"Zazzo's Bourbon": 6.56, "Zazzo's Gin": 4.81, "Zazzo's Rum": 4.0, "Zazzo's Straight Bourbon": 5.95, "Zazzo's Tequila": 3.5, "Zazzo's Vodka": 7.08}, "Keg Cooler": {}, "Coffin Cooler": {"Bud Light": 57.5, "Budweiser": 20.4, "Budweiser Zero": 15.25, "Cider Boys": 6.75, "Coors Light": 29.4, "Corona": 17.0, "Corona Light": 14.5, "Daura": 2.25, "Guinness": 7.25, "Heineken": 10.0, "MGD": 5.8, "Michelob Ultra": 54.0, "Miller High Life": 1.5, "Miller Lite": 30.8, "Modelo": 9.25, "Stella N/A": 6.25, "Summer Shandy": 6.0, "Yuengling Flight": 6.75, "Black Cherry White Claw": 5.0, "High Noon Peach": 4.5, "High Noon Peach Tea": 3.75, "High Noon Pineapple": 10.75, "High Noon Tea": 1.25, "High Noon Watermelon": 6.25, "Suncruiser": 0.25, "Vodkade Blue": 4.0, "Vodkade Orange": 4.0, "Vodkade Red": 2.5, "Vodkade S.F Blue": 1.5, "Vodkade S.F Lime": 1.5, "Vodkade S.F Orange": 1.0, "Vodkade S.F Red": 1.0, "Jack Daniels Fire 1L": 0.17, "Jack Daniels Fire 750": 0.5, "Jack Daniels Honey": 0.67, "Jagermeister": 1.07, "Rumple Minze": 0.62, "Sambuca": 0.1}, "Behind Bar": {}, "Outside Cooler": {"Bud Light": 57.5, "Budweiser": 20.4, "Budweiser Zero": 15.25, "Cider Boys": 6.75, "Coors Light": 29.4, "Corona": 17.0, "Corona Light": 14.5, "Daura": 2.25, "Guinness": 7.25, "Heineken": 10.0, "MGD": 5.8, "Michelob Ultra": 54.0, "Miller High Life": 1.5, "Miller Lite": 30.8, "Modelo": 9.25, "Stella N/A": 6.25, "Summer Shandy": 6.0, "Yuengling Flight": 6.75, "Black Cherry White Claw": 5.0, "High Noon Peach": 4.5, "High Noon Peach Tea": 3.75, "High Noon Pineapple": 10.75, "High Noon Tea": 1.25, "High Noon Watermelon": 6.25, "Suncruiser": 0.25, "Vodkade Blue": 4.0, "Vodkade Orange": 4.0, "Vodkade Red": 2.5, "Vodkade S.F Blue": 1.5, "Vodkade S.F Lime": 1.5, "Vodkade S.F Orange": 1.0, "Vodkade S.F Red": 1.0, "Lamarca Splitz": 7.0}}, "open": {"Behind Bar": {"Bud Light": 57.5, "Budweiser": 20.4, "Budweiser Zero": 15.25, "Cider Boys": 6.75, "Coors Light": 29.4, "Corona": 17.0, "Corona Light": 14.5, "Daura": 2.25, "Guinness": 7.25, "Heineken": 10.0, "MGD": 5.8, "Michelob Ultra": 54.0, "Miller High Life": 1.5, "Miller Lite": 30.8, "Modelo": 9.25, "Stella N/A": 6.25, "Summer Shandy": 6.0, "Yuengling Flight": 6.75, "Black Cherry White Claw": 5.0, "High Noon Peach": 4.5, "High Noon Peach Tea": 3.75, "High Noon Pineapple": 10.75, "High Noon Tea": 1.25, "High Noon Watermelon": 6.25, "Suncruiser": 0.25, "Vodkade Blue": 4.0, "Vodkade Orange": 4.0, "Vodkade Red": 2.5, "Vodkade S.F Blue": 1.5, "Vodkade S.F Lime": 1.5, "Vodkade S.F Orange": 1.0, "Vodkade S.F Red": 1.0, "Benchmark": 1.0, "Buffalo Trace": 0.42, "High West": 0.25, "Knob Creek": 1.93, "Maker's Mark": 1.6, "Mitcher's": 0.3, "Old Forester": 0.47, "Redemption": 0.3, "Row 94": 0.3, "Russell's": 0.42, "E&J": 0.12, "Hendricks": 1.18, "Tanqueray": 1.38, "Jameson": 6.35, "Red Breast": 1.0, "Tullamore D.E.W": 1.25, "Bacardi": 5.97, "Captain Morgan": 6.42, "Kahlua": 1.1, "Myers's": 1.65, "Rumchata": 1.9, "Rumhaven": 1.73, "Pinhook": 0.42, "Sazerac Rye": 0.45, "Templeton Rye": 0.45, "Dewar's": 1.23, "Glenlivet": 1.23, "Don Julio": 1.9, "Hornitos": 1.23, "Milagro": 1.0, "Belvedere": 1.12, "Grey Goose": 1.8, "Kettle One": 1.5, "Sobieski Citron": 1.12, "Sobieski Vanilla": 1.88, "Tito's": 4.28, "B&B": 0.5, "Crown Royal": 1.2, "Crown Royal Apple": 1.85, "Crown Royal Peach": 1.5, "Gentleman Jack": 1.75, "Jack Daniels": 1.1, "Jim Beam": 1.12, "Seagram's 7": 1.48, "Seagram's VO": 1.2, "Southern Comfort": 1.95, "Woodford Reserve": 1.1, "Zazzo's Bourbon": 6.56, "Zazzo's Gin": 4.81, "Zazzo's Rum": 4.0, "Zazzo's Tequila": 3.5, "Zazzo's Vodka": 7.08, "Lamarca Splitz": 7.0, "Lyric N/A Champagne": 3.67, "Whycliff Champagne": 2.0, "Altos Malbec": 5.83, "Canyon Road Cabernet": 9.0, "Canyon Road Pinot Noir": 3.17, "Decoy Cabernet": 4.33, "Decoy Pinot Noir": 9.0, "Duckhorn Cabernet": 4.0, "Franciscan Cabernet": 7.83, "Hahn Pinot Noir": 3.58, "Josh Cabernet": 9.42, "Ruffino Chianti": 7.5, "Unshackled Red Blend": 4.0, "Canyon Road Moscato": 11.25, "Canyon Road Pinot Grigio": 7.06, "Caposaldo Pinot Grigio": 6.81, "Santa Margherita Pinot Grigio": 9.33, "Buenaveza": 0.03, "Morretti": 0.25, "Don Q": 0.15, "Frangelico": 1.27, "Sambuca": 0.1, "Aperol": 0.0, "Chambord": 1.5, "Cointreau": 1.12, "Disaronno": 1.38, "Grand Marnier": 1.85, "Select Aperitif": 1.85, "Gallo Sweet Vermouth": 1.48, "Midori": 0.45}, "Keg Cooler": {"Bud Light": 57.5, "Budweiser": 20.4, "Budweiser Zero": 15.25, "Cider Boys": 6.75, "Coors Light": 29.4, "Corona": 17.0, "Corona Light": 14.5, "Daura": 2.25, "Guinness": 7.25, "Heineken": 10.0, "MGD": 5.8, "Michelob Ultra": 54.0, "Miller High Life": 1.5, "Miller Lite": 30.8, "Modelo": 9.25, "Stella N/A": 6.25, "Summer Shandy": 6.0, "Yuengling Flight": 6.75, "Black Cherry White Claw": 5.0, "High Noon Peach": 4.5, "High Noon Peach Tea": 3.75, "High Noon Pineapple": 10.75, "High Noon Tea": 1.25, "High Noon Watermelon": 6.25, "Suncruiser": 0.25, "Vodkade Blue": 4.0, "Vodkade Orange": 4.0, "Vodkade Red": 2.5, "Vodkade S.F Blue": 1.5, "Vodkade S.F Lime": 1.5, "Vodkade S.F Orange": 1.0, "Vodkade S.F Red": 1.0, "Lamarca Splitz": 7.0, "Ambiegram": 1.1, "Blue Moon": 0.45, "Buenaveza": 0.03, "Center Line": 1.75, "Dunkel": 0.15, "Hopular Kid": 0.5, "Labatt Blue": 1.05, "Longsnapper": 0.85, "Miller Lite Keg": 1.05, "Morretti": 0.25, "Old Style": 0.9, "Stella Keg": 1.35, "Stone IPA": 0.6, "Yuengling Keg": 2.05, "Zazzo's Point": 0.7}}, "orders": [{"product": "Bud Light", "total": 230.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Budweiser", "total": 102.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Budweiser Zero", "total": 61.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Cider Boys", "total": 27.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Coors Light", "total": 147.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Corona", "total": 68.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Corona Light", "total": 58.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Daura", "total": 9.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Guinness", "total": 29.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Heineken", "total": 40.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "MGD", "total": 29.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Michelob Ultra", "total": 270.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Miller High Life", "total": 6.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Miller Lite", "total": 154.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Modelo", "total": 37.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Stella N/A", "total": 25.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Summer Shandy", "total": 24.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Yuengling Flight", "total": 27.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Angel's Envy", "total": 1.85, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Benchmark", "total": 1.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Blade and Bow", "total": 1.7, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Buffalo Trace", "total": 0.85, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Bulleit Bourbon (Orange Label)", "total": 2.65, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Elijah Craig", "total": 1.45, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "High West", "total": 0.5, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Horse Soldier", "total": 1.5, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Knob Creek", "total": 3.85, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Maker's Mark", "total": 1.6, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Mitcher's", "total": 0.6, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Old Forester", "total": 0.95, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Piggy Back", "total": 3.2, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Redemption", "total": 0.6, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Row 94", "total": 0.6, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Russell's", "total": 0.85, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Wild Turkey", "total": 1.4, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "E&J", "total": 0.25, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Hennessy", "total": 1.6, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Lamarca Splitz", "total": 21.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Lyric N/A Champagne", "total": 11.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Whycliff Champagne", "total": 8.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Hendricks", "total": 2.35, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Tanqueray", "total": 2.75, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Jameson", "total": 12.7, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Red Breast", "total": 1.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Tullamore D.E.W", "total": 2.5, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Ambiegram", "total": 1.1, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Blue Moon", "total": 0.45, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Buenaveza", "total": 0.05, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Center Line", "total": 1.75, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Dunkel", "total": 0.15, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Hopular Kid", "total": 0.5, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Labatt Blue", "total": 1.05, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Longsnapper", "total": 0.85, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Miller Lite Keg", "total": 1.05, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Morretti", "total": 0.5, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Old Style", "total": 0.9, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Stella Keg", "total": 1.35, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Stone IPA", "total": 0.6, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Yuengling Keg", "total": 2.05, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Zazzo's Point", "total": 0.7, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Aperol", "total": 0.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Bailey's", "total": 1.45, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Chambord", "total": 1.5, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Cointreau", "total": 2.25, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Disaronno", "total": 2.75, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Don Q", "total": 0.3, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Fireball Apple", "total": 1.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Frangelico", "total": 2.55, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Grand Marnier", "total": 1.85, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Jagermeister", "total": 2.14, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Midori", "total": 0.9, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Peachtree", "total": 18.01, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Rumple Minze", "total": 1.25, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Sambuca", "total": 0.3, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Select Aperitif", "total": 1.85, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Tippy Cow", "total": 1.8, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Gallo Dry Vermouth", "total": 1.33, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Gallo Sweet Vermouth", "total": 2.95, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Lo Fi Dry Vermouth", "total": 1.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Altos Malbec", "total": 17.5, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Canyon Road Cabernet", "total": 27.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Canyon Road Pinot Noir", "total": 9.5, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Decoy Cabernet", "total": 13.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Decoy Pinot Noir", "total": 27.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Duckhorn Cabernet", "total": 12.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Franciscan Cabernet", "total": 23.5, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Hahn Pinot Noir", "total": 10.75, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Josh Cabernet", "total": 28.25, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Ruffino Chianti", "total": 22.5, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Unshackled Red Blend", "total": 12.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Bacardi", "total": 11.95, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Captain Morgan", "total": 12.85, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Kahlua", "total": 2.2, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Myers's", "total": 3.3, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Rumchata", "total": 3.8, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Rumhaven", "total": 3.45, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Bulleit Rye (Green Label)", "total": 2.8, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Pinhook", "total": 0.85, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Sazerac Rye", "total": 0.9, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Templeton Rye", "total": 0.9, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Whistle Pig", "total": 2.95, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Dewar's", "total": 2.45, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Glenlivet", "total": 2.45, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Black Cherry White Claw", "total": 20.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "High Noon Peach", "total": 18.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "High Noon Peach Tea", "total": 15.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "High Noon Pineapple", "total": 43.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "High Noon Tea", "total": 5.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "High Noon Watermelon", "total": 25.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Suncruiser", "total": 1.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Vodkade Blue", "total": 16.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Vodkade Orange", "total": 16.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Vodkade Red", "total": 10.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Vodkade S.F Blue", "total": 6.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Vodkade S.F Lime", "total": 6.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Vodkade S.F Orange", "total": 4.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Vodkade S.F Red", "total": 4.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Don Julio", "total": 1.9, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Hornitos", "total": 2.45, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Milagro", "total": 2.01, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Belvedere", "total": 2.25, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Grey Goose", "total": 1.8, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Kettle One", "total": 1.5, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Sobieski Citron", "total": 2.25, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Sobieski Vanilla", "total": 3.75, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Tito's", "total": 8.55, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "B&B", "total": 1.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Crown Royal", "total": 1.2, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Crown Royal Apple", "total": 1.85, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Crown Royal Peach", "total": 3.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Gentleman Jack", "total": 1.75, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Jack Daniels", "total": 2.2, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Jack Daniels Fire 1L", "total": 0.33, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Jack Daniels Fire 750", "total": 1.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Jack Daniels Honey", "total": 1.33, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Jim Beam", "total": 2.25, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Seagram's 7", "total": 2.95, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Seagram's VO", "total": 2.4, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Screwball", "total": 1.7, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Southern Comfort", "total": 1.95, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Woodford Reserve", "total": 1.1, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Canyon Road Chardonnay", "total": 25.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Canyon Road Moscato", "total": 33.75, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Canyon Road Pinot Grigio", "total": 28.25, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Canyon Road Sauvignon Blanc", "total": 27.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Caposaldo Pinot Grigio", "total": 27.25, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Harken Chardonnay", "total": 25.5, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Santa Margherita Pinot Grigio", "total": 28.0, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Whitehaven Sauvignon Blanc", "total": 20.75, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Zazzo's Bourbon", "total": 26.25, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Zazzo's Gin", "total": 19.25, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Zazzo's Rum", "total": 16.01, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Zazzo's Straight Bourbon", "total": 17.84, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Zazzo's Tequila", "total": 14.01, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}, {"product": "Zazzo's Vodka", "total": 28.3, "lastWeek": "", "received": "", "sold": "", "order": "", "par": "", "unit": ""}]}]);
+    const [lastRollover, setLastRollover] = useState(null);
+    const [master, setMaster] = useState(INITIAL_MASTER);
+    const [showMaster, setShowMaster] = useState(false);
+    const [cornerTaps, setCornerTaps] = useState([]);
+    const [showMasterPin, setShowMasterPin] = useState(false);
+    const [masterPinInput, setMasterPinInput] = useState("");
+    const [masterPinError, setMasterPinError] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const cornerTimer = useRef(null);
+    const CORNER_SEQ = ["TL", "TR", "BL", "BR"];
+    // Load all data from Supabase on mount
+    useEffect(() => {
+        async function loadData() {
+            try {
+                const orderRows = await sbGet("orders", "select=*");
+                if (Array.isArray(orderRows) && orderRows.length > 0) {
+                    setOrders(prev => prev.map(r => {
+                        const row = orderRows.find(x => x.product === r.product);
+                        return row ? Object.assign(Object.assign({}, r), { vendor: row.vendor || r.vendor, unit: row.unit || "", par: row.par != null ? String(row.par) : "", lastWeek: row.last_week != null ? String(row.last_week) : "", received: row.received != null ? String(row.received) : "", sold: row.sold != null ? String(row.sold) : "", order: row.order_qty != null ? String(row.order_qty) : "" }) : r;
+                    }));
+                }
+            }
+            catch (e) {
+                console.error("Orders load error:", e);
+            }
+            try {
+                const archiveRows = await sbGet("archives", "select=*&order=created_at.desc");
+                if (Array.isArray(archiveRows) && archiveRows.length > 0) {
+                    setArchives(archiveRows.map(a => ({
+                        label: a.week_label, date: a.archive_date,
+                        sealed: a.sealed_counts || {}, open: a.open_counts || {}, orders: a.orders || []
+                    })));
+                }
+            }
+            catch (e) {
+                console.error("Archives load error:", e);
+            }
+            try {
+                const masterRows = await sbGet("master", "select=*&order=product.asc");
+                if (Array.isArray(masterRows) && masterRows.length > 0) {
+                    const m = masterRows.map(r => ({ product: r.product, category: r.category, class: r.class, vendor: r.vendor, locations: r.locations }));
+                    setMaster(m);
+                    window.__MASTER__ = m;
+                }
+            }
+            catch (e) {
+                console.error("Master load error:", e);
+            }
+            try {
+                const countRows = await sbGet("counts", "select=*&week_label=eq.current");
+                if (Array.isArray(countRows) && countRows.length > 0) {
+                    const newSealed = mkSealed();
+                    const newOpen = mkOpen();
+                    countRows.forEach(row => {
+                        if (row.user_type === "selena" && newSealed[row.location] !== undefined) {
+                            newSealed[row.location][row.product] = String(row.count_value);
+                        }
+                        else if (row.user_type === "erika" && newOpen[row.location] !== undefined) {
+                            newOpen[row.location][row.product] = String(row.count_value);
+                        }
+                    });
+                    setSealed(newSealed);
+                    setOpen(newOpen);
+                }
+            }
+            catch (e) {
+                console.error("Counts load error:", e);
+            }
+            setLoading(false);
+        }
+        loadData();
+    }, []);
+    useEffect(() => { window.__MASTER__ = master; }, [master]);
+    // Weekly auto-rollover check
+    useEffect(() => {
+        const id = setInterval(() => {
+            const n = new Date();
+            if (n.getDay() === 1 && n.getHours() === 0 && n.getMinutes() >= 1) {
+                const k = `${n.getFullYear()}-${n.getMonth()}-${n.getDate()}`;
+                if (lastRollover !== k) {
+                    doRollover();
+                    setLastRollover(k);
+                }
+            }
+        }, 60000);
+        return () => clearInterval(id);
+    }, [lastRollover, sealed, open, orders]);
+    const calcTotal = useCallback((product) => {
+        let t = 0;
+        SELENA_LOCS.forEach(l => { var _a; const v = (_a = sealed[l]) === null || _a === void 0 ? void 0 : _a[product]; if (v !== "" && v !== undefined)
+            t += Number(v); });
+        ERIKA_LOCS.forEach(l => { var _a; const v = (_a = open[l]) === null || _a === void 0 ? void 0 : _a[product]; if (v !== "" && v !== undefined)
+            t += Number(v); });
+        return Math.round(t * 100) / 100;
+    }, [sealed, open]);
+    const doRollover = async () => {
+        const archiveData = {
+            label: weekLabel(), date: new Date().toLocaleDateString(),
+            sealed: JSON.parse(JSON.stringify(sealed)),
+            open: JSON.parse(JSON.stringify(open)),
+            orders: orders.map(r => (Object.assign(Object.assign({}, r), { total: calcTotal(r.product) })))
+        };
+        setArchives(prev => [archiveData, ...prev]);
+        try {
+            await sbPost("archives", { week_label: archiveData.label, archive_date: archiveData.date, sealed_counts: archiveData.sealed, open_counts: archiveData.open, orders: archiveData.orders });
+        }
+        catch (e) {
+            console.error("Archive save error:", e);
+        }
+        const newOrders = orders.map(r => (Object.assign(Object.assign({}, r), { lastWeek: String(calcTotal(r.product)), received: "", sold: "", order: "" })));
+        setOrders(newOrders);
+        try {
+            await Promise.all(newOrders.map(r => sbUpsert("orders", {
+                product: r.product, category: r.category, class: r.class, vendor: r.vendor,
+                unit: r.unit || "", par: r.par ? Number(r.par) : null,
+                last_week: r.lastWeek ? Number(r.lastWeek) : null,
+                received: null, sold: null, order_qty: null
+            }, "product")));
+        }
+        catch (e) {
+            console.error("Order rollover error:", e);
+        }
+        try {
+            await sbDelete("counts", "week_label=eq.current");
+        }
+        catch (e) {
+            console.error("Count clear error:", e);
+        }
+        setSealed(mkSealed());
+        setOpen(mkOpen());
+    };
+    const handleCornerTap = (corner) => {
+        setCornerTaps(prev => {
+            const next = [...prev, corner];
+            if (cornerTimer.current)
+                clearTimeout(cornerTimer.current);
+            cornerTimer.current = setTimeout(() => setCornerTaps([]), 3000);
+            const seq = next.slice(-4);
+            if (seq.length === 4 && seq.every((c, i) => c === CORNER_SEQ[i])) {
+                setCornerTaps([]);
+                setShowMasterPin(true);
+                setMasterPinInput("");
+                setMasterPinError(false);
+            }
+            return next;
+        });
+    };
+    const submitMasterPin = (pin) => {
+        if (pin === CORRECT_PIN) {
+            setShowMaster(true);
+            setShowMasterPin(false);
+            setMasterPinInput("");
+        }
+        else {
+            setMasterPinError(true);
+            setMasterPinInput("");
+        }
+    };
+    const masterPressKey = (k) => {
+        if (!k)
+            return;
+        if (k === "⌫") {
+            setMasterPinInput(p => p.slice(0, -1));
+            setMasterPinError(false);
+            return;
+        }
+        const next = masterPinInput + k;
+        setMasterPinInput(next);
+        setMasterPinError(false);
+        if (next.length === 4) {
+            setTimeout(() => submitMasterPin(next), 150);
+        }
+    };
+    const masterCancel = () => { setShowMasterPin(false); setMasterPinInput(""); setMasterPinError(false); };
+    const goHome = () => { setScreen("login"); setUser(null); };
+    const login = (u) => { setUser(u); setScreen("count"); };
+    return (React.createElement(React.Fragment, null,
+        React.createElement("style", null, CSS),
+        loading && (React.createElement("div", { className: "Login" },
+            React.createElement("div", { className: "Login-brand" },
+                React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
+                React.createElement("div", { className: "Login-tag" }, "Loading...")))),
+        !loading && screen === "login" && (React.createElement("div", { className: "Login" },
+            React.createElement("div", { className: "Login-brand" },
+                React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
+                React.createElement("div", { className: "Login-tag" }, "Liquor Inventory")),
+            React.createElement("div", { className: "Login-grid" },
+                React.createElement("div", { className: "LCard", onClick: () => login("selena") },
+                    React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
+                    React.createElement("div", { className: "LCard-name" }, "Selena")),
+                React.createElement("div", { className: "LCard", onClick: () => login("erika") },
+                    React.createElement("div", { className: "LCard-role" }, "Open Stock"),
+                    React.createElement("div", { className: "LCard-name" }, "Erika")),
+                React.createElement("div", { className: "LCard", onClick: () => setScreen("received") },
+                    React.createElement("div", { className: "LCard-role" }, "Received Items"),
+                    React.createElement("div", { className: "LCard-name" }, "Log deliveries")),
+                React.createElement("div", { className: "LCard", onClick: () => setScreen("sold") },
+                    React.createElement("div", { className: "LCard-role" }, "Sold Items"),
+                    React.createElement("div", { className: "LCard-name" }, "Log weekly sales")),
+                React.createElement("div", { className: "LCard", onClick: () => setScreen("orderguide") },
+                    React.createElement("div", { className: "LCard-role" }, "Order Guide"),
+                    React.createElement("div", { className: "LCard-name" }, "Weekly ordering")),
+                React.createElement("div", { className: "LCard", onClick: () => setScreen("analysis") },
+                    React.createElement("div", { className: "LCard-role" }, "Trend Analysis"),
+                    React.createElement("div", { className: "LCard-name" },
+                        archives.length,
+                        " week",
+                        archives.length !== 1 ? "s" : "",
+                        " of data"))))),
+        screen === "count" && (React.createElement(CountScreen, { user: user, locs: user === "selena" ? SELENA_LOCS : ERIKA_LOCS, counts: user === "selena" ? sealed : open, setCounts: user === "selena" ? setSealed : setOpen, onBack: goHome, sealed: sealed, open: open })),
+        screen === "received" && React.createElement(ReceivedScreen, { onBack: goHome, setOrders: setOrders }),
+        screen === "orderguide" && React.createElement(OrderGuideScreen, { orders: orders, setOrders: setOrders, calcTotal: calcTotal, onBack: goHome }),
+        screen === "sold" && React.createElement(SoldScreen, { orders: orders, setOrders: setOrders, onBack: goHome }),
+        screen === "analysis" && React.createElement(TrendScreen, { archives: archives, calcTotal: calcTotal, onBack: goHome }),
+        showMaster && (React.createElement(MasterEditor, { master: master, onSave: (updated) => { setMaster(updated); setOrders(mkOrders(updated)); }, onClose: () => setShowMaster(false) })),
+        React.createElement("div", { style: { position: "fixed", inset: 0, pointerEvents: "none", zIndex: 900 } }, [["TL", { top: 0, left: 0 }], ["TR", { top: 0, right: 0 }], ["BL", { bottom: 0, left: 0 }], ["BR", { bottom: 0, right: 0 }]].map(([id, pos]) => (React.createElement("div", { key: id, style: Object.assign(Object.assign({ position: "absolute" }, pos), { width: 60, height: 60, pointerEvents: "auto", cursor: "default" }), onClick: () => handleCornerTap(id) })))),
+        React.createElement(MasterGuardModal, { show: showMasterPin, input: masterPinInput, error: masterPinError, onKey: masterPressKey, onCancel: masterCancel })));
+}
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(React.createElement(App, null));
+
+  </script>
+</body>
+</html>
