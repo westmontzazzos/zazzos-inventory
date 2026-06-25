@@ -765,6 +765,8 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
         const cur = Number(((_a = counts[curLoc]) === null || _a === void 0 ? void 0 : _a[product]) || 0);
         const next = Math.max(0, Math.round((cur + delta) * (isDecimal ? 100 : 1)) / (isDecimal ? 100 : 1));
         setCounts(prev => (Object.assign(Object.assign({}, prev), { [curLoc]: Object.assign(Object.assign({}, prev[curLoc]), { [product]: String(next) }) })));
+        sbUpsert("counts", { week_label: "current", user_type: user, location: curLoc, product, count_value: next }, "week_label,user_type,location,product")
+            .catch(e => console.error("Count save:", e));
     };
     const onChange = (product, val) => {
         setCounts(prev => (Object.assign(Object.assign({}, prev), { [curLoc]: Object.assign(Object.assign({}, prev[curLoc]), { [product]: val }) })));
