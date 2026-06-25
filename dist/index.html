@@ -1642,17 +1642,7 @@ function App() {
             catch (e) {
                 console.error("Archives load error:", e);
             }
-            try {
-                const masterRows = await sbGet("master", "select=*&order=product.asc");
-                if (Array.isArray(masterRows) && masterRows.length > 0) {
-                    const m = masterRows.map(r => ({ product: r.product, category: r.category, class: r.class, vendor: r.vendor, locations: r.locations }));
-                    setMaster(m);
-                    window.__MASTER__ = m;
-                }
-            }
-            catch (e) {
-                console.error("Master load error:", e);
-            }
+            // Master is always loaded from hardcoded list in app, not Supabase
             try {
                 const countRows = await sbGet("counts", "select=*&week_label=eq.current");
                 if (Array.isArray(countRows) && countRows.length > 0) {
