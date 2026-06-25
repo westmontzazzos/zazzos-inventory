@@ -46,6 +46,11 @@ async function sbUpsert(table, body, onConflict) {
         headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json", "Prefer": "resolution=merge-duplicates,return=minimal" },
         body: JSON.stringify(body)
     });
+    if (!res.ok) {
+        const errText = await res.text();
+        console.error("sbUpsert failed: " + res.status + " " + errText);
+        alert("Save error: " + res.status + " " + errText);
+    }
     return res.ok;
 }
 async function sbDelete(table, filter) {
