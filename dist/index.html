@@ -605,7 +605,12 @@ html,body{background:#EFEFEF;color:#111111;font-family:'Inter',system-ui,sans-se
   .Card{display:none!important;}
   .SHead{display:none!important;}
   .Complete{display:none!important;}
+  .ProdRow{display:none!important;}
+  .ProdList{display:none!important;}
+  .Stepper{display:none!important;}
   .print-show{display:block!important;}
+  body,html{height:auto!important;overflow:visible!important;}
+  div{overflow:visible!important;height:auto!important;max-height:none!important;}
   *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
   @page{margin:1.5cm;size:portrait;}
 }
@@ -701,17 +706,19 @@ function PrintSheet({ user, locs, sealed, open, blank }) {
             const groups = groupCC(products);
             const isLast = locIdx === locs.length - 1;
             const rows = [];
-            Object.entries(groups).forEach(function([cls, cats]) {
+            Object.entries(groups).forEach(function(clsEntry) {
+                var cls = clsEntry[0], cats = clsEntry[1];
                 rows.push(React.createElement("tr", { key: "cls-" + cls },
                     React.createElement("td", { colSpan: 2, style: { background: "#C8102E", color: "#fff", fontWeight: "700", padding: "3px 8px", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.1em" } }, cls)));
-                Object.entries(cats).forEach(function([cat, items]) {
+                Object.entries(cats).forEach(function(catEntry) {
+                    var cat = catEntry[0], items = catEntry[1];
                     rows.push(React.createElement("tr", { key: "cat-" + cat },
                         React.createElement("td", { colSpan: 2, style: { background: "#FDECEA", color: "#C8102E", padding: "2px 8px", fontSize: 9, textTransform: "uppercase", fontWeight: "700" } }, cat)));
                     items.forEach(function(item, ii) {
                         var val = (counts[loc] && counts[loc][item.product]) || "";
                         rows.push(React.createElement("tr", { key: item.product, style: { background: ii % 2 === 0 ? "#FFFFFF" : "#F5F5F5" } },
                             React.createElement("td", { style: { padding: "4px 8px", borderBottom: "1px solid #DDD", borderRight: "1px solid #DDD" } }, item.product),
-                            React.createElement("td", { style: { padding: "4px 8px", borderBottom: "1px solid #DDD", minWidth: 60 } }, blank ? "" : val)));
+                            React.createElement("td", { style: { padding: "4px 8px", borderBottom: "1px solid #DDD", minWidth: 80 } }, blank ? "" : val)));
                     });
                 });
             });
@@ -789,16 +796,12 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
             managerMode && React.createElement("div", { className: "MgrBanner" }, "Manager Mode \u2014 Triple Tap Logo to Lock"),
             React.createElement("div", { className: "LocBar-grid", style: { gridTemplateColumns: `repeat(${cols},1fr)` } }, locs.map((loc, i) => {
                 const done = completed.includes(loc), active = i === activeIdx, locked = !done && !active;
-                const locProds = forLoc(master, loc);
-                const locFilled = locProds.filter(p => { var _a; const v = (_a = counts[loc]) === null || _a === void 0 ? void 0 : _a[p.product]; return v !== "" && v !== undefined; }).length;
                 return (React.createElement("span", { key: loc, className: `Pill ${done ? "Pill-done" : active ? "Pill-active" : "Pill-locked"}`, onClick: () => { if (done || managerMode)
                         setActiveIdx(i);
                     else if (locked)
                         setLockWarn(true); } },
-                    done ? "✓ " : "",
-                    (loc === "Window/Party Room" ? "Window/Party" : loc),
-                    " ",
-                    React.createElement("span", { style: { fontSize: 9, opacity: 0.8 } }, locFilled + "/" + locProds.length)));
+                    done ? "✓ " : active ? "● " : "○ ",
+                    loc === "Window/Party Room" ? "Window/Party" : loc));
             }))),
         React.createElement("div", { ref: contentRef, onScroll: handleScroll, style: { flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "16px 16px 80px" } },
             allDone ? (React.createElement("div", { className: "Complete" },
@@ -813,9 +816,24 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
                     React.createElement("button", { className: "B B-outline B-lg", onClick: () => { setPrintMode("blank"); setTimeout(() => window.print(), 50); } }, "\uD83D\uDDA8 Print Blank"),
                     React.createElement("button", { className: "B B-outline B-lg", onClick: () => { setActiveIdx(0); setCompleted([]); } }, "Start Over"),
                     React.createElement("button", { className: "B B-red B-lg", onClick: onBack }, "\u2190 Home")))) : (React.createElement(React.Fragment, null,
-
+                React.createElement("div", { className: "SHead", style: { marginBottom: 12 } },
+                    React.createElement("div", null,
+                        React.createElement("div", { className: "STitle" }, curLoc),
+                        React.createElement("div", { className: "SSub" },
+                            user === "selena" ? "Full / sealed units only." : "Open / partial units only.",
+                            " ",
+                            activeIdx + 1,
+                            " of ",
+                            locs.length,
+                            "."))),
                 React.createElement("div", { className: "Card" },
-
+                    React.createElement("div", { className: "Card-head" },
+                        React.createElement("span", { className: "Card-title" }, curLoc),
+                        React.createElement("span", { className: "Card-badge" },
+                            filled,
+                            " / ",
+                            products.length,
+                            " entered")),
                     React.createElement("div", { className: "ProdList" },
                         React.createElement(ProdRows, { groups: groups, counts: counts, loc: curLoc, isDecimal: isDecimal, onStep: step, onChange: onChange }))))),
             React.createElement("div", { style: { display: "none" }, className: "print-show" },
