@@ -728,7 +728,7 @@ function PrintSheet({ user, locs, sealed, open, blank }) {
                     });
                 });
             });
-            return React.createElement("div", { key: loc, style: { pageBreakAfter: isLast ? "auto" : "always", breakAfter: isLast ? "auto" : "always", marginBottom: 0 } },
+            return React.createElement("div", { key: loc, style: { marginBottom: 16 } },
                 React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "2px solid #1A1A2E", paddingBottom: 3, marginBottom: 4 } },
                     React.createElement("div", null,
                         React.createElement("div", { style: { fontFamily: FONT, fontSize: 12, fontWeight: "700", color: "#C8102E", textTransform: "uppercase", letterSpacing: "0.05em" } }, "ZAZZO'S LIQUOR INVENTORY"),
@@ -1138,7 +1138,7 @@ function ReceivedPrintSheet({ vendors, master, received }) {
                         });
                     });
                 });
-                return React.createElement("div", { key: vendor, style: { pageBreakAfter: isLast ? "auto" : "always", breakAfter: isLast ? "auto" : "always", marginBottom: 0 } },
+                return React.createElement("div", { key: vendor, style: { marginBottom: 16 } },
                     React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "2px solid #1A1A2E", paddingBottom: 3, marginBottom: 4 } },
                         React.createElement("div", null,
                             React.createElement("div", { style: { fontFamily: FONT, fontSize: 12, fontWeight: "700", color: "#C8102E", textTransform: "uppercase", letterSpacing: "0.05em" } }, "ZAZZO'S LIQUOR INVENTORY"),
