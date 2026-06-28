@@ -997,14 +997,18 @@ function OrderGuideScreen({ orders, setOrders, calcTotal, onBack }) {
     const _availW = window.innerWidth - PROD_W;
     const _colW = Math.floor(_availW / 6);
     const DATA_COLS = [
-        { key: 'lw',         label: 'Last Wk',      w: _colW },
-        { key: 'received',   label: 'Received',     w: _colW },
-        { key: 'total',      label: 'Current Count',w: _colW },
-        { key: 'depletion',  label: 'Depletion',    w: _colW },
-        { key: 'sold',       label: 'Sales',        w: _colW },
-        { key: 'order',      label: 'Order',        w: _colW },
+        { key: 'lw',               label: 'Last Wk',      w: _colW },
+        { key: 'received',         label: 'Received',     w: _colW },
+        { key: 'total',            label: 'Current Count',w: _colW },
+        { key: 'depletion',        label: 'Depletion',    w: _colW },
+        { key: 'sold',             label: 'Sales',        w: _colW },
+        { key: 'variance',         label: 'Variance',     w: _colW },
+        { key: 'par',              label: 'Par',          w: _colW },
+        { key: 'deliveryThisWeek', label: 'Delivery',     w: _colW },
+        { key: 'order',            label: 'Order',        w: _colW },
+        { key: 'freq',             label: 'Freq',         w: _colW },
     ];
-    const ALL_COLS = [{ key: 'product', label: 'Product', w: PROD_W }, ...DATA_COLS];
+    const ALL_COLS = [{ key: 'product', label: 'Item', w: PROD_W }, { key: 'vendor', label: 'Vendor', w: _colW }, ...DATA_COLS];
     const tableWidth = ALL_COLS.reduce((s,c) => s+c.w, 0);
 
     const ogCSS = `
@@ -1090,9 +1094,13 @@ function OrderGuideScreen({ orders, setOrders, calcTotal, onBack }) {
                             const recv = Number(ro.received) || 0;
                             const dep = Math.round((lw + recv - tot) * 100) / 100;
                             let cellContent;
-                            if (col.key === 'total') cellContent = React.createElement("span", null, tot > 0 ? tot : "—");
+                            if (col.key === 'vendor') cellContent = React.createElement("span", { style:{color:'#777',fontSize:11} }, ro.vendor || "—");
+                            else if (col.key === 'total') cellContent = React.createElement("span", null, tot > 0 ? tot : "—");
                             else if (col.key === 'lw') cellContent = React.createElement("span", { style:{color:'#777'} }, ro.lastWeek || "—");
                             else if (col.key === 'depletion') cellContent = React.createElement("span", { className: dep > 0 ? 'neg' : dep < 0 ? 'pos' : '' }, (lw > 0 || recv > 0) ? dep : "—");
+                            else if (col.key === 'variance') { const par2=Number(ro.par)||0; const v=Math.round((tot-par2)*100)/100; cellContent = React.createElement("span", { className: par2>0?(v>=0?'pos':'neg'):'' }, par2>0?(v>=0?'+'+v:v):"—"); }
+                            else if (col.key === 'freq') cellContent = React.createElement("span", { style:{color:'#777',fontSize:11} }, ro.freq || "—");
+                            else if (col.key === 'deliveryThisWeek') cellContent = React.createElement("span", { style:{color: ro.deliveryThisWeek==='Yes'?'#1B6B3A':'#777', fontWeight: ro.deliveryThisWeek==='Yes'?700:400, fontSize:11} }, ro.deliveryThisWeek || "—");
                             else cellContent = React.createElement("input", {
                                 type: "number", min: "0", inputMode: "numeric",
                                 placeholder: col.key === 'order' ? "—" : "0",
@@ -1672,14 +1680,18 @@ function OGHistoryScreen({ archives, onBack }) {
     const PROD_W = 180;
     const _colW = Math.floor((window.innerWidth - PROD_W) / 6);
     const DATA_COLS = [
-        { key: 'lw',        label: 'Last Wk',      w: _colW },
-        { key: 'received',  label: 'Received',      w: _colW },
-        { key: 'total',     label: 'Current Count', w: _colW },
-        { key: 'depletion', label: 'Depletion',     w: _colW },
-        { key: 'sold',      label: 'Sales',         w: _colW },
-        { key: 'order',     label: 'Order',         w: _colW },
+        { key: 'lw',               label: 'Last Wk',      w: _colW },
+        { key: 'received',         label: 'Received',     w: _colW },
+        { key: 'total',            label: 'Current Count',w: _colW },
+        { key: 'depletion',        label: 'Depletion',    w: _colW },
+        { key: 'sold',             label: 'Sales',        w: _colW },
+        { key: 'variance',         label: 'Variance',     w: _colW },
+        { key: 'par',              label: 'Par',          w: _colW },
+        { key: 'deliveryThisWeek', label: 'Delivery',     w: _colW },
+        { key: 'order',            label: 'Order',        w: _colW },
+        { key: 'freq',             label: 'Freq',         w: _colW },
     ];
-    const ALL_COLS = [{ key: 'product', label: 'Product', w: PROD_W }, ...DATA_COLS];
+    const ALL_COLS = [{ key: 'product', label: 'Item', w: PROD_W }, { key: 'vendor', label: 'Vendor', w: _colW }, ...DATA_COLS];
     const tableWidth = ALL_COLS.reduce((s,c) => s+c.w, 0);
 
     const ogCSS = `.ogh-wrap{overflow-x:auto;overflow-y:scroll;-webkit-overflow-scrolling:auto;position:fixed;top:76px;left:0;right:0;bottom:0;}.ogh-row{display:flex;flex-shrink:0;}.ogh-cell{flex-shrink:0;box-sizing:border-box;display:flex;align-items:center;padding:0 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}.ogh-prod{position:sticky;left:0;z-index:10;}.ogh-hi{display:flex;will-change:transform;}.ogh-hc{flex-shrink:0;box-sizing:border-box;height:32px;display:flex;align-items:center;padding:0 10px;font-size:11px;font-weight:700;text-transform:uppercase;color:#777;background:#F5F5F5;border-right:1px solid #999;}.ogh-hcp{position:sticky;left:0;z-index:12;background:#F5F5F5;}.ogh-L3{position:fixed;top:76px;left:0;right:0;height:30px;background:#C8102E;color:#fff;font-size:11px;font-weight:700;text-transform:uppercase;display:none;align-items:center;padding:0 10px;z-index:500;pointer-events:none;}.ogh-L4{position:fixed;top:106px;left:0;right:0;height:26px;background:#FDECEA;color:#C8102E;font-size:11px;font-weight:700;text-transform:uppercase;display:none;align-items:center;padding:0 10px;z-index:500;pointer-events:none;}@media print{.ogh-np{display:none!important;}.ogh-wrap{position:static;overflow:visible;}}`;
@@ -1737,12 +1749,18 @@ function OGHistoryScreen({ archives, onBack }) {
                             const tot=Number(ro.total)||0, lw=Number(ro.lastWeek)||0, recv=Number(ro.received)||0;
                             const dep=Math.round((lw+recv-tot)*100)/100;
                             let val;
-                            if (col.key==='total') val=tot>0?tot:'--';
+                            if (col.key==='product') val=r.item.product;
+                            else if (col.key==='vendor') val=ro.vendor||'--';
                             else if (col.key==='lw') val=ro.lastWeek||'--';
                             else if (col.key==='received') val=ro.received||'--';
-                            else if (col.key==='depletion') val=(lw>0||recv>0)?dep:'--';
+                            else if (col.key==='total') val=tot>0?tot:'--';
+                            else if (col.key==='depletion') val=ro.depletion!==''&&ro.depletion!==undefined?ro.depletion:'--';
                             else if (col.key==='sold') val=ro.sold||'--';
+                            else if (col.key==='variance') val=ro.variance!==''&&ro.variance!==undefined?ro.variance:'--';
+                            else if (col.key==='par') val=ro.par||'--';
+                            else if (col.key==='deliveryThisWeek') val=ro.deliveryThisWeek||'--';
                             else if (col.key==='order') val=ro.order||'--';
+                            else if (col.key==='freq') val=ro.freq||'--';
                             else val='--';
                             return React.createElement("div", {key:col.key,className:cls,style:{...cs,justifyContent:'center'}}, val);
                         }));
@@ -1864,7 +1882,28 @@ function App() {
             label: weekLabel(), date: new Date().toLocaleDateString(),
             sealed: fillBlanks(sealed),
             open: fillBlanks(open),
-            orders: orders.map(r => (Object.assign(Object.assign({}, r), { total: calcTotal(r.product) })))
+            orders: orders.map(r => {
+                const tot = calcTotal(r.product);
+                const lw = Number(r.lastWeek) || 0;
+                const recv = Number(r.received) || 0;
+                const dep = Math.round((lw + recv - tot) * 100) / 100;
+                const par = Number(r.par) || 0;
+                const variance = Math.round((tot - par) * 100) / 100;
+                return {
+                    product: r.product, category: r.category, class: r.class,
+                    vendor: r.vendor || "",
+                    lastWeek: r.lastWeek || "",
+                    received: r.received || "",
+                    total: tot,
+                    depletion: (lw > 0 || recv > 0) ? dep : "",
+                    sold: r.sold || "",
+                    variance: par > 0 ? variance : "",
+                    par: r.par || "",
+                    deliveryThisWeek: r.deliveryThisWeek || "",
+                    order: r.order || "",
+                    freq: r.freq || ""
+                };
+            })
         };
         setArchives(prev => [archiveData, ...prev]);
         try {
