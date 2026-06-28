@@ -986,12 +986,12 @@ function OrderGuideScreen({ orders, setOrders, calcTotal, onBack }) {
     const _availW = window.innerWidth - PROD_W;
     const _colW = Math.floor(_availW / 6);
     const DATA_COLS = [
-        { key: 'total',    label: 'Total',    w: _colW },
-        { key: 'lw',       label: 'Last Wk',  w: _colW },
-        { key: 'received', label: 'Received',  w: _colW },
-        { key: 'sold',     label: 'Sold',      w: _colW },
-        { key: 'diff',     label: 'Diff',      w: _colW },
-        { key: 'order',    label: 'Order',     w: _colW },
+        { key: 'lw',         label: 'Last Wk',      w: _colW },
+        { key: 'received',   label: 'Received',     w: _colW },
+        { key: 'total',      label: 'Current Count',w: _colW },
+        { key: 'depletion',  label: 'Depletion',    w: _colW },
+        { key: 'sold',       label: 'Sales',        w: _colW },
+        { key: 'order',      label: 'Order',        w: _colW },
     ];
     const ALL_COLS = [{ key: 'product', label: 'Product', w: PROD_W }, ...DATA_COLS];
     const tableWidth = ALL_COLS.reduce((s,c) => s+c.w, 0);
@@ -1075,10 +1075,13 @@ function OrderGuideScreen({ orders, setOrders, calcTotal, onBack }) {
                             const diff = Math.round((tot - par) * 100) / 100;
                             const hp = ro.par !== "" && ro.par !== undefined;
 
+                            const lw = Number(ro.lastWeek) || 0;
+                            const recv = Number(ro.received) || 0;
+                            const dep = Math.round((lw + recv - tot) * 100) / 100;
                             let cellContent;
                             if (col.key === 'total') cellContent = React.createElement("span", null, tot > 0 ? tot : "—");
                             else if (col.key === 'lw') cellContent = React.createElement("span", { style:{color:'#777'} }, ro.lastWeek || "—");
-                            else if (col.key === 'diff') cellContent = React.createElement("span", { className: hp ? (diff >= 0 ? 'pos' : 'neg') : '' }, hp ? (diff >= 0 ? '+'+diff : diff) : "—");
+                            else if (col.key === 'depletion') cellContent = React.createElement("span", { className: dep > 0 ? 'neg' : dep < 0 ? 'pos' : '' }, (lw > 0 || recv > 0) ? dep : "—");
                             else cellContent = React.createElement("input", {
                                 type: "number", min: "0", inputMode: "numeric",
                                 placeholder: col.key === 'order' ? "—" : "0",
