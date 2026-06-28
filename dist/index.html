@@ -1597,6 +1597,146 @@ function MasterGuardModal({ show, input, error, onKey, onCancel }) {
             React.createElement("button", { className: "B B-outline", style: { width: "100%" }, onClick: onCancel }, "Cancel"))));
 }
 // ─── APP ──────────────────────────────────────────────────────────────────────
+
+function OGHistoryScreen({ archives, onBack }) {
+    const master = getMaster();
+    const [selectedWeek, setSelectedWeek] = useState(null);
+    const [isLandscape, setIsLandscape] = useState(window.innerWidth > window.innerHeight);
+    const scrollerRef = useRef(null);
+    const L2dataRef = useRef(null);
+    const L3ref = useRef(null);
+    const L4ref = useRef(null);
+    const CLASS_ORDER_OG = ["Beer & Seltzer","Liquor","Wine","Kegs","Extras","Liqueur & Extras"];
+    const RH = { data: 32, RC: 26, RK: 22 };
+
+    useEffect(() => {
+        function chk() { setIsLandscape(window.innerWidth > window.innerHeight); }
+        function chkD() { setTimeout(chk, 300); }
+        chk();
+        window.addEventListener('resize', chk);
+        window.addEventListener('orientationchange', chkD);
+        return () => { window.removeEventListener('resize', chk); window.removeEventListener('orientationchange', chkD); };
+    }, []);
+
+    const rowMeta = React.useMemo(() => {
+        if (!selectedWeek) return [];
+        const flat = [];
+        CLASS_ORDER_OG.forEach(cls => {
+            const clsItems = master.filter(i => i.class === cls);
+            if (!clsItems.length) return;
+            flat.push({ type: 'RC', label: cls });
+            const cats = [...new Set(clsItems.map(i => i.category))].sort();
+            cats.forEach(cat => {
+                flat.push({ type: 'RK', label: cat });
+                clsItems.filter(i => i.category === cat).sort((a,b) => a.product.localeCompare(b.product))
+                    .forEach(item => {
+                        const row = (selectedWeek.orders || []).find(r => r.product === item.product) || {};
+                        flat.push({ type: 'data', item, row });
+                    });
+            });
+        });
+        let off = 0;
+        return flat.map(r => { const h = RH[r.type]; const m = { ...r, offsetTop: off, height: h }; off += h; return m; });
+    }, [selectedWeek]);
+
+    useEffect(() => {
+        const scroller = scrollerRef.current;
+        if (!scroller || !selectedWeek || !isLandscape) return;
+        const rcRows = rowMeta.filter(r => r.type === 'RC');
+        const rkRows = rowMeta.filter(r => r.type === 'RK');
+        function onScroll() {
+            const st = scroller.scrollTop, sl = scroller.scrollLeft;
+            if (L2dataRef.current) L2dataRef.current.style.transform = 'translateX(-' + sl + 'px)';
+            let ac = null, acTop = -1;
+            for (const r of rcRows) { if (r.offsetTop <= st) { ac = r.label; acTop = r.offsetTop; } }
+            let ak = null;
+            for (const r of rkRows) { if (r.offsetTop >= acTop && r.offsetTop <= st + (ac ? 26 : 0)) ak = r.label; }
+            if (L3ref.current) { L3ref.current.textContent = ac || ''; L3ref.current.style.display = ac ? 'flex' : 'none'; }
+            if (L4ref.current) { L4ref.current.textContent = ak || ''; L4ref.current.style.display = ak ? 'flex' : 'none'; }
+        }
+        scroller.addEventListener('scroll', onScroll, { passive: true });
+        return () => scroller.removeEventListener('scroll', onScroll);
+    }, [selectedWeek, isLandscape, rowMeta]);
+
+    const PROD_W = 180;
+    const _colW = Math.floor((window.innerWidth - PROD_W) / 6);
+    const DATA_COLS = [
+        { key: 'lw',        label: 'Last Wk',      w: _colW },
+        { key: 'received',  label: 'Received',      w: _colW },
+        { key: 'total',     label: 'Current Count', w: _colW },
+        { key: 'depletion', label: 'Depletion',     w: _colW },
+        { key: 'sold',      label: 'Sales',         w: _colW },
+        { key: 'order',     label: 'Order',         w: _colW },
+    ];
+    const ALL_COLS = [{ key: 'product', label: 'Product', w: PROD_W }, ...DATA_COLS];
+    const tableWidth = ALL_COLS.reduce((s,c) => s+c.w, 0);
+
+    const ogCSS = `.ogh-wrap{overflow-x:auto;overflow-y:scroll;-webkit-overflow-scrolling:auto;position:fixed;top:76px;left:0;right:0;bottom:0;}.ogh-row{display:flex;flex-shrink:0;}.ogh-cell{flex-shrink:0;box-sizing:border-box;display:flex;align-items:center;padding:0 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}.ogh-prod{position:sticky;left:0;z-index:10;}.ogh-hi{display:flex;will-change:transform;}.ogh-hc{flex-shrink:0;box-sizing:border-box;height:32px;display:flex;align-items:center;padding:0 10px;font-size:11px;font-weight:700;text-transform:uppercase;color:#777;background:#F5F5F5;border-right:1px solid #999;}.ogh-hcp{position:sticky;left:0;z-index:12;background:#F5F5F5;}.ogh-L3{position:fixed;top:76px;left:0;right:0;height:30px;background:#C8102E;color:#fff;font-size:11px;font-weight:700;text-transform:uppercase;display:none;align-items:center;padding:0 10px;z-index:500;pointer-events:none;}.ogh-L4{position:fixed;top:106px;left:0;right:0;height:26px;background:#FDECEA;color:#C8102E;font-size:11px;font-weight:700;text-transform:uppercase;display:none;align-items:center;padding:0 10px;z-index:500;pointer-events:none;}@media print{.ogh-np{display:none!important;}.ogh-wrap{position:static;overflow:visible;}}`;
+
+    if (!selectedWeek) {
+        return React.createElement("div", { style: { display:'flex', flexDirection:'column', minHeight:'100vh', background:'#EFEFEF' } },
+            React.createElement("header", { className:"H" },
+                React.createElement("div", { className:"H-logo", style:{cursor:'default'} }, "Zazzo's"),
+                React.createElement("div", { className:"H-right" },
+                    React.createElement("button", { className:"B B-ghost", onClick:onBack }, "\u2190 Home"))),
+            React.createElement("div", { className:"Page" },
+                React.createElement("div", { className:"SHead", style:{marginBottom:16} },
+                    React.createElement("div", { className:"STitle" }, "Order Guide History")),
+                archives.length === 0
+                    ? React.createElement("div", { className:"Empty" }, React.createElement("div", { className:"Empty-icon" }, "\uD83D\uDCCB"), "No archived weeks yet.")
+                    : React.createElement("div", { className:"Card" },
+                        [...archives].sort((a,b) => new Date(b.date) - new Date(a.date)).map((arc, i) =>
+                            React.createElement("div", { key:i, style:{padding:'14px 16px',borderBottom:'1px solid #F0F0F0',display:'flex',alignItems:'center',justifyContent:'space-between',cursor:'pointer'}, onClick:() => setSelectedWeek(arc) },
+                                React.createElement("div", { style:{fontWeight:600,fontSize:15} }, arc.label || arc.date),
+                                React.createElement("div", { style:{color:'#C8102E',fontSize:13,fontWeight:700} }, "View \u2192"))))));
+    }
+
+    if (!isLandscape) {
+        return React.createElement("div", { style:{position:'fixed',inset:0,zIndex:900,background:'rgba(0,0,0,0.88)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:20,padding:40} },
+            React.createElement("div", { style:{fontSize:60} }, "\uD83D\uDCF1"),
+            React.createElement("div", { style:{color:'#fff',fontFamily:'Georgia,serif',fontSize:22,fontWeight:700,textAlign:'center',lineHeight:1.3} }, "Rotate your phone to landscape mode"),
+            React.createElement("button", { className:"B B-ghost", style:{marginTop:20}, onClick:() => setSelectedWeek(null) }, "\u2190 Back"));
+    }
+
+    return React.createElement("div", { style:{position:'fixed',inset:0,background:'#fff',zIndex:100} },
+        React.createElement("style", null, ogCSS),
+        React.createElement("div", { className:"ogh-np", style:{position:'fixed',top:0,left:0,right:0,height:44,background:'#C8102E',borderBottom:'3px solid #1B6B3A',display:'flex',alignItems:'center',padding:'0 16px',justifyContent:'space-between',zIndex:600} },
+            React.createElement("span", { style:{color:'#fff',fontSize:14,fontWeight:700,fontFamily:'Georgia,serif'} }, selectedWeek.label || selectedWeek.date),
+            React.createElement("div", { style:{display:'flex',gap:8} },
+                React.createElement("button", { className:"B B-ghost", style:{fontSize:11}, onClick:() => window.print() }, "Print"),
+                React.createElement("button", { className:"B B-ghost", onClick:() => setSelectedWeek(null) }, "\u2190 Back"))),
+        React.createElement("div", { style:{position:'fixed',top:44,left:0,right:0,height:32,background:'#F5F5F5',borderBottom:'2px solid #999',zIndex:500,overflow:'hidden'} },
+            React.createElement("div", { ref:L2dataRef, className:"ogh-hi" },
+                ALL_COLS.map((col,ci) => React.createElement("div", { key:col.key, className:"ogh-hc"+(ci===0?" ogh-hcp":""), style:{width:col.w} }, col.label)))),
+        React.createElement("div", { ref:L3ref, className:"ogh-L3" }),
+        React.createElement("div", { ref:L4ref, className:"ogh-L4" }),
+        React.createElement("div", { ref:scrollerRef, className:"ogh-wrap" },
+            React.createElement("div", { style:{minWidth:tableWidth,width:'100%',display:'flex',flexDirection:'column'} },
+                rowMeta.map((r, i) => {
+                    const isRC = r.type==='RC', isRK = r.type==='RK';
+                    const bdr = isRC?'1px solid #9B0C23':isRK?'1px solid #e8b4bc':'1px solid #E0E0E0';
+                    const bg  = isRC?'#C8102E':isRK?'#FDECEA':(i%2===0?'#fff':'#FAFAFA');
+                    return React.createElement("div", { key:i, className:"ogh-row", style:{height:r.height,width:'100%',minWidth:tableWidth} },
+                        ALL_COLS.map((col,ci) => {
+                            const cs = {width:col.w,height:r.height,fontSize:isRC||isRK?11:12,fontWeight:isRC||isRK?700:400,textTransform:isRC||isRK?'uppercase':'none',color:isRC?'#fff':isRK?'#C8102E':'#111',background:bg,borderRight:bdr,borderBottom:bdr};
+                            const cls = "ogh-cell"+(ci===0?" ogh-prod":"");
+                            if (ci===0) return React.createElement("div", {key:col.key,className:cls,style:cs}, r.type==='data'?r.item.product:r.label);
+                            if (isRC||isRK) return React.createElement("div", {key:col.key,className:cls,style:cs});
+                            const ro = r.row||{};
+                            const tot=Number(ro.total)||0, lw=Number(ro.lastWeek)||0, recv=Number(ro.received)||0;
+                            const dep=Math.round((lw+recv-tot)*100)/100;
+                            let val;
+                            if (col.key==='total') val=tot>0?tot:'--';
+                            else if (col.key==='lw') val=ro.lastWeek||'--';
+                            else if (col.key==='received') val=ro.received||'--';
+                            else if (col.key==='depletion') val=(lw>0||recv>0)?dep:'--';
+                            else if (col.key==='sold') val=ro.sold||'--';
+                            else if (col.key==='order') val=ro.order||'--';
+                            else val='--';
+                            return React.createElement("div", {key:col.key,className:cls,style:{...cs,justifyContent:'center'}}, val);
+                        }));
+                }))));
+}
 function App() {
     const [screen, setScreen] = useState("login");
     const [user, setUser] = useState(null);
@@ -1808,8 +1948,11 @@ function App() {
                 React.createElement("div", { className: "LCard", onClick: () => setScreen("orderguide") },
                     React.createElement("div", { className: "LCard-role" }, "Order Guide"),
                     React.createElement("div", { className: "LCard-name" }, "Weekly ordering")),
+                React.createElement("div", { className: "LCard", onClick: () => setScreen("oghistory") },
+                    React.createElement("div", { className: "LCard-role" }, "Order History"),
+                    React.createElement("div", { className: "LCard-name" }, "Past order guides")),
 
-                React.createElement("div", { className: "LCard", onClick: () => setShowRolloverConfirm(true) },
+                React.createElement("div", { className: "LCard", style: { gridColumn: "1 / -1" }, onClick: () => setShowRolloverConfirm(true) },
                     React.createElement("div", { className: "LCard-role" }, "Start New Week"),
                     React.createElement("div", { className: "LCard-name" }, "Archive & reset counts"))))),
         showRolloverConfirm && React.createElement("div", { style: { position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:24 } },
@@ -1822,6 +1965,7 @@ function App() {
         screen === "count" && (React.createElement(CountScreen, { user: user, locs: user === "selena" ? SELENA_LOCS : ERIKA_LOCS, counts: user === "selena" ? sealed : open, setCounts: user === "selena" ? setSealed : setOpen, onBack: goHome, sealed: sealed, open: open })),
         screen === "received" && React.createElement(ReceivedScreen, { onBack: goHome, setOrders: setOrders }),
         screen === "orderguide" && React.createElement(OrderGuideScreen, { orders: orders, setOrders: setOrders, calcTotal: calcTotal, onBack: goHome }),
+        screen === "oghistory" && React.createElement(OGHistoryScreen, { archives: archives, onBack: goHome }),
         screen === "sold" && React.createElement(SoldScreen, { orders: orders, setOrders: setOrders, onBack: goHome }),
 
         showMaster && (React.createElement(MasterEditor, { master: master, onSave: (updated) => { setMaster(updated); setOrders(mkOrders(updated)); }, onClose: () => setShowMaster(false) })),
