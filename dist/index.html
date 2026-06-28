@@ -598,6 +598,10 @@ html,body{background:#EFEFEF;color:#111111;font-family:'Inter',system-ui,sans-se
 @media print{
   .no-print{display:none!important;}
   .print-show{display:block!important;}
+  .ProdRow{display:none!important;}
+  .ProdList{display:none!important;}
+  .Card{display:none!important;}
+  .Stepper{display:none!important;}
   body{background:white;}
   *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
   @page{margin:1.5cm;size:portrait;}
@@ -795,7 +799,7 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
                     " ",
                     React.createElement("span", { style: { fontSize: 9, opacity: 0.8 } }, locFilled + "/" + locProds.length)));
             }))),
-        React.createElement("div", { ref: contentRef, onScroll: handleScroll, className: "no-print", style: { flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "16px 16px 80px" } },
+        React.createElement("div", { ref: contentRef, onScroll: handleScroll, style: { flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "16px 16px 80px" } },
             allDone ? (React.createElement("div", { className: "Complete" },
                 React.createElement("div", { className: "Complete-circle" }, "\u2713"),
                 React.createElement("div", { className: "Complete-title" }, "Count Complete"),
