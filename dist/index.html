@@ -1608,6 +1608,7 @@ function App() {
     const [masterPinInput, setMasterPinInput] = useState("");
     const [masterPinError, setMasterPinError] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [showRolloverConfirm, setShowRolloverConfirm] = useState(false);
     const cornerTimer = useRef(null);
     const CORNER_SEQ = ["TL", "TR", "BL", "BR"];
     // Load all data from Supabase on mount
@@ -1696,10 +1697,11 @@ function App() {
         return Math.round(t * 100) / 100;
     }, [sealed, open]);
     const doRollover = async () => {
+        const fillBlanks = (obj) => { const f = JSON.parse(JSON.stringify(obj)); Object.keys(f).forEach(l => { Object.keys(f[l]).forEach(p => { if (f[l][p] === "" || f[l][p] === undefined || f[l][p] === null) f[l][p] = "0"; }); }); return f; };
         const archiveData = {
             label: weekLabel(), date: new Date().toLocaleDateString(),
-            sealed: JSON.parse(JSON.stringify(sealed)),
-            open: JSON.parse(JSON.stringify(open)),
+            sealed: fillBlanks(sealed),
+            open: fillBlanks(open),
             orders: orders.map(r => (Object.assign(Object.assign({}, r), { total: calcTotal(r.product) })))
         };
         setArchives(prev => [archiveData, ...prev]);
@@ -1808,7 +1810,17 @@ function App() {
                         archives.length,
                         " week",
                         archives.length !== 1 ? "s" : "",
-                        " of data"))))),
+                        " of data")),
+                React.createElement("div", { className: "LCard", style: { borderColor: "#C8102E", gridColumn: "1 / -1" }, onClick: () => setShowRolloverConfirm(true) },
+                    React.createElement("div", { className: "LCard-role" }, "Start New Week"),
+                    React.createElement("div", { className: "LCard-name" }, "Archive & reset counts"))))),
+        showRolloverConfirm && React.createElement("div", { style: { position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:24 } },
+            React.createElement("div", { style: { background:"#fff", borderRadius:12, padding:24, width:"100%", maxWidth:360 } },
+                React.createElement("div", { style: { fontFamily:"'Inter',system-ui,sans-serif", fontSize:17, fontWeight:700, marginBottom:12 } }, "Start New Week?"),
+                React.createElement("div", { style: { fontSize:14, color:"#444", marginBottom:24, lineHeight:1.5 } }, "This will archive all current counts (blanks saved as 0) and reset Selena and Erika’s tabs. This cannot be undone."),
+                React.createElement("div", { style: { display:"flex", gap:12 } },
+                    React.createElement("button", { className:"B B-outline", style:{ flex:1 }, onClick: () => setShowRolloverConfirm(false) }, "Cancel"),
+                    React.createElement("button", { className:"B B-red", style:{ flex:1 }, onClick: () => { setShowRolloverConfirm(false); doRollover(); } }, "Confirm")))),
         screen === "count" && (React.createElement(CountScreen, { user: user, locs: user === "selena" ? SELENA_LOCS : ERIKA_LOCS, counts: user === "selena" ? sealed : open, setCounts: user === "selena" ? setSealed : setOpen, onBack: goHome, sealed: sealed, open: open })),
         screen === "received" && React.createElement(ReceivedScreen, { onBack: goHome, setOrders: setOrders }),
         screen === "orderguide" && React.createElement(OrderGuideScreen, { orders: orders, setOrders: setOrders, calcTotal: calcTotal, onBack: goHome }),
