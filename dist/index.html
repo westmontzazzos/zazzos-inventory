@@ -700,7 +700,7 @@ function ProdRows({ groups, counts, loc, isDecimal, onStep, onChange }) {
 function PrintSheet({ user, locs, sealed, open, blank }) {
     const master = getMaster();
     const counts = user === "selena" ? sealed : open;
-    return React.createElement("div", { style: { fontFamily: "Arial,sans-serif", fontSize: 10 } },
+    return React.createElement("div", { style: { fontFamily: "Arial,sans-serif", fontSize: 8 } },
         locs.map(function(loc, locIdx) {
             const products = forLoc(master, loc);
             const groups = groupCC(products);
@@ -709,32 +709,32 @@ function PrintSheet({ user, locs, sealed, open, blank }) {
             Object.entries(groups).forEach(function(clsEntry) {
                 var cls = clsEntry[0], cats = clsEntry[1];
                 rows.push(React.createElement("tr", { key: "cls-" + cls },
-                    React.createElement("td", { colSpan: 2, style: { background: "#C8102E", color: "#fff", fontWeight: "700", padding: "3px 8px", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.1em" } }, cls)));
+                    React.createElement("td", { colSpan: 2, style: { background: "#C8102E", color: "#fff", fontWeight: "700", padding: "1px 6px", fontSize: 7, textTransform: "uppercase", letterSpacing: "0.08em" } }, cls)));
                 Object.entries(cats).forEach(function(catEntry) {
                     var cat = catEntry[0], items = catEntry[1];
                     rows.push(React.createElement("tr", { key: "cat-" + cat },
-                        React.createElement("td", { colSpan: 2, style: { background: "#FDECEA", color: "#C8102E", padding: "2px 8px", fontSize: 9, textTransform: "uppercase", fontWeight: "700" } }, cat)));
+                        React.createElement("td", { colSpan: 2, style: { background: "#FDECEA", color: "#C8102E", padding: "1px 6px", fontSize: 7, textTransform: "uppercase", fontWeight: "700" } }, cat)));
                     items.forEach(function(item, ii) {
                         var val = (counts[loc] && counts[loc][item.product]) || "";
                         rows.push(React.createElement("tr", { key: item.product, style: { background: ii % 2 === 0 ? "#FFFFFF" : "#F5F5F5" } },
-                            React.createElement("td", { style: { padding: "4px 8px", borderBottom: "1px solid #DDD", borderRight: "1px solid #DDD" } }, item.product),
-                            React.createElement("td", { style: { padding: "4px 8px", borderBottom: "1px solid #DDD", minWidth: 80 } }, blank ? "" : val)));
+                            React.createElement("td", { style: { padding: "1px 6px", borderBottom: "1px solid #DDD", borderRight: "1px solid #DDD" } }, item.product),
+                            React.createElement("td", { style: { padding: "1px 6px", borderBottom: "1px solid #DDD", minWidth: 60 } }, blank ? "" : val)));
                     });
                 });
             });
             return React.createElement("div", { key: loc, style: { pageBreakAfter: isLast ? "auto" : "always", breakAfter: isLast ? "auto" : "always", marginBottom: 24 } },
-                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "3px solid #1A1A2E", paddingBottom: 6, marginBottom: 8 } },
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "2px solid #1A1A2E", paddingBottom: 4, marginBottom: 6 } },
                     React.createElement("div", null,
-                        React.createElement("div", { style: { fontFamily: "Georgia,serif", fontSize: 15, fontWeight: "bold", color: "#C8102E" } }, "ZAZZO'S LIQUOR INVENTORY"),
-                        React.createElement("div", { style: { fontSize: 10, fontWeight: "bold", textTransform: "uppercase", color: "#333", marginTop: 2 } }, (user === "selena" ? "Sealed Stock" : "Open Stock") + " — " + loc)),
-                    React.createElement("div", { style: { textAlign: "right", fontSize: 9, color: "#555", lineHeight: 1.7 } },
+                        React.createElement("div", { style: { fontFamily: "Georgia,serif", fontSize: 11, fontWeight: "bold", color: "#C8102E" } }, "ZAZZO'S LIQUOR INVENTORY"),
+                        React.createElement("div", { style: { fontSize: 7, fontWeight: "bold", textTransform: "uppercase", color: "#333", marginTop: 1 } }, (user === "selena" ? "Sealed Stock" : "Open Stock") + " — " + loc)),
+                    React.createElement("div", { style: { textAlign: "right", fontSize: 7, color: "#555", lineHeight: 1.4 } },
                         React.createElement("div", null, "Date: " + (blank ? "_________________" : new Date().toLocaleDateString())),
                         React.createElement("div", null, "Counter: " + (blank ? "_________________" : (user === "selena" ? "Selena" : "Erika"))))),
-                React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 10 } },
+                React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 8, lineHeight: "1" } },
                     React.createElement("thead", null,
                         React.createElement("tr", { style: { background: "#1A1A2E" } },
-                            React.createElement("th", { style: { textAlign: "left", padding: "5px 8px", color: "#fff", fontWeight: "700", textTransform: "uppercase", width: "75%", borderRight: "1px solid #333" } }, "Item"),
-                            React.createElement("th", { style: { textAlign: "left", padding: "5px 8px", color: "#fff", fontWeight: "700", textTransform: "uppercase", width: "25%" } }, "Count"))),
+                            React.createElement("th", { style: { textAlign: "left", padding: "2px 6px", color: "#fff", fontWeight: "700", textTransform: "uppercase", width: "75%", borderRight: "1px solid #333" } }, "Item"),
+                            React.createElement("th", { style: { textAlign: "left", padding: "2px 6px", color: "#fff", fontWeight: "700", textTransform: "uppercase", width: "25%" } }, "Count"))),
                     React.createElement("tbody", null, rows)));
         }));
 }
@@ -1109,7 +1109,7 @@ function OrderGuideScreen({ orders, setOrders, calcTotal, onBack }) {
 function ReceivedPrintSheet({ vendors, master, received }) {
     const sorted2 = arr => [...arr].sort((a,b) => a.product.localeCompare(b.product));
     return React.createElement("div", { style: { display: "none" }, className: "print-show" },
-        React.createElement("div", { style: { fontFamily: "Arial,sans-serif", fontSize: 10 } },
+        React.createElement("div", { style: { fontFamily: "Arial,sans-serif", fontSize: 8 } },
             vendors.map(function(vendor, vi) {
                 const vProds = sorted2(master.filter(function(i) { return i.vendor === vendor; }));
                 const vGroups = groupCC(vProds);
@@ -1117,32 +1117,32 @@ function ReceivedPrintSheet({ vendors, master, received }) {
                 const rows = [];
                 Object.entries(vGroups).forEach(function([cls, cats]) {
                     rows.push(React.createElement("tr", { key: "cls-" + cls },
-                        React.createElement("td", { colSpan: 3, style: { background: "#C8102E", color: "#fff", fontWeight: "700", padding: "3px 8px", fontSize: 9, textTransform: "uppercase" } }, cls)));
+                        React.createElement("td", { colSpan: 3, style: { background: "#C8102E", color: "#fff", fontWeight: "700", padding: "1px 6px", fontSize: 7, textTransform: "uppercase" } }, cls)));
                     Object.entries(cats).forEach(function([cat, items]) {
                         rows.push(React.createElement("tr", { key: "cat-" + cat },
-                            React.createElement("td", { colSpan: 3, style: { background: "#FDECEA", color: "#C8102E", padding: "2px 8px", fontSize: 9, textTransform: "uppercase", fontWeight: "700" } }, cat)));
+                            React.createElement("td", { colSpan: 3, style: { background: "#FDECEA", color: "#C8102E", padding: "1px 6px", fontSize: 7, textTransform: "uppercase", fontWeight: "700" } }, cat)));
                         items.forEach(function(item, ii) {
                             rows.push(React.createElement("tr", { key: item.product, style: { background: ii % 2 === 0 ? "#FFFFFF" : "#F5F5F5" } },
-                                React.createElement("td", { style: { padding: "4px 8px", borderBottom: "1px solid #DDD", borderRight: "1px solid #DDD" } }, item.product),
-                                React.createElement("td", { style: { padding: "4px 8px", borderBottom: "1px solid #DDD", borderRight: "1px solid #DDD", color: "#555" } }, item.category),
-                                React.createElement("td", { style: { padding: "4px 8px", borderBottom: "1px solid #DDD", fontWeight: 600 } }, received[item.product] || "")));
+                                React.createElement("td", { style: { padding: "1px 6px", borderBottom: "1px solid #DDD", borderRight: "1px solid #DDD" } }, item.product),
+                                React.createElement("td", { style: { padding: "1px 6px", borderBottom: "1px solid #DDD", borderRight: "1px solid #DDD", color: "#555" } }, item.category),
+                                React.createElement("td", { style: { padding: "1px 6px", borderBottom: "1px solid #DDD", fontWeight: 600 } }, received[item.product] || "")));
                         });
                     });
                 });
                 return React.createElement("div", { key: vendor, style: { pageBreakAfter: isLast ? "auto" : "always", breakAfter: isLast ? "auto" : "always", marginBottom: 24 } },
                     React.createElement("div", { style: { display: "flex", justifyContent: "space-between", borderBottom: "3px solid #1A1A2E", paddingBottom: 6, marginBottom: 8 } },
                         React.createElement("div", null,
-                            React.createElement("div", { style: { fontFamily: "Georgia,serif", fontSize: 15, fontWeight: "bold", color: "#C8102E" } }, "ZAZZO'S LIQUOR INVENTORY"),
-                            React.createElement("div", { style: { fontSize: 10, fontWeight: "bold", textTransform: "uppercase", color: "#333", marginTop: 2 } }, "Received Items — " + vendor)),
-                        React.createElement("div", { style: { textAlign: "right", fontSize: 9, color: "#555", lineHeight: 1.7 } },
+                            React.createElement("div", { style: { fontFamily: "Georgia,serif", fontSize: 11, fontWeight: "bold", color: "#C8102E" } }, "ZAZZO'S LIQUOR INVENTORY"),
+                            React.createElement("div", { style: { fontSize: 7, fontWeight: "bold", textTransform: "uppercase", color: "#333", marginTop: 2 } }, "Received Items — " + vendor)),
+                        React.createElement("div", { style: { textAlign: "right", fontSize: 7, color: "#555", lineHeight: 1.4 } },
                             React.createElement("div", null, "Date: _________________"),
                             React.createElement("div", null, "Received by: _________________"))),
-                    React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 10 } },
+                    React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 8, lineHeight: "1" } },
                         React.createElement("thead", null,
                             React.createElement("tr", { style: { background: "#1A1A2E" } },
-                                React.createElement("th", { style: { textAlign: "left", padding: "5px 8px", color: "#fff", fontWeight: "700", textTransform: "uppercase", width: "50%", borderRight: "1px solid #333" } }, "Product"),
-                                React.createElement("th", { style: { textAlign: "left", padding: "5px 8px", color: "#fff", fontWeight: "700", textTransform: "uppercase", width: "30%", borderRight: "1px solid #333" } }, "Category"),
-                                React.createElement("th", { style: { textAlign: "left", padding: "5px 8px", color: "#fff", fontWeight: "700", textTransform: "uppercase", width: "20%" } }, "Qty Received"))),
+                                React.createElement("th", { style: { textAlign: "left", padding: "2px 6px", color: "#fff", fontWeight: "700", textTransform: "uppercase", width: "50%", borderRight: "1px solid #333" } }, "Product"),
+                                React.createElement("th", { style: { textAlign: "left", padding: "2px 6px", color: "#fff", fontWeight: "700", textTransform: "uppercase", width: "30%", borderRight: "1px solid #333" } }, "Category"),
+                                React.createElement("th", { style: { textAlign: "left", padding: "2px 6px", color: "#fff", fontWeight: "700", textTransform: "uppercase", width: "20%" } }, "Qty Received"))),
                         React.createElement("tbody", null, rows)));
             })));
 }
