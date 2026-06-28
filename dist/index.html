@@ -803,7 +803,7 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
                         setActiveIdx(i);
                     else if (locked)
                         setLockWarn(true); } },
-                    done ? "✓ " : active ? "● " : "○ ",
+                    done ? "✓ " : "",
                     (loc === "Window/Party Room" ? "Window/Party" : loc),
                     " ",
                     React.createElement("span", { style: { fontSize: 9, opacity: 0.8 } }, locFilled + "/" + locProds.length)));
