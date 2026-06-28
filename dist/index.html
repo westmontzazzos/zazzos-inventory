@@ -262,7 +262,18 @@ function groupCC(products) {
     return out;
 }
 function weekLabel() {
-    return `Week of ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+    const now = new Date();
+    const day = now.getDay(); // 0=Sun, 1=Mon
+    // Always label with the Monday that started the week just ending
+    // If today is Sunday (0), go back 6 days to last Monday
+    // If today is Monday (1), go back 7 days to previous Monday
+    // Any other day, go back (day - 1) days to find this week's Monday, then subtract 7 more
+    let daysBack;
+    if (day === 0) daysBack = 6;
+    else daysBack = day - 1 + 7;
+    const prevMonday = new Date(now);
+    prevMonday.setDate(now.getDate() - daysBack);
+    return `Week of ${prevMonday.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
 }
 function getUnit(item, loc) {
     return (item.category === "Beer" && loc === "Keg Cooler") ? "cases" : "units";
