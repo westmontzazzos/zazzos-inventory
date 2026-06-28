@@ -599,12 +599,8 @@ html,body{background:#EFEFEF;color:#111111;font-family:'Inter',system-ui,sans-se
   .no-print{display:none!important;}
   .print-show{display:block!important;}
   body{background:white;}
-  .H{background:white!important;border-bottom:2px solid #000;position:static;}
-  .H-logo{color:black!important;}
-  .Card{box-shadow:none;border:1px solid #ccc;}
-  .ClassDiv,.CatDiv,.T .RC td,.T .RK td{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-  .T th{background:#f5f5f5!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-  @page{margin:1cm;}
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
+  @page{margin:1.5cm;size:portrait;}
 }
 `;
 // ─── PIN MODAL ───────────────────────────────────────────────────────────────
@@ -692,49 +688,42 @@ function ProdRows({ groups, counts, loc, isDecimal, onStep, onChange }) {
 function PrintSheet({ user, locs, sealed, open, blank }) {
     const master = getMaster();
     const counts = user === "selena" ? sealed : open;
-    return (React.createElement("div", null, locs.map((loc, locIdx) => {
-        const products = forLoc(master, loc);
-        const groups = groupCC(products);
-        const isLast = locIdx === locs.length - 1;
-        return (React.createElement("div", { key: loc, style: { pageBreakAfter: isLast ? "auto" : "always", breakAfter: isLast ? "auto" : "always" } },
-            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "3px solid #000", paddingBottom: 6, marginBottom: 10 } },
-                React.createElement("div", null,
-                    React.createElement("div", { style: { fontFamily: "Georgia,serif", fontSize: 16, fontWeight: "bold", color: "#C8102E" } }, "ZAZZO'S LIQUOR INVENTORY"),
-                    React.createElement("div", { style: { fontSize: 11, fontWeight: "bold", textTransform: "uppercase", letterSpacing: "0.1em", color: "#333", marginTop: 2 } },
-                        user === "selena" ? "Sealed Stock" : "Open Stock",
-                        " \u2014 ",
-                        loc)),
-                React.createElement("div", { style: { textAlign: "right", fontSize: 10, color: "#555" } },
+    return React.createElement("div", { style: { fontFamily: "Arial, sans-serif", fontSize: 10 } },
+        locs.map((loc, locIdx) => {
+            const products = forLoc(master, loc);
+            const groups = groupCC(products);
+            const isLast = locIdx === locs.length - 1;
+            return React.createElement("div", { key: loc, style: { pageBreakAfter: isLast ? "auto" : "always", breakAfter: isLast ? "auto" : "always", marginBottom: 24 } },
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "3px solid #1A1A2E", paddingBottom: 6, marginBottom: 8 } },
                     React.createElement("div", null,
-                        "Date: ",
-                        blank ? "_______________" : new Date().toLocaleDateString()),
-                    React.createElement("div", { style: { marginTop: 2 } },
-                        "Counter: ",
-                        blank ? "_______________" : user === "selena" ? "Selena" : "Erika"))),
-            React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 11 } },
-                React.createElement("thead", null,
-                    React.createElement("tr", null,
-                        React.createElement("th", { style: { textAlign: "left", borderBottom: "2px solid #000", padding: "4px 8px", fontSize: 10, textTransform: "uppercase", width: "75%" } }, "Item"),
-                        React.createElement("th", { style: { textAlign: "left", borderBottom: "2px solid #000", padding: "4px 8px", fontSize: 10, textTransform: "uppercase", width: "25%" } }, "Count"))),
-                React.createElement("tbody", null, Object.entries(groups).map(([cls, cats]) => (React.createElement(Fragment, { key: cls },
-                    React.createElement("tr", null,
-                        React.createElement("td", { colSpan: 2, style: { background: "#C8102E", color: "#fff", fontWeight: "bold", padding: "4px 8px", fontSize: 10, textTransform: "uppercase" } }, cls)),
-                    Object.entries(cats).map(([cat, items]) => (React.createElement(Fragment, { key: cat },
-                        React.createElement("tr", null,
-                            React.createElement("td", { colSpan: 2, style: { background: "#FDECEA", color: "#C8102E", padding: "3px 8px", fontSize: 10, textTransform: "uppercase", fontWeight: "bold" } }, cat)),
-                        items.map((item, ii) => {
-                            var _a;
-                            return (React.createElement("tr", { key: item.product, style: { background: ii % 2 === 0 ? "#fff" : "#fafafa" } },
-                                React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #eee" } }, item.product),
-                                React.createElement("td", { style: { padding: "5px 8px", borderBottom: "1px solid #eee", fontWeight: 600 } }, blank ? React.createElement("div", { style: { width: 60, borderBottom: "1px solid #999", height: 16, display: "inline-block" } }) : ((_a = counts[loc]) === null || _a === void 0 ? void 0 : _a[item.product]) || "")));
-                        }))))))))),
-            React.createElement("div", { style: { fontSize: 9, color: "#999", textAlign: "right", borderTop: "1px solid #ddd", paddingTop: 4, marginTop: 8 } },
-                "Page ",
-                locIdx + 1,
-                " of ",
-                locs.length,
-                " \u2014 Zazzo's Liquor Inventory")));
-    })));
+                        React.createElement("div", { style: { fontFamily: "Georgia,serif", fontSize: 15, fontWeight: "bold", color: "#C8102E" } }, "ZAZZO'S LIQUOR INVENTORY"),
+                        React.createElement("div", { style: { fontSize: 10, fontWeight: "bold", textTransform: "uppercase", letterSpacing: "0.08em", color: "#333", marginTop: 2 } },
+                            (user === "selena" ? "Sealed Stock" : "Open Stock") + " — " + loc)),
+                    React.createElement("div", { style: { textAlign: "right", fontSize: 9, color: "#555", lineHeight: 1.7 } },
+                        React.createElement("div", null, "Date: " + (blank ? "_________________" : new Date().toLocaleDateString())),
+                        React.createElement("div", null, "Counter: " + (blank ? "_________________" : (user === "selena" ? "Selena" : "Erika"))))),
+                React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 10 } },
+                    React.createElement("thead", null,
+                        React.createElement("tr", { style: { background: "#1A1A2E" } },
+                            React.createElement("th", { style: { textAlign: "left", padding: "5px 8px", color: "#fff", fontWeight: "700", textTransform: "uppercase", width: "50%", borderRight: "1px solid #333" } }, "Product"),
+                            React.createElement("th", { style: { textAlign: "left", padding: "5px 8px", color: "#fff", fontWeight: "700", textTransform: "uppercase", width: "30%", borderRight: "1px solid #333" } }, "Category"),
+                            React.createElement("th", { style: { textAlign: "left", padding: "5px 8px", color: "#fff", fontWeight: "700", textTransform: "uppercase", width: "20%" } }, "Count"))),
+                    React.createElement("tbody", null,
+                        Object.entries(groups).map(([cls, cats]) => React.createElement(Fragment, { key: cls },
+                            React.createElement("tr", null,
+                                React.createElement("td", { colSpan: 3, style: { background: "#C8102E", color: "#fff", fontWeight: "700", padding: "3px 8px", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.1em" } }, cls)),
+                            Object.entries(cats).map(([cat, items]) => React.createElement(Fragment, { key: cat },
+                                React.createElement("tr", null,
+                                    React.createElement("td", { colSpan: 3, style: { background: "#FDECEA", color: "#C8102E", padding: "2px 8px", fontSize: 9, textTransform: "uppercase", fontWeight: "700" } }, cat)),
+                                items.map((item, ii) => {
+                                    var _a;
+                                    const val = ((_a = counts[loc]) === null || _a === void 0 ? void 0 : _a[item.product]) || "";
+                                    return React.createElement("tr", { key: item.product, style: { background: ii % 2 === 0 ? "#FFFFFF" : "#F5F5F5" } },
+                                        React.createElement("td", { style: { padding: "4px 8px", borderBottom: "1px solid #DDD", borderRight: "1px solid #DDD" } }, item.product),
+                                        React.createElement("td", { style: { padding: "4px 8px", borderBottom: "1px solid #DDD", borderRight: "1px solid #DDD", color: "#555" } }, item.category),
+                                        React.createElement("td", { style: { padding: "4px 8px", borderBottom: "1px solid #DDD", fontWeight: 600 } }, blank ? "" : val));
+                                })))))));
+        }));
 }
 // ─── COUNT SCREEN ─────────────────────────────────────────────────────────────
 function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
@@ -806,7 +795,7 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
                     " ",
                     React.createElement("span", { style: { fontSize: 9, opacity: 0.8 } }, locFilled + "/" + locProds.length)));
             }))),
-        React.createElement("div", { ref: contentRef, onScroll: handleScroll, style: { flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "16px 16px 80px" } },
+        React.createElement("div", { ref: contentRef, onScroll: handleScroll, className: "no-print", style: { flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "16px 16px 80px" } },
             allDone ? (React.createElement("div", { className: "Complete" },
                 React.createElement("div", { className: "Complete-circle" }, "\u2713"),
                 React.createElement("div", { className: "Complete-title" }, "Count Complete"),
