@@ -1784,10 +1784,15 @@ function App() {
             try {
                 const archiveRows = await sbGet("archives", "select=*&order=created_at.desc");
                 if (Array.isArray(archiveRows) && archiveRows.length > 0) {
-                    setArchives(archiveRows.map(a => ({
+                    const remoteArchives = archiveRows.map(a => ({
                         label: a.week_label, date: a.archive_date,
                         sealed: a.sealed_counts || {}, open: a.open_counts || {}, orders: a.orders || []
-                    })));
+                    }));
+                    setArchives(prev => {
+                        const remoteLabels = new Set(remoteArchives.map(a => a.label));
+                        const hardcoded = prev.filter(a => !remoteLabels.has(a.label));
+                        return [...remoteArchives, ...hardcoded].sort((a,b) => new Date(b.date) - new Date(a.date));
+                    });
                 }
             }
             catch (e) {
