@@ -1805,13 +1805,7 @@ function App() {
                 React.createElement("div", { className: "LCard", onClick: () => setScreen("orderguide") },
                     React.createElement("div", { className: "LCard-role" }, "Order Guide"),
                     React.createElement("div", { className: "LCard-name" }, "Weekly ordering")),
-                React.createElement("div", { className: "LCard", onClick: () => setScreen("analysis") },
-                    React.createElement("div", { className: "LCard-role" }, "Trend Analysis"),
-                    React.createElement("div", { className: "LCard-name" },
-                        archives.length,
-                        " week",
-                        archives.length !== 1 ? "s" : "",
-                        " of data")),
+
                 React.createElement("div", { className: "LCard", style: { borderColor: "#C8102E", gridColumn: "1 / -1" }, onClick: () => setShowRolloverConfirm(true) },
                     React.createElement("div", { className: "LCard-role" }, "Start New Week"),
                     React.createElement("div", { className: "LCard-name" }, "Archive & reset counts"))))),
@@ -1826,7 +1820,7 @@ function App() {
         screen === "received" && React.createElement(ReceivedScreen, { onBack: goHome, setOrders: setOrders }),
         screen === "orderguide" && React.createElement(OrderGuideScreen, { orders: orders, setOrders: setOrders, calcTotal: calcTotal, onBack: goHome }),
         screen === "sold" && React.createElement(SoldScreen, { orders: orders, setOrders: setOrders, onBack: goHome }),
-        screen === "analysis" && React.createElement(TrendScreen, { archives: archives, calcTotal: calcTotal, onBack: goHome }),
+
         showMaster && (React.createElement(MasterEditor, { master: master, onSave: (updated) => { setMaster(updated); setOrders(mkOrders(updated)); }, onClose: () => setShowMaster(false) })),
         React.createElement("div", { style: { position: "fixed", inset: 0, pointerEvents: "none", zIndex: 900 } }, [["TL", { top: 0, left: 0 }], ["TR", { top: 0, right: 0 }], ["BL", { bottom: 0, left: 0 }], ["BR", { bottom: 0, right: 0 }]].map(([id, pos]) => (React.createElement("div", { key: id, style: Object.assign(Object.assign({ position: "absolute" }, pos), { width: 60, height: 60, pointerEvents: "auto", cursor: "default" }), onClick: () => handleCornerTap(id) })))),
         React.createElement(MasterGuardModal, { show: showMasterPin, input: masterPinInput, error: masterPinError, onKey: masterPressKey, onCancel: masterCancel })));
