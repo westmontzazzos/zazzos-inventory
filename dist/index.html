@@ -947,11 +947,6 @@ function OrderGuideScreen({ orders, setOrders, calcTotal, onBack }) {
             const st = scroller.scrollTop;
             const sl = scroller.scrollLeft;
 
-            // Sync header horizontal scroll
-            if (L2dataRef.current) {
-                L2dataRef.current.style.transform = 'translateX(-' + sl + 'px)';
-            }
-
             // Update class/category overlays from precomputed offsets
             let ac = null, acTop = -1;
             for (const r of rcRows) { if (r.offsetTop <= st) { ac = r.label; acTop = r.offsetTop; } }
@@ -1012,13 +1007,14 @@ function OrderGuideScreen({ orders, setOrders, calcTotal, onBack }) {
     const tableWidth = ALL_COLS.reduce((s,c) => s+c.w, 0);
 
     const ogCSS = `
-        .og-wrap { overflow-x: auto; overflow-y: scroll; -webkit-overflow-scrolling: auto; overscroll-behavior: none; position: fixed; top: 76px; left: 0; right: 0; bottom: 0; }
+        .og-wrap { overflow-x: auto; overflow-y: scroll; -webkit-overflow-scrolling: auto; overscroll-behavior: none; position: fixed; top: 44px; left: 0; right: 0; bottom: 0; }
         .og-row { display: flex; flex-direction: row; flex-shrink: 0; }
         .og-cell { flex-shrink: 0; box-sizing: border-box; display: flex; align-items: center; padding: 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .og-prod { position: sticky; left: 0; z-index: 10; }
+        .og-header-row { display: flex; flex-direction: row; flex-shrink: 0; position: sticky; top: 0; z-index: 20; }
         .og-header-inner { display: flex; will-change: transform; }
-        .og-hcell { flex-shrink: 0; box-sizing: border-box; height: 32px; display: flex; align-items: center; padding: 0 10px; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #777; background: #F5F5F5; border-right: 1px solid #999; }
-        .og-hcell-prod { position: sticky; left: 0; z-index: 12; background: #F5F5F5; }
+        .og-hcell { flex-shrink: 0; box-sizing: border-box; height: 32px; display: flex; align-items: center; padding: 0 10px; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #777; background: #F5F5F5; border-right: 1px solid #999; border-bottom: 2px solid #999; }
+        .og-hcell-prod { position: sticky; left: 0; z-index: 22; background: #F5F5F5; }
         .og-L3 { position: fixed; top: 76px; left: 0; right: 0; height: 30px; background: #C8102E; color: #fff; font-size: 11px; font-weight: 700; text-transform: uppercase; display: none; align-items: center; padding: 0 10px; z-index: 500; border-bottom: 1px solid #9B0C23; pointer-events: none; }
         .og-L4 { position: fixed; top: 106px; left: 0; right: 0; height: 26px; background: #FDECEA; color: #C8102E; font-size: 11px; font-weight: 700; text-transform: uppercase; display: none; align-items: center; padding: 0 10px; z-index: 500; border-bottom: 1px solid #e8b4bc; pointer-events: none; }
     `;
@@ -1037,29 +1033,22 @@ function OrderGuideScreen({ orders, setOrders, calcTotal, onBack }) {
             React.createElement("button", { className:"B B-ghost", onClick: onBack }, "← Home")
         ),
 
-        // Column header
-        React.createElement("div", { style: {
-            position: 'fixed', top: 44, left: 0, right: 0, height: 32,
-            background: '#F5F5F5', borderBottom: '2px solid #999', zIndex: 500, overflow: 'hidden'
-        }},
-            React.createElement("div", { ref: L2dataRef, className: "og-header-inner" },
-                ALL_COLS.map((col, ci) => React.createElement("div", {
-                    key: col.key,
-                    className: "og-hcell" + (ci === 0 ? " og-hcell-prod" : ""),
-                    style: { width: col.w }
-                }, col.label))
-            )
-        ),
-
         // Class overlay
         React.createElement("div", { ref: L3ref, className: "og-L3" }),
 
         // Category overlay
         React.createElement("div", { ref: L4ref, className: "og-L4" }),
 
-        // Single scroll container
+        // Single scroll container with header inside
         React.createElement("div", { ref: scrollerRef, className: "og-wrap" },
             React.createElement("div", { style: { minWidth: tableWidth, width: '100%', display: 'flex', flexDirection: 'column' } },
+                React.createElement("div", { className: "og-header-row", style: { minWidth: tableWidth } },
+                    ALL_COLS.map((col, ci) => React.createElement("div", {
+                        key: col.key,
+                        className: "og-hcell" + (ci === 0 ? " og-hcell-prod" : ""),
+                        style: { width: col.w }
+                    }, col.label))
+                ),
                 rowMeta.map((r, i) => {
                     const isRC = r.type === 'RC';
                     const isRK = r.type === 'RK';
@@ -1665,8 +1654,7 @@ function OGHistoryScreen({ archives, onBack }) {
         const rkRows = rowMeta.filter(r => r.type === 'RK');
         function onScroll() {
             const st = scroller.scrollTop, sl = scroller.scrollLeft;
-            if (L2dataRef.current) L2dataRef.current.style.transform = 'translateX(-' + sl + 'px)';
-            let ac = null, acTop = -1;
+                let ac = null, acTop = -1;
             for (const r of rcRows) { if (r.offsetTop <= st) { ac = r.label; acTop = r.offsetTop; } }
             let ak = null;
             for (const r of rkRows) { if (r.offsetTop >= acTop && r.offsetTop <= st + (ac ? 26 : 0)) ak = r.label; }
@@ -1694,7 +1682,7 @@ function OGHistoryScreen({ archives, onBack }) {
     const ALL_COLS = [{ key: 'product', label: 'Item', w: PROD_W }, { key: 'vendor', label: 'Vendor', w: _colW }, ...DATA_COLS];
     const tableWidth = ALL_COLS.reduce((s,c) => s+c.w, 0);
 
-    const ogCSS = `.ogh-wrap{overflow-x:auto;overflow-y:scroll;-webkit-overflow-scrolling:auto;position:fixed;top:76px;left:0;right:0;bottom:0;}.ogh-row{display:flex;flex-shrink:0;}.ogh-cell{flex-shrink:0;box-sizing:border-box;display:flex;align-items:center;padding:0 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}.ogh-prod{position:sticky;left:0;z-index:10;}.ogh-hi{display:flex;will-change:transform;}.ogh-hc{flex-shrink:0;box-sizing:border-box;height:32px;display:flex;align-items:center;padding:0 10px;font-size:11px;font-weight:700;text-transform:uppercase;color:#777;background:#F5F5F5;border-right:1px solid #999;}.ogh-hcp{position:sticky;left:0;z-index:12;background:#F5F5F5;}.ogh-L3{position:fixed;top:76px;left:0;right:0;height:30px;background:#C8102E;color:#fff;font-size:11px;font-weight:700;text-transform:uppercase;display:none;align-items:center;padding:0 10px;z-index:500;pointer-events:none;}.ogh-L4{position:fixed;top:106px;left:0;right:0;height:26px;background:#FDECEA;color:#C8102E;font-size:11px;font-weight:700;text-transform:uppercase;display:none;align-items:center;padding:0 10px;z-index:500;pointer-events:none;}@media print{.ogh-np{display:none!important;}.ogh-wrap{position:static;overflow:visible;}}`;
+    const ogCSS = `.ogh-wrap{overflow-x:auto;overflow-y:scroll;-webkit-overflow-scrolling:auto;position:fixed;top:44px;left:0;right:0;bottom:0;}.ogh-hc{border-bottom:2px solid #999;}.ogh-row{display:flex;flex-shrink:0;}.ogh-cell{flex-shrink:0;box-sizing:border-box;display:flex;align-items:center;padding:0 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}.ogh-prod{position:sticky;left:0;z-index:10;}.ogh-hi{display:flex;}.ogh-hc{flex-shrink:0;box-sizing:border-box;height:32px;display:flex;align-items:center;padding:0 10px;font-size:11px;font-weight:700;text-transform:uppercase;color:#777;background:#F5F5F5;border-right:1px solid #999;}.ogh-hcp{position:sticky;left:0;z-index:12;background:#F5F5F5;}.ogh-L3{position:fixed;top:76px;left:0;right:0;height:30px;background:#C8102E;color:#fff;font-size:11px;font-weight:700;text-transform:uppercase;display:none;align-items:center;padding:0 10px;z-index:500;pointer-events:none;}.ogh-L4{position:fixed;top:106px;left:0;right:0;height:26px;background:#FDECEA;color:#C8102E;font-size:11px;font-weight:700;text-transform:uppercase;display:none;align-items:center;padding:0 10px;z-index:500;pointer-events:none;}@media print{.ogh-np{display:none!important;}.ogh-wrap{position:static;overflow:visible;}}`;
 
     if (!selectedWeek) {
         return React.createElement("div", { style: { display:'flex', flexDirection:'column', minHeight:'100vh', background:'#EFEFEF' } },
@@ -1728,13 +1716,12 @@ function OGHistoryScreen({ archives, onBack }) {
             React.createElement("div", { style:{display:'flex',gap:8} },
                 React.createElement("button", { className:"B B-ghost", style:{fontSize:11}, onClick:() => window.print() }, "Print"),
                 React.createElement("button", { className:"B B-ghost", onClick:() => setSelectedWeek(null) }, "\u2190 Back"))),
-        React.createElement("div", { style:{position:'fixed',top:44,left:0,right:0,height:32,background:'#F5F5F5',borderBottom:'2px solid #999',zIndex:500,overflow:'hidden'} },
-            React.createElement("div", { ref:L2dataRef, className:"ogh-hi" },
-                ALL_COLS.map((col,ci) => React.createElement("div", { key:col.key, className:"ogh-hc"+(ci===0?" ogh-hcp":""), style:{width:col.w} }, col.label)))),
         React.createElement("div", { ref:L3ref, className:"ogh-L3" }),
         React.createElement("div", { ref:L4ref, className:"ogh-L4" }),
         React.createElement("div", { ref:scrollerRef, className:"ogh-wrap" },
             React.createElement("div", { style:{minWidth:tableWidth,width:'100%',display:'flex',flexDirection:'column'} },
+                React.createElement("div", { style:{display:'flex',position:'sticky',top:0,zIndex:20,minWidth:tableWidth} },
+                    ALL_COLS.map((col,ci) => React.createElement("div", { key:col.key, className:"ogh-hc"+(ci===0?" ogh-hcp":""), style:{width:col.w,borderBottom:'2px solid #999'} }, col.label))),
                 rowMeta.map((r, i) => {
                     const isRC = r.type==='RC', isRK = r.type==='RK';
                     const bdr = isRC?'1px solid #9B0C23':isRK?'1px solid #e8b4bc':'1px solid #E0E0E0';
