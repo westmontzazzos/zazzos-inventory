@@ -691,7 +691,7 @@ function PrintSheet({ user, locs, sealed, open, blank }) {
         return (React.createElement("div", { key: loc, style: { pageBreakAfter: isLast ? "auto" : "always", breakAfter: isLast ? "auto" : "always" } },
             React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "3px solid #000", paddingBottom: 6, marginBottom: 10 } },
                 React.createElement("div", null,
-                    React.createElement("div", { style: { fontFamily: "Georgia,serif", fontSize: 16, fontWeight: "bold", color: "#C8102E" } }, "ZAZZO'S LIQUOR INVENTORY"),
+                    React.createElement("div", { style: { fontFamily: "Georgia,serif", fontSize: 16, fontWeight: "bold", color: "#800080" } }, "ZAZZO'S LIQUOR INVENTORY"),
                     React.createElement("div", { style: { fontSize: 11, fontWeight: "bold", textTransform: "uppercase", letterSpacing: "0.1em", color: "#333", marginTop: 2 } },
                         user === "selena" ? "Sealed Stock" : "Open Stock",
                         " \u2014 ",
