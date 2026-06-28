@@ -797,12 +797,16 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
             managerMode && React.createElement("div", { className: "MgrBanner" }, "Manager Mode \u2014 Triple Tap Logo to Lock"),
             React.createElement("div", { className: "LocBar-grid", style: { gridTemplateColumns: `repeat(${cols},1fr)` } }, locs.map((loc, i) => {
                 const done = completed.includes(loc), active = i === activeIdx, locked = !done && !active;
+                const locProds = forLoc(master, loc);
+                const locFilled = locProds.filter(p => { var _a; const v = (_a = counts[loc]) === null || _a === void 0 ? void 0 : _a[p.product]; return v !== "" && v !== undefined; }).length;
                 return (React.createElement("span", { key: loc, className: `Pill ${done ? "Pill-done" : active ? "Pill-active" : "Pill-locked"}`, onClick: () => { if (done || managerMode)
                         setActiveIdx(i);
                     else if (locked)
                         setLockWarn(true); } },
                     done ? "✓ " : active ? "● " : "○ ",
-                    loc === "Window/Party Room" ? "Window/Party" : loc));
+                    (loc === "Window/Party Room" ? "Window/Party" : loc),
+                    " ",
+                    React.createElement("span", { style: { fontSize: 9, opacity: 0.8 } }, locFilled + "/" + locProds.length)));
             }))),
         React.createElement("div", { ref: contentRef, onScroll: handleScroll, style: { flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "16px 16px 80px" } },
             allDone ? (React.createElement("div", { className: "Complete" },
@@ -817,23 +821,9 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
                     React.createElement("button", { className: "B B-outline B-lg", onClick: () => { setPrintMode("blank"); setTimeout(() => window.print(), 50); } }, "\uD83D\uDDA8 Print Blank"),
                     React.createElement("button", { className: "B B-outline B-lg", onClick: () => { setActiveIdx(0); setCompleted([]); } }, "Start Over"),
                     React.createElement("button", { className: "B B-red B-lg", onClick: onBack }, "\u2190 Home")))) : (React.createElement(React.Fragment, null,
-                React.createElement("div", { className: "SHead", style: { marginBottom: 12 } },
-                    React.createElement("div", null,
-                        React.createElement("div", { className: "STitle" }, curLoc),
-                        React.createElement("div", { className: "SSub" },
-                            user === "selena" ? "Full / sealed units only." : "Open / partial units only.",
-                            " ",
-                            activeIdx + 1,
-                            " of ",
-                            locs.length,
-                            "."))),
+
                 React.createElement("div", { className: "Card" },
-                    React.createElement("div", { className: "Card-head" },
-                        React.createElement("span", { className: "Card-badge" },
-                            filled,
-                            " / ",
-                            products.length,
-                            " entered")),
+
                     React.createElement("div", { className: "ProdList" },
                         React.createElement(ProdRows, { groups: groups, counts: counts, loc: curLoc, isDecimal: isDecimal, onStep: step, onChange: onChange }))))),
             React.createElement("div", { style: { display: "none" }, className: "print-show" },
