@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zazzo's — Supabase Data Export</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; background: #f2f2f2; padding: 24px; }
+    h1 { color: #1a1a2e; font-size: 22px; margin-bottom: 6px; }
+    p.sub { color: #666; font-size: 13px; margin-bottom: 24px; }
+    .card { background: white; border-radius: 8px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    h2 { font-size: 15px; color: #1a1a2e; margin-bottom: 12px; }
+    .status { font-size: 13px; color: #555; margin-bottom: 10px; min-height: 20px; }
+    .status.ok { color: #1a7a1a; font-weight: bold; }
+    .status.err { color: #cc0000; font-weight: bold; }
+    button {
+      background: #1a1a2e; color: white; border: none; border-radius: 6px;
+      padding: 12px 24px; font-size: 14px; font-weight: bold;
+      cursor: pointer; margin-right: 10px; margin-bottom: 8px;
+    }
+    button:hover { background: #2a2a4e; }
+    button.green { background: #1a7a1a; }
+    button.green:hover { background: #2a9a2a; }
+    button:disabled { background: #aaa; cursor: not-allowed; }
+    pre { background: #f8f8f8; border: 1px solid #ddd; border-radius: 4px; padding: 12px; font-size: 11px; max-height: 200px; overflow-y: auto; white-space: pre-wrap; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .badge { display: inline-block; background: #1a1a2e; color: white; border-radius: 4px; padding: 2px 8px; font-size: 11px; margin-left: 8px; }
+  </style>
+</head>
+<body>
+  <h1>Zazzo's — Supabase Data Export</h1>
+  <p class="sub">Pulls inventory counts and archive data from Supabase and downloads as JSON for Claude.</p>
+
+  <div class="card">
+    <h2>Step 1 — Pull All Data</h2>
+    <div class="status" id="status-pull">Ready to pull.</div>
+    <button onclick="pullAll()" id="btn-pull">Pull All Tables</button>
+  </div>
+
+  <div class="card" id="card-results" style="display:none">
+    <h2>Step 2 — Review</h2>
+    <div class="grid">
+      <div>
+        <strong>counts</strong><span class="badge" id="badge-counts">0</span>
+        <pre id="pre-counts">—</pre>
+      </div>
+      <div>
+        <strong>archives</strong><span class="badge" id="badge-archives">0</span>
+        <pre id="pre-archives">—</pre>
+      </div>
+      <div>
+        <strong>orders</strong><span class="badge" id="badge-orders">0</span>
+        <pre id="pre-orders">—</pre>
+      </div>
+      <div>
+        <strong>week_history</strong><span class="badge" id="badge-history">0</span>
+        <pre id="pre-history">—</pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="card-download" style="display:none">
+    <h2>Step 3 — Download & Upload to Claude</h2>
+    <div class="status ok">✓ Data ready. Download the file below and upload it to Claude.</div>
+    <button class="green" onclick="downloadJSON()" id="btn-download">⬇ Download zazzos_data.json</button>
+  </div>
+
+<script>
+const SUPABASE_URL = "https://wkzhmfyfxlfkkqevzxvf.supabase.co";
+const SUPABASE_KEY = "sb_publishable_B1EXocVYT57f5fpvVLONZA_YZx5trib";
+
+const HEADERS = {
+  "apikey": SUPABASE_KEY,
+  "Authorization": `Bearer ${SUPABASE_KEY}`,
+  "Content-Type": "application/json",
+  "Accept": "application/json"
+};
+
+let allData = {};
+
+async function sbGet(table, params = "select=*&limit=2000") {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, { headers: HEADERS });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`${table}: ${res.status} — ${body}`);
+  }
+  return await res.json();
+}
+
+async function tryTable(name, variants) {
+  for (const v of variants) {
+    try {
+      const data = await sbGet(v);
+      if (Array.isArray(data)) return { name: v, data };
+    } catch(e) { /* try next */ }
+  }
+  return { name, data: [] };
+}
+
+async function pullAll() {
+  const btn = document.getElementById('btn-pull');
+  const status = document.getElementById('status-pull');
+  btn.disabled = true;
+  status.className = 'status';
+  status.textContent = 'Pulling data from Supabase...';
+
+  try {
+    // Try all likely table names
+    const tables = [
+      { key: 'counts',   variants: ['counts', 'inventory_counts', 'weekly_counts', 'count_entries'] },
+      { key: 'archives', variants: ['archives', 'archive', 'weekly_archives', 'history'] },
+      { key: 'orders',   variants: ['orders', 'order_guide', 'weekly_orders'] },
+      { key: 'history',  variants: ['week_history', 'count_history', 'inventory_history'] },
+    ];
+
+    allData = { pulled_at: new Date().toISOString(), tables: {} };
+
+    for (const t of tables) {
+      status.textContent = `Pulling ${t.key}...`;
+      const result = await tryTable(t.key, t.variants);
+      allData.tables[t.key] = { table_name: result.name, rows: result.data };
+      
+      document.getElementById(`badge-${t.key}`).textContent = result.data.length;
+      document.getElementById(`pre-${t.key}`).textContent = 
+        result.data.length > 0 
+          ? JSON.stringify(result.data.slice(0, 2), null, 2) 
+          : `(no data found — tried: ${t.variants.join(', ')})`;
+    }
+
+    const totalRows = Object.values(allData.tables).reduce((sum, t) => sum + t.rows.length, 0);
+    
+    if (totalRows === 0) {
+      status.className = 'status err';
+      status.textContent = '⚠ No data found in any table. Check Supabase table names or permissions.';
+    } else {
+      status.className = 'status ok';
+      status.textContent = `✓ Pulled ${totalRows} total rows across all tables.`;
+      document.getElementById('card-results').style.display = 'block';
+      document.getElementById('card-download').style.display = 'block';
+    }
+
+  } catch(e) {
+    status.className = 'status err';
+    status.textContent = `Error: ${e.message}`;
+    console.error(e);
+  }
+
+  btn.disabled = false;
+}
+
+function downloadJSON() {
+  const blob = new Blob([JSON.stringify(allData, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `zazzos_data_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>
