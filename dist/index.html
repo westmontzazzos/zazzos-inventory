@@ -9,6 +9,7 @@
   <title>Zazzo's Liquor Inventory</title>
   <script crossorigin src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { margin: 0; padding: 0; }
@@ -527,7 +528,7 @@ html,body{background:#EFEFEF;color:#111111;font-family:'Inter',system-ui,sans-se
 .Login-brand{text-align:center;}
 .Login-logo{font-family:'Libre Baskerville',Georgia,serif;font-size:48px;font-weight:700;color:#C8102E;letter-spacing:0.03em;line-height:1;}
 .Login-tag{margin-top:10px;font-family:'Inter',system-ui,sans-serif;font-size:11px;font-weight:700;color:#777777;letter-spacing:0.2em;text-transform:uppercase;}
-.Login-grid{display:grid;grid-template-columns:200px 200px;grid-template-rows:160px 160px 160px;gap:20px;justify-content:center;}
+.Login-grid{display:grid;grid-template-columns:200px 200px;grid-auto-rows:160px;gap:20px;justify-content:center;}
 .LCard{width:200px;height:160px;background:#FFFFFF;border:2px solid #1B6B3A;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.07);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;transition:border-color 0.15s,box-shadow 0.15s,transform 0.15s;user-select:none;-webkit-tap-highlight-color:transparent;}
 .LCard:hover{border-color:#C8102E;box-shadow:0 6px 24px rgba(200,16,46,0.13);transform:translateY(-3px);}
 .LCard:active{transform:translateY(0);}
@@ -1384,6 +1385,426 @@ function TrendScreen({ archives, calcTotal, onBack }) {
                                 React.createElement("div", { className: "TStat-label" }, "vs Avg")))));
                 })))))));
 }
+// ─── DEPLETION ANALYSIS SCREEN ───────────────────────────────────────────────
+function DepletionScreen({ archives, onBack }) {
+    const { useState: _useState } = React;
+    const latestArchive = archives && archives.length > 0 ? archives[archives.length - 1] : null;
+    const orders = latestArchive ? latestArchive.orders || [] : [];
+
+    const rows = orders.filter(o => o.product && (o.total !== undefined || o.lastWeek !== undefined));
+
+    function variance(dep, pos) {
+        if (dep === "" || dep === null || dep === undefined) return null;
+        if (pos === "" || pos === null || pos === undefined) return null;
+        return Math.round((parseFloat(dep) - parseFloat(pos)) * 1000) / 1000;
+    }
+
+    return React.createElement("div", { style: { display: "flex", flexDirection: "column", height: "100vh", background: "#EFEFEF" } },
+        React.createElement("header", { className: "H" },
+            React.createElement("div", { className: "H-back", onClick: onBack }, "← Back"),
+            React.createElement("div", { className: "H-title" }, "Depletion Analysis")),
+        React.createElement("div", { style: { flex: 1, overflowY: "auto", fontFamily: "'Inter',system-ui,sans-serif" } },
+            latestArchive && React.createElement("div", { style: { padding: "8px 16px", fontSize: 12, color: "#666" } }, latestArchive.week_label || ""),
+            React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 12 } },
+                React.createElement("thead", null,
+                    React.createElement("tr", { style: { background: "#1A1A2E", color: "#fff" } },
+                        React.createElement("th", { style: { padding: "8px 10px", textAlign: "left" } }, "Product"),
+                        React.createElement("th", { style: { padding: "8px 6px", textAlign: "center" } }, "Depletion"),
+                        React.createElement("th", { style: { padding: "8px 6px", textAlign: "center" } }, "POS Sales"),
+                        React.createElement("th", { style: { padding: "8px 6px", textAlign: "center" } }, "Variance"))),
+                React.createElement("tbody", null,
+                    rows.length === 0
+                        ? React.createElement("tr", null, React.createElement("td", { colSpan: 4, style: { padding: 24, textAlign: "center", color: "#999" } }, "No data yet. Run Start New Week to archive counts."))
+                        : rows.map((o, i) => {
+                            const dep = parseFloat(o.total) || 0;
+                            const pos = parseFloat(o.sold) || 0;
+                            const vari = variance(dep, pos);
+                            const varColor = vari === null ? "#999" : vari > 0 ? "#C8102E" : vari < 0 ? "#C8102E" : "#2a7";
+                            return React.createElement("tr", { key: o.product, style: { background: i % 2 === 0 ? "#fff" : "#F5F5F5", borderBottom: "1px solid #eee" } },
+                                React.createElement("td", { style: { padding: "7px 10px" } }, o.product),
+                                React.createElement("td", { style: { padding: "7px 6px", textAlign: "center" } }, dep || "—"),
+                                React.createElement("td", { style: { padding: "7px 6px", textAlign: "center" } }, pos || "—"),
+                                React.createElement("td", { style: { padding: "7px 6px", textAlign: "center", color: varColor, fontWeight: 600 } },
+                                    vari === null ? "—" : vari > 0 ? "+" + vari : vari));
+                        })))));
+}
+
+// ─── COUNT HISTORY SCREEN ─────────────────────────────────────────────────────
+function CountHistoryScreen({ archives, master, onBack }) {
+    const sortedArchives = [...(archives || [])].sort((a, b) => new Date(a.archive_date) - new Date(b.archive_date)).slice(-3);
+    const products = (master || []).map(m => m.product).sort();
+
+    function getCount(archive, product) {
+        if (!archive) return null;
+        const allCounts = Object.assign({}, ...[...Object.values(archive.sealed_counts || {}), ...Object.values(archive.open_counts || {})].map(loc => {
+            if (typeof loc === "object") return loc;
+            return {};
+        }));
+        const val = allCounts[product];
+        if (val === undefined || val === null || val === "") return null;
+        return parseFloat(val) || 0;
+    }
+
+    function avg(vals) {
+        const valid = vals.filter(v => v !== null);
+        if (valid.length === 0) return null;
+        return Math.round((valid.reduce((a, b) => a + b, 0) / valid.length) * 100) / 100;
+    }
+
+    return React.createElement("div", { style: { display: "flex", flexDirection: "column", height: "100vh", background: "#EFEFEF" } },
+        React.createElement("header", { className: "H" },
+            React.createElement("div", { className: "H-back", onClick: onBack }, "← Back"),
+            React.createElement("div", { className: "H-title" }, "Count History")),
+        React.createElement("div", { style: { flex: 1, overflowY: "auto", fontFamily: "'Inter',system-ui,sans-serif" } },
+            React.createElement("div", { style: { overflowX: "auto" } },
+                React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 420 } },
+                    React.createElement("thead", null,
+                        React.createElement("tr", { style: { background: "#1A1A2E", color: "#fff" } },
+                            React.createElement("th", { style: { padding: "8px 10px", textAlign: "left", minWidth: 120 } }, "Product"),
+                            ...sortedArchives.map(a => React.createElement("th", { key: a.id, style: { padding: "8px 6px", textAlign: "center" } }, a.archive_date || a.week_label || "")),
+                            sortedArchives.length > 1 && React.createElement("th", { style: { padding: "8px 6px", textAlign: "center", background: "#2a3a6a" } }, "Avg"))),
+                    React.createElement("tbody", null,
+                        sortedArchives.length === 0
+                            ? React.createElement("tr", null, React.createElement("td", { colSpan: 5, style: { padding: 24, textAlign: "center", color: "#999" } }, "No archived weeks yet."))
+                            : products.map((product, i) => {
+                                const counts = sortedArchives.map(a => getCount(a, product));
+                                const average = avg(counts);
+                                return React.createElement("tr", { key: product, style: { background: i % 2 === 0 ? "#fff" : "#F5F5F5", borderBottom: "1px solid #eee" } },
+                                    React.createElement("td", { style: { padding: "7px 10px" } }, product),
+                                    ...counts.map((c, ci) => React.createElement("td", { key: ci, style: { padding: "7px 6px", textAlign: "center" } }, c !== null ? c : "—")),
+                                    sortedArchives.length > 1 && React.createElement("td", { style: { padding: "7px 6px", textAlign: "center", fontWeight: 600 } }, average !== null ? average : "—"));
+                            }))))));
+}
+
+// ─── SALES REPORT PARSING ENGINE ──────────────────────────────────────────────
+pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+async function extractPdfText(file) {
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    let fullText = "";
+    for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        const lines = {};
+        content.items.forEach(item => {
+            const y = Math.round(item.transform[5]);
+            if (!lines[y]) lines[y] = [];
+            lines[y].push(item.str);
+        });
+        const sortedY = Object.keys(lines).map(Number).sort((a, b) => b - a);
+        fullText += sortedY.map(y => lines[y].join(" ")).join("\n") + "\n";
+    }
+    return fullText;
+}
+
+function parseSalesByItemLines(text) {
+    const rows = [];
+    const lineRe = /^(\d{4,9})\s+(.+?)\s+(\d+)\s+([\d,]+\.\d{2})\s+([\d.]+)$/;
+    for (const line of text.split("\n")) {
+        const m = line.trim().match(lineRe);
+        if (m) rows.push({ plu: m[1], name: m[2], qty: parseInt(m[3]) });
+    }
+    return rows;
+}
+function parseModifierLines(text) {
+    const rows = [];
+    const lineRe = /^(\d{4,5})\s+(.+?)\s+(\d+)$/;
+    for (const line of text.split("\n")) {
+        const m = line.trim().match(lineRe);
+        if (m && m[2] !== "Total") rows.push({ plu: m[1], name: m[2], qty: parseInt(m[3]) });
+    }
+    return rows;
+}
+function parseSizesSoldLiquor(text) {
+    const rows = [];
+    const lineRe = /^(\d{4,5})\s+(.+?)\s+(Neat|Rocks|Short|Tall|Double|Shot|Mixed|Martini)\s+(\d+)\s+([\d,]+\.\d{2})$/;
+    for (const line of text.split("\n")) {
+        const m = line.trim().match(lineRe);
+        if (m) rows.push({ plu: m[1], name: m[2], size: m[3], qty: parseInt(m[4]) });
+    }
+    return rows;
+}
+function parseSizesSoldWine(text) {
+    const rows = [];
+    const lineRe = /^(\d{4,5})\s+(.+?)\s+(Bottle|Glass)\s+(\d+)\s+([\d,]+\.\d{2})$/;
+    for (const line of text.split("\n")) {
+        const m = line.trim().match(lineRe);
+        if (m) rows.push({ plu: m[1], name: m[2], size: m[3], qty: parseInt(m[4]) });
+    }
+    return rows;
+}
+
+const BEER_PLU_MAP = {
+    "2884": "Budweiser", "3152": "Budweiser Zero", "2904": "Cider Boys",
+    "2885": "Coors Light", "2895": "Corona", "2898": "Corona Light",
+    "2899": "Heineken", "2887": "MGD", "2886": "Michelob Ultra",
+    "2889": "Miller High Life", "2890": "Miller Lite", "2897": "Modelo",
+    "3431": "Yuengling Flight", "2908": "Black Cherry White Claw",
+    "3230": "High Noon Tea", "3264": "Suncruiser",
+};
+const KEG_PLU_MAP = {
+    "2931": "Ambiegram", "2927": "Blue Moon", "3521": "Buenaveza (Pony)",
+    "3153": "Center Line", "3450": "Dunkel", "2929": "Hopular Kid",
+    "2921": "Labatt Blue", "2926": "Longsnapper", "3244": "Morretti (Pony)",
+    "2917": "Old Style", "2932": "Stella Keg", "2924": "Stone IPA",
+    "3256": "Yuengling Keg", "2916": "Zazzo's Point", "2918": "Miller Lite Keg",
+};
+const VODKADE_PLU_MAP = { "3474": "Vodkade Orange", "3475": "Vodkade Red", "3476": "Vodkade Blue" };
+
+function parseBeerReport(beerText, bucketText, carryoutText, hnText) {
+    const beer = parseSalesByItemLines(beerText);
+    const bucket = bucketText ? parseModifierLines(bucketText) : [];
+    const carryout = carryoutText ? parseSalesByItemLines(carryoutText) : [];
+    const highnoon = hnText ? parseModifierLines(hnText) : [];
+    const results = { bottles: {}, kegs: {}, flags: [] };
+
+    for (const row of beer) {
+        if (row.plu === "2883" || row.plu === "2910" || row.plu === "3473") continue; // handled separately
+        if (row.plu === "2941") { results.flags.push(`Domestic Bucket (PLU 2941, qty ${row.qty}) - no brand identified, needs manual review`); continue; }
+        if (row.plu === "3394") continue; // specialty drink, not beer
+        if (KEG_PLU_MAP[row.plu]) {
+            results.kegs[KEG_PLU_MAP[row.plu]] = row.qty; // whole pours
+        } else if (BEER_PLU_MAP[row.plu]) {
+            results.bottles[BEER_PLU_MAP[row.plu]] = row.qty;
+        } else {
+            results.flags.push(`Unmapped Beer PLU ${row.plu} (${row.name}, qty ${row.qty})`);
+        }
+    }
+    const budRow = beer.find(r => r.plu === "2883");
+    const budBtl = budRow ? budRow.qty : 0;
+    const budBucket = bucket.filter(r => r.name === "Bud Light").reduce((s, r) => s + r.qty, 0);
+    const budCarryout = carryout.find(r => r.name.toLowerCase() === "budlight");
+    results.bottles["Bud Light"] = budBtl + budBucket + (budCarryout ? budCarryout.qty * 6 : 0);
+
+    const hnTotal = highnoon.reduce((s, r) => s + r.qty, 0);
+    const hnGeneric = beer.find(r => r.plu === "2910");
+    if (hnGeneric && hnTotal !== hnGeneric.qty) {
+        results.flags.push(`High Noon: generic PLU2910=${hnGeneric.qty}, modifier flavors total=${hnTotal} (mismatch of ${hnTotal - hnGeneric.qty} - needs review)`);
+    }
+    const flavorMap = { "Peach": "High Noon Peach", "Pineapple": "High Noon Pineapple", "Watermelon": "High Noon Watermelon" };
+    for (const r of highnoon) {
+        const item = flavorMap[r.name];
+        if (item) results.bottles[item] = (results.bottles[item] || 0) + r.qty;
+    }
+
+    const vkRow = beer.find(r => r.plu === "3473");
+    if (vkRow) results.flags.push(`Vodkade (PLU 3473, qty ${vkRow.qty}) - needs matching Vodkade modifier-usage report to split by flavor`);
+
+    return results;
+}
+
+const LIQUOR_POUR_OZ = { Short: 1.0, Tall: 1.0, Shot: 1.0, Mixed: 1.5, Double: 2.0, Rocks: 2.0, Neat: 2.0, Martini: 3.75 };
+const LIQUOR_PLU_MAP = {
+    "2686": "Angel's Envy", "2661": "Bacardi", "3314": "Buffalo Trace",
+    "2664": "Captain Morgan", "2693": "Crown Royal", "2694": "Crown Royal Apple",
+    "2669": "Don Julio", "2644": "Grey Goose", "3332": "Hendricks",
+    "3151": "Hornitos", "2699": "Jack Daniels", "2703": "Jameson",
+    "2711": "Jim Beam", "2645": "Kettle One", "2718": "Maker's Mark",
+    "3333": "Milagro", "3331": "Sobieski Citron", "3330": "Sobieski Vanilla",
+    "2723": "Southern Comfort", "2738": "Tanqueray", "2657": "Tito's",
+    "3327": "Tullamore D.E.W", "2724": "Woodford Reserve", "2658": "Zazzo's Vodka",
+    "2739": "Zazzo's Gin", "2662": "Zazzo's Rum", "3456": "Zazzo's Tequila",
+    "2720": "Zazzo's Bourbon", "3455": "Zazzo's Straight Bourbon",
+};
+function parseLiquorReport(text) {
+    const rows = parseSizesSoldLiquor(text);
+    const ozByItem = {};
+    const flags = [];
+    for (const r of rows) {
+        const item = LIQUOR_PLU_MAP[r.plu];
+        if (!item) { flags.push(`Unmapped Liquor PLU ${r.plu} (${r.name})`); continue; }
+        ozByItem[item] = (ozByItem[item] || 0) + LIQUOR_POUR_OZ[r.size] * r.qty;
+    }
+    const bottles = {};
+    for (const [item, oz] of Object.entries(ozByItem)) bottles[item] = Math.round((oz / 33.81) * 1000) / 1000;
+    return { bottles, flags };
+}
+
+const WINE_GLASSES_PER_BOTTLE = 4.17;
+const WINE_PLU_MAP = {
+    "3380": "Hahn Pinot Noir", "3359": "Harken Chard", "3368": "Canyon Road Cabernet",
+    "3358": "Canyon Road Chard", "3435": "Canyon Road Moscato", "3355": "Canyon Road Pinot Grigio",
+    "3364": "Canyon Road Pinot Noir", "3360": "Canyon Road Sauv Blanc", "3370": "Josh Cabernet",
+    "3372": "Ruffino Chianti", "3366": "Unshackled Red Blend", "3361": "Whitehaven Sauv Blanc",
+    "3356": "Caposaldo Pinot Grigio",
+};
+const WINE_INFERRED = new Set(["3368", "3358", "3435", "3355", "3364", "3360"]);
+const WINE_COCKTAIL_PLUS = new Set(["2874", "2879"]);
+function parseWineReport(text) {
+    const rows = parseSizesSoldWine(text);
+    const ozByItem = {};
+    const flags = [];
+    const alreadyFlagged = new Set();
+    for (const r of rows) {
+        if (WINE_COCKTAIL_PLUS.has(r.plu)) { if (!alreadyFlagged.has(r.plu)) { flags.push(`PLU ${r.plu} "${r.name}" - specialty cocktail, not a direct wine item`); alreadyFlagged.add(r.plu); } continue; }
+        const item = WINE_PLU_MAP[r.plu];
+        if (!item) { if (!alreadyFlagged.has(r.plu)) { flags.push(`Unmapped Wine PLU ${r.plu} (${r.name}, qty ${r.qty})`); alreadyFlagged.add(r.plu); } continue; }
+        if (WINE_INFERRED.has(r.plu) && !alreadyFlagged.has(r.plu)) { flags.push(`PLU ${r.plu} "${r.name}" -> assumed "${item}" (inferred house-pour brand, not confirmed)`); alreadyFlagged.add(r.plu); }
+        const oz = r.size === "Bottle" ? r.qty * 25.4 : (r.qty / WINE_GLASSES_PER_BOTTLE) * 25.4;
+        ozByItem[item] = (ozByItem[item] || 0) + oz;
+    }
+    const bottles = {};
+    for (const [item, oz] of Object.entries(ozByItem)) bottles[item] = Math.round((oz / 25.4) * 1000) / 1000;
+    return { bottles, flags };
+}
+
+const SPECIALTY_NAME_FIX = { "Expresso Martini": "Espresso Martini", "Perfect Manahattan": "Perfect Manhattan" };
+const SPECIALTY_STRAIGHT_POUR = { "Baileys": { ingredient: "Bailey's", oz: 1.5 } };
+const SPECIALTY_NO_RECIPE = new Set(["Zazzo's Cosmo", "Premium Long Island"]);
+async function parseSpecialtyReport(text, recipeRows, soldAsMap) {
+    const rows = parseSalesByItemLines(text);
+    const recipeMap = {};
+    for (const r of recipeRows) {
+        if (r.tracked !== "Yes") continue;
+        if (!recipeMap[r.drink]) recipeMap[r.drink] = [];
+        recipeMap[r.drink].push({ ingredient: r.maps_to_master_item, oz: r.oz });
+    }
+    const unitDepletion = {}, ozByItem = {}, flags = [];
+    function addDepletion(ingredient, amount) {
+        if (soldAsMap[ingredient] === "Unit") unitDepletion[ingredient] = (unitDepletion[ingredient] || 0) + amount;
+        else ozByItem[ingredient] = (ozByItem[ingredient] || 0) + amount;
+    }
+    for (const row of rows) {
+        if (SPECIALTY_NO_RECIPE.has(row.name)) { flags.push(`"${row.name}" sold ${row.qty}x - NO RECIPE on file`); continue; }
+        if (SPECIALTY_STRAIGHT_POUR[row.name]) {
+            const { ingredient, oz } = SPECIALTY_STRAIGHT_POUR[row.name];
+            addDepletion(ingredient, oz * row.qty);
+            continue;
+        }
+        const drinkName = SPECIALTY_NAME_FIX[row.name] || row.name;
+        const recipe = recipeMap[drinkName];
+        if (!recipe) { flags.push(`No recipe found for "${row.name}"`); continue; }
+        for (const ing of recipe) addDepletion(ing.ingredient, ing.oz * row.qty);
+    }
+    const bottles = {};
+    for (const [item, oz] of Object.entries(ozByItem)) bottles[item] = Math.round((oz / 33.81) * 1000) / 1000;
+    return { bottles, units: unitDepletion, flags };
+}
+
+function parseVodkadeModifiers(text) {
+    const rows = parseModifierLines(text);
+    const bottles = {}, flags = [];
+    for (const r of rows) {
+        const item = VODKADE_PLU_MAP[r.plu];
+        if (!item) { flags.push(`Unrecognized Vodkade modifier PLU ${r.plu}`); continue; }
+        bottles[item] = (bottles[item] || 0) + r.qty;
+    }
+    return { bottles, flags };
+}
+
+// ─── SALES REPORTS UPLOAD SCREEN ─────────────────────────────────────────────
+function SalesUploadScreen({ onBack }) {
+    const [files, setFiles] = useState({});
+    const [parsing, setParsing] = useState(false);
+    const [results, setResults] = useState(null);
+    const [error, setError] = useState(null);
+
+    const REPORT_TYPES = [
+        { key: "beer", label: "Beer Report", required: true },
+        { key: "bucket", label: "Bucket Report", required: false },
+        { key: "carryout", label: "Carryout Report", required: false },
+        { key: "liquor", label: "Liquor Sizes Sold", required: false },
+        { key: "wine", label: "Wine Sizes Sold", required: false },
+        { key: "highnoon", label: "High Noon Modifier Report", required: false },
+        { key: "vodkade", label: "Vodkade Modifier Report", required: false },
+        { key: "specialty", label: "Specialty Drinks Report", required: false },
+    ];
+
+    const handleFile = (key, file) => {
+        setFiles(prev => ({ ...prev, [key]: file }));
+    };
+
+    const runParse = async () => {
+        setParsing(true);
+        setError(null);
+        try {
+            const texts = {};
+            for (const [key, file] of Object.entries(files)) {
+                texts[key] = await extractPdfText(file);
+            }
+            const allFlags = [];
+            const combinedBottles = {};
+            const combinedKegs = {};
+            const combinedUnits = {};
+
+            if (texts.beer) {
+                const r = parseBeerReport(texts.beer, texts.bucket, texts.carryout, texts.highnoon);
+                Object.assign(combinedBottles, r.bottles);
+                Object.assign(combinedKegs, r.kegs);
+                allFlags.push(...r.flags);
+            }
+            if (texts.liquor) {
+                const r = parseLiquorReport(texts.liquor);
+                Object.assign(combinedBottles, r.bottles);
+                allFlags.push(...r.flags);
+            }
+            if (texts.wine) {
+                const r = parseWineReport(texts.wine);
+                Object.assign(combinedBottles, r.bottles);
+                allFlags.push(...r.flags);
+            }
+            if (texts.vodkade) {
+                const r = parseVodkadeModifiers(texts.vodkade);
+                Object.assign(combinedBottles, r.bottles);
+                allFlags.push(...r.flags);
+            }
+            if (texts.specialty) {
+                const recipeRows = await sbGet("recipe_database", "select=*");
+                const masterRows = await sbGet("master", "select=product,sold_as");
+                const soldAsMap = {};
+                masterRows.forEach(m => soldAsMap[m.product] = m.sold_as);
+                const r = await parseSpecialtyReport(texts.specialty, recipeRows, soldAsMap);
+                for (const [item, oz] of Object.entries(r.bottles)) combinedBottles[item] = (combinedBottles[item] || 0) + oz;
+                Object.assign(combinedUnits, r.units);
+                allFlags.push(...r.flags);
+            }
+            setResults({ bottles: combinedBottles, kegs: combinedKegs, units: combinedUnits, flags: allFlags });
+        } catch (e) {
+            setError("Parse error: " + e.message);
+        }
+        setParsing(false);
+    };
+
+    return React.createElement("div", { style: { display: "flex", flexDirection: "column", height: "100vh", background: "#EFEFEF" } },
+        React.createElement("header", { className: "H" },
+            React.createElement("div", { className: "H-back", onClick: onBack }, "← Back"),
+            React.createElement("div", { className: "H-title" }, "Sales Reports")),
+        React.createElement("div", { style: { flex: 1, overflowY: "auto", padding: 16, fontFamily: "'Inter',system-ui,sans-serif" } },
+            React.createElement("div", { style: { fontSize: 13, color: "#555", marginBottom: 16 } },
+                "Upload this week's Speedline reports. Beer Report is required; the rest are optional but improve accuracy."),
+            REPORT_TYPES.map(rt =>
+                React.createElement("div", { key: rt.key, style: { marginBottom: 12, background: "#fff", borderRadius: 8, padding: 12 } },
+                    React.createElement("div", { style: { fontSize: 13, fontWeight: 600, marginBottom: 6 } }, rt.label + (rt.required ? " *" : "")),
+                    React.createElement("input", { type: "file", accept: "application/pdf", onChange: e => handleFile(rt.key, e.target.files[0]) }),
+                    files[rt.key] && React.createElement("div", { style: { fontSize: 11, color: "#2a7", marginTop: 4 } }, "✓ " + files[rt.key].name))),
+            React.createElement("button", {
+                className: "B B-primary", style: { width: "100%", marginTop: 12 },
+                disabled: !files.beer || parsing,
+                onClick: runParse
+            }, parsing ? "Parsing..." : "Parse Reports"),
+            error && React.createElement("div", { style: { color: "#C8102E", marginTop: 12, fontSize: 13 } }, error),
+            results && React.createElement("div", { style: { marginTop: 20 } },
+                React.createElement("div", { style: { fontSize: 15, fontWeight: 700, marginBottom: 8 } }, "Parsed Results (review before saving)"),
+                React.createElement("div", { style: { fontSize: 13, fontWeight: 600, marginTop: 12 } }, "Bottles/Liquor (bottle-equivalent)"),
+                Object.entries(results.bottles).sort().map(([item, val]) =>
+                    React.createElement("div", { key: item, style: { fontSize: 12, display: "flex", justifyContent: "space-between", padding: "2px 0" } },
+                        React.createElement("span", null, item), React.createElement("span", null, val))),
+                Object.keys(results.kegs).length > 0 && React.createElement("div", { style: { fontSize: 13, fontWeight: 600, marginTop: 12 } }, "Kegs (whole pours)"),
+                Object.entries(results.kegs).sort().map(([item, val]) =>
+                    React.createElement("div", { key: item, style: { fontSize: 12, display: "flex", justifyContent: "space-between", padding: "2px 0" } },
+                        React.createElement("span", null, item), React.createElement("span", null, val))),
+                Object.keys(results.units).length > 0 && React.createElement("div", { style: { fontSize: 13, fontWeight: 600, marginTop: 12 } }, "Unit-counted items"),
+                Object.entries(results.units).sort().map(([item, val]) =>
+                    React.createElement("div", { key: item, style: { fontSize: 12, display: "flex", justifyContent: "space-between", padding: "2px 0" } },
+                        React.createElement("span", null, item), React.createElement("span", null, val))),
+                results.flags.length > 0 && React.createElement("div", { style: { marginTop: 16, background: "#FFF3E0", borderRadius: 8, padding: 10 } },
+                    React.createElement("div", { style: { fontSize: 13, fontWeight: 600, marginBottom: 6, color: "#C8102E" } }, `${results.flags.length} item(s) need review:`),
+                    results.flags.map((f, i) => React.createElement("div", { key: i, style: { fontSize: 11, color: "#666", marginBottom: 4 } }, f))),
+                React.createElement("button", { className: "B B-primary", style: { width: "100%", marginTop: 16 }, disabled: true },
+                    "Save to Depletion Analysis (not yet wired)"))));
+}
+
 // ─── MASTER EDITOR ────────────────────────────────────────────────────────────
 function SoldScreen({ onBack, setOrders }) {
     const master = getMaster();
@@ -2133,17 +2554,19 @@ function App() {
                 React.createElement("div", { className: "LCard", onClick: () => setScreen("received") },
                     React.createElement("div", { className: "LCard-role" }, "Received Items"),
                     React.createElement("div", { className: "LCard-name" }, "Log deliveries")),
-                React.createElement("div", { className: "LCard", onClick: () => setScreen("sold") },
-                    React.createElement("div", { className: "LCard-role" }, "Sold Items"),
-                    React.createElement("div", { className: "LCard-name" }, "Log weekly sales")),
+                React.createElement("div", { className: "LCard", onClick: () => setScreen("salesupload") },
+                    React.createElement("div", { className: "LCard-role" }, "Sales Reports"),
+                    React.createElement("div", { className: "LCard-name" }, "Upload PDF reports")),
+                React.createElement("div", { className: "LCard", onClick: () => setScreen("depletion") },
+                    React.createElement("div", { className: "LCard-role" }, "Depletion Analysis"),
+                    React.createElement("div", { className: "LCard-name" }, "Theoretical vs actual")),
+                React.createElement("div", { className: "LCard", onClick: () => setScreen("counthistory") },
+                    React.createElement("div", { className: "LCard-role" }, "Count History"),
+                    React.createElement("div", { className: "LCard-name" }, "Weekly averages")),
                 React.createElement("div", { className: "LCard", onClick: () => setScreen("orderguide") },
                     React.createElement("div", { className: "LCard-role" }, "Order Guide"),
                     React.createElement("div", { className: "LCard-name" }, "Weekly ordering")),
-                React.createElement("div", { className: "LCard", onClick: () => setScreen("oghistory") },
-                    React.createElement("div", { className: "LCard-role" }, "Order History"),
-                    React.createElement("div", { className: "LCard-name" }, "Past order guides")),
-
-                React.createElement("div", { className: "LCard", style: { gridColumn: "1 / -1" }, onClick: () => setShowRolloverConfirm(true) },
+                React.createElement("div", { className: "LCard", onClick: () => setShowRolloverConfirm(true) },
                     React.createElement("div", { className: "LCard-role" }, "Start New Week"),
                     React.createElement("div", { className: "LCard-name" }, "Archive & reset counts"))))),
         showRolloverConfirm && React.createElement("div", { style: { position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:24 } },
@@ -2158,6 +2581,9 @@ function App() {
         screen === "orderguide" && React.createElement(OrderGuideScreen, { orders: orders, setOrders: setOrders, calcTotal: calcTotal, onBack: goHome }),
         screen === "oghistory" && React.createElement(OGHistoryScreen, { archives: archives, onBack: goHome }),
         screen === "sold" && React.createElement(SoldScreen, { orders: orders, setOrders: setOrders, onBack: goHome }),
+        screen === "salesupload" && React.createElement(SalesUploadScreen, { onBack: goHome }),
+        screen === "depletion" && React.createElement(DepletionScreen, { archives: archives, onBack: goHome }),
+        screen === "counthistory" && React.createElement(CountHistoryScreen, { archives: archives, master: master, onBack: goHome }),
 
         showMaster && (React.createElement(MasterEditor, { master: master, onSave: (updated) => { setMaster(updated); setOrders(mkOrders(updated)); }, onClose: () => setShowMaster(false) })),
         React.createElement("div", { style: { position: "fixed", inset: 0, pointerEvents: "none", zIndex: 900 } }, [["TL", { top: 0, left: 0 }], ["TR", { top: 0, right: 0 }], ["BL", { bottom: 0, left: 0 }], ["BR", { bottom: 0, right: 0 }]].map(([id, pos]) => (React.createElement("div", { key: id, style: Object.assign(Object.assign({ position: "absolute" }, pos), { width: 60, height: 60, pointerEvents: "auto", cursor: "default" }), onClick: () => handleCornerTap(id) })))),
