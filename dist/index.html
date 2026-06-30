@@ -245,8 +245,12 @@ function sorted(arr) {
         return a.product.localeCompare(b.product);
     });
 }
-function forLoc(master, loc) {
-    return sorted(master.filter(i => i.locations.includes(loc)));
+function forLoc(master, loc, user) {
+    var items = master.filter(i => i.locations.includes(loc));
+    if (user === "erika") {
+        items = items.filter(i => i.sold_as === "Partial");
+    }
+    return sorted(items);
 }
 function groupCC(products) {
     const out = {};
@@ -710,7 +714,7 @@ function PrintSheet({ user, locs, sealed, open, blank }) {
     const FONT = "'Inter',system-ui,sans-serif";
     const rows = [];
     locs.forEach(function(loc) {
-        const products = forLoc(master, loc).sort(function(a,b){ return a.category.localeCompare(b.category) || a.product.localeCompare(b.product); });
+        const products = forLoc(master, loc, user).sort(function(a,b){ return a.category.localeCompare(b.category) || a.product.localeCompare(b.product); });
         if (!products.length) return;
         rows.push(React.createElement("tr", { key: "loc-" + loc },
             React.createElement("td", { colSpan: 3, style: { background: "#1A1A2E", color: "#fff", fontWeight: "700", padding: "3px 6px", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.08em", borderBottom: "2px solid #000", borderTop: "2px solid #000" } }, loc)));
@@ -753,7 +757,7 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
     const curLoc = locs[activeIdx];
     const isDecimal = user === "erika";
     const allDone = completed.length >= locs.length && locs.length > 0;
-    const products = forLoc(master, curLoc);
+    const products = forLoc(master, curLoc, user);
     const filled = products.filter(p => { var _a, _b; return ((_a = counts[curLoc]) === null || _a === void 0 ? void 0 : _a[p.product]) !== "" && ((_b = counts[curLoc]) === null || _b === void 0 ? void 0 : _b[p.product]) !== undefined; }).length;
     const groups = groupCC(products);
     const cols = Math.min(locs.length, 3);
@@ -1951,7 +1955,7 @@ function App() {
             try {
                 const masterRows = await sbGet("master", "select=*&order=product.asc");
                 if (Array.isArray(masterRows) && masterRows.length > 0) {
-                    const m = masterRows.map(r => ({ product: r.product, category: r.category, class: r.class, vendor: r.vendor, locations: r.locations }));
+                    const m = masterRows.map(r => ({ product: r.product, category: r.category, class: r.class, vendor: r.vendor, locations: r.locations, sold_as: r.sold_as }));
                     setMaster(m);
                     window.__MASTER__ = m;
                 }
