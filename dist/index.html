@@ -1595,9 +1595,7 @@ function parseBeerReport(beerText, bucketText, carryoutText, hnText) {
 
     const hnTotal = highnoon.reduce((s, r) => s + r.qty, 0);
     const hnGeneric = beer.find(r => r.plu === "2910");
-    if (hnGeneric && hnTotal !== hnGeneric.qty) {
-        results.flags.push(`High Noon: generic PLU2910=${hnGeneric.qty}, modifier flavors total=${hnTotal} (mismatch of ${hnTotal - hnGeneric.qty} - needs review)`);
-    }
+    // High Noon mismatch suppressed - caused by unrecorded flavor modifier at register, not a data error
     const flavorMap = { "Peach": "High Noon Peach", "Pineapple": "High Noon Pineapple", "Watermelon": "High Noon Watermelon" };
     for (const r of highnoon) {
         const item = flavorMap[r.name];
@@ -1644,15 +1642,18 @@ const WINE_PLU_MAP = {
     "3364": "Canyon Road Pinot Noir", "3360": "Canyon Road Sauv Blanc", "3370": "Josh Cabernet",
     "3372": "Ruffino Chianti", "3366": "Unshackled Red Blend", "3361": "Whitehaven Sauv Blanc",
     "3356": "Caposaldo Pinot Grigio",
+    "3354": "Lamarca Splitz",
 };
-const WINE_INFERRED = new Set(["3368", "3358", "3435", "3355", "3364", "3360"]);
-const WINE_COCKTAIL_PLUS = new Set(["2874", "2879"]);
+const WINE_INFERRED = new Set(); // All house-pour brands confirmed as Canyon Road
+const WINE_COCKTAIL_PLUS = new Set(); // Aperol Spritz and Mimosa routed through recipe engine
+const WINE_SUPPRESS = new Set(["3367"]); // Terrazaz - discontinued, suppress flag
 function parseWineReport(text) {
     const rows = parseSizesSoldWine(text);
     const ozByItem = {};
     const flags = [];
     const alreadyFlagged = new Set();
     for (const r of rows) {
+        if (WINE_SUPPRESS.has(r.plu)) { continue; }
         if (WINE_COCKTAIL_PLUS.has(r.plu)) { if (!alreadyFlagged.has(r.plu)) { flags.push(`PLU ${r.plu} "${r.name}" - specialty cocktail, not a direct wine item`); alreadyFlagged.add(r.plu); } continue; }
         const item = WINE_PLU_MAP[r.plu];
         if (!item) { if (!alreadyFlagged.has(r.plu)) { flags.push(`Unmapped Wine PLU ${r.plu} (${r.name}, qty ${r.qty})`); alreadyFlagged.add(r.plu); } continue; }
@@ -1665,7 +1666,7 @@ function parseWineReport(text) {
     return { bottles, flags };
 }
 
-const SPECIALTY_NAME_FIX = { "Expresso Martini": "Espresso Martini", "Perfect Manahattan": "Perfect Manhattan" };
+const SPECIALTY_NAME_FIX = { "Expresso Martini": "Espresso Martini", "Perfect Manahattan": "Perfect Manhattan", "Zazzo's Cosmo": "Sparkling Cosmo", "Premium Long Island": "Zazzo's Long Island", "Mimosa": "Mimosa", "Aperol Spritz": "Aperol Spritz" };
 const SPECIALTY_STRAIGHT_POUR = { "Baileys": { ingredient: "Bailey's", oz: 1.5 } };
 const SPECIALTY_NO_RECIPE = new Set(["Zazzo's Cosmo", "Premium Long Island"]);
 async function parseSpecialtyReport(text, recipeRows, soldAsMap) {
@@ -2561,6 +2562,15 @@ function App() {
         }
         catch (e) {
             console.error("Count clear error:", e);
+        }
+        try {
+            const recentArchives = await sbGet("archives", "select=id&order=created_at.desc&limit=2");
+            if (recentArchives.length > 1) {
+                await sbPatch("archives", "id=eq." + recentArchives[1].id, { pos_sales: null });
+            }
+        }
+        catch (e) {
+            console.error("POS sales clear error:", e);
         }
         setSealed(mkSealed());
         setOpen(mkOpen());
