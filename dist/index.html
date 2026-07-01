@@ -1430,14 +1430,14 @@ function DepletionScreen({ archives, onBack }) {
                     rows.length === 0
                         ? React.createElement("tr", null, React.createElement("td", { colSpan: 4, style: { padding: 24, textAlign: "center", color: "#999" } }, "No data yet. Run Start New Week to archive counts."))
                         : rows.map((o, i) => {
-                            const dep = parseFloat(o.total) || 0;
+                            const dep = o.depletion !== undefined && o.depletion !== "" ? parseFloat(o.depletion) : null;
                             const pos = posSales[o.product] !== undefined ? parseFloat(posSales[o.product]) : null;
                             const vari = variance(dep, pos);
                             const varColor = vari === null ? "#999" : vari > 0 ? "#C8102E" : vari < 0 ? "#C8102E" : "#2a7";
                             return React.createElement("tr", { key: o.product, style: { background: i % 2 === 0 ? "#fff" : "#F5F5F5", borderBottom: "1px solid #eee" } },
                                 React.createElement("td", { style: { padding: "7px 10px" } }, o.product),
-                                React.createElement("td", { style: { padding: "7px 6px", textAlign: "center" } }, dep || "—"),
-                                React.createElement("td", { style: { padding: "7px 6px", textAlign: "center" } }, pos || "—"),
+                                React.createElement("td", { style: { padding: "7px 6px", textAlign: "center" } }, dep !== null ? dep : "—"),
+                                React.createElement("td", { style: { padding: "7px 6px", textAlign: "center" } }, pos !== null ? pos : "—"),
                                 React.createElement("td", { style: { padding: "7px 6px", textAlign: "center", color: varColor, fontWeight: 600 } },
                                     vari === null ? "—" : vari > 0 ? "+" + vari : vari));
                         })))));
@@ -1577,7 +1577,7 @@ function parseBeerReport(beerText, bucketText, carryoutText, hnText) {
 
     for (const row of beer) {
         if (row.plu === "2883" || row.plu === "2910" || row.plu === "3473") continue; // handled separately
-        if (row.plu === "2941") { results.flags.push(`Domestic Bucket (PLU 2941, qty ${row.qty}) - no brand identified, needs manual review`); continue; }
+        if (row.plu === "2941") { continue; } // Domestic Bucket handled via bucket modifier report
         if (row.plu === "3394") continue; // specialty drink, not beer
         if (KEG_PLU_MAP[row.plu]) {
             results.kegs[KEG_PLU_MAP[row.plu]] = row.qty; // whole pours
@@ -1603,7 +1603,7 @@ function parseBeerReport(beerText, bucketText, carryoutText, hnText) {
     }
 
     const vkRow = beer.find(r => r.plu === "3473");
-    if (vkRow) results.flags.push(`Vodkade (PLU 3473, qty ${vkRow.qty}) - needs matching Vodkade modifier-usage report to split by flavor`);
+    if (vkRow) if (!texts.vodkade) results.flags.push(`Vodkade (PLU 3473, qty ${vkRow.qty}) - upload Vodkade modifier report to split by flavor`);
 
     return results;
 }
@@ -1646,7 +1646,7 @@ const WINE_PLU_MAP = {
 };
 const WINE_INFERRED = new Set(); // All house-pour brands confirmed as Canyon Road
 const WINE_COCKTAIL_PLUS = new Set(); // Aperol Spritz and Mimosa routed through recipe engine
-const WINE_SUPPRESS = new Set(["3367"]); // Terrazaz - discontinued, suppress flag
+const WINE_SUPPRESS = new Set(["3367", "2874", "2879"]); // Terrazaz discontinued; Aperol Spritz + Mimosa route through recipe engine
 function parseWineReport(text) {
     const rows = parseSizesSoldWine(text);
     const ozByItem = {};
@@ -1666,9 +1666,9 @@ function parseWineReport(text) {
     return { bottles, flags };
 }
 
-const SPECIALTY_NAME_FIX = { "Expresso Martini": "Espresso Martini", "Perfect Manahattan": "Perfect Manhattan", "Zazzo's Cosmo": "Sparkling Cosmo", "Premium Long Island": "Zazzo's Long Island", "Mimosa": "Mimosa", "Aperol Spritz": "Aperol Spritz" };
+const SPECIALTY_NAME_FIX = { "Expresso Martini": "Espresso Martini", "Perfect Manahattan": "Perfect Manhattan", "Zazzo's Cosmo": "Sparkling Cosmo", "Premium Long Island": "Zazzo's Long Island", "Mimosa": "Mimosa", "Aperol Spritz": "Aperol Spritz", "Sparkling Cosmo": "Sparkling Cosmo", "Zazzo's Long Island": "Zazzo's Long Island" };
 const SPECIALTY_STRAIGHT_POUR = { "Baileys": { ingredient: "Bailey's", oz: 1.5 } };
-const SPECIALTY_NO_RECIPE = new Set(["Zazzo's Cosmo", "Premium Long Island"]);
+const SPECIALTY_NO_RECIPE = new Set(); // All drinks now have recipes or aliases
 async function parseSpecialtyReport(text, recipeRows, soldAsMap) {
     const rows = parseSalesByItemLines(text);
     const recipeMap = {};
