@@ -1467,7 +1467,7 @@ function CountHistoryScreen({ archives, master, onBack }) {
                 return parseFloat(row.total);
             }
         }
-        const allCounts = Object.assign({}, ...[...Object.values(archive.sealed_counts || {}), ...Object.values(archive.open_counts || {})].map(loc => typeof loc === "object" ? loc : {}));
+        const allCounts = Object.assign({}, ...[...Object.values(archive.sealed || archive.sealed_counts || {}), ...Object.values(archive.open || archive.open_counts || {})].map(loc => typeof loc === "object" ? loc : {}));
         const val = allCounts[product];
         if (val === undefined || val === null || val === "") return null;
         return parseFloat(val) || 0;
