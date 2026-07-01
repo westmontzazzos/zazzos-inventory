@@ -1467,10 +1467,16 @@ function CountHistoryScreen({ archives, master, onBack }) {
                 return parseFloat(row.total);
             }
         }
-        const allCounts = Object.assign({}, ...[...Object.values(archive.sealed || archive.sealed_counts || {}), ...Object.values(archive.open || archive.open_counts || {})].map(loc => typeof loc === "object" ? loc : {}));
-        const val = allCounts[product];
-        if (val === undefined || val === null || val === "") return null;
-        return parseFloat(val) || 0;
+        const allLocs = [...Object.values(archive.sealed || archive.sealed_counts || {}), ...Object.values(archive.open || archive.open_counts || {})];
+        let total = 0;
+        let found = false;
+        allLocs.forEach(loc => {
+            if (typeof loc === "object" && loc[product] !== undefined && loc[product] !== null && loc[product] !== "") {
+                total += parseFloat(loc[product]) || 0;
+                found = true;
+            }
+        });
+        return found ? Math.round(total * 100) / 100 : null;
     }
 
     function avg(vals) {
