@@ -1107,6 +1107,7 @@ function OrderGuideScreen({ orders, setOrders, calcTotal, onBack, archives }) {
                             else if (col.key === 'variance') { const par2=Number(ro.par)||0; const v=Math.round((tot-par2)*100)/100; cellContent = React.createElement("span", { className: par2>0?(v>=0?'pos':'neg'):'' }, par2>0?(v>=0?'+'+v:v):"—"); }
                             else if (col.key === 'freq') cellContent = React.createElement("span", { style:{color:'#777',fontSize:11} }, ro.freq || "—");
                             else if (col.key === 'deliveryThisWeek') cellContent = React.createElement("span", { style:{color: ro.deliveryThisWeek==='Yes'?'#1B6B3A':'#777', fontWeight: ro.deliveryThisWeek==='Yes'?700:400, fontSize:11} }, ro.deliveryThisWeek || "—");
+                            else if (col.key === 'sold') { const posSalesVal = latestPosSales[ro.product] !== undefined ? String(latestPosSales[ro.product]) : ""; cellContent = React.createElement("span", { style:{fontSize:12} }, ro.sold || posSalesVal || "—"); }
                             else cellContent = React.createElement("input", {
                                 type: "number", min: "0", inputMode: "numeric",
                                 placeholder: col.key === 'order' ? "—" : "0",
@@ -1432,7 +1433,9 @@ function DepletionScreen({ archives, onBack }) {
                     rows.length === 0
                         ? React.createElement("tr", null, React.createElement("td", { colSpan: 4, style: { padding: 24, textAlign: "center", color: "#999" } }, "No data yet. Run Start New Week to archive counts."))
                         : rows.map((o, i) => {
-                            const dep = o.depletion !== undefined && o.depletion !== "" ? parseFloat(o.depletion) : null;
+                            const lw = parseFloat(o.lastWeek) || 0;
+                            const recv = parseFloat(o.received) || 0;
+                            const dep = lw > 0 ? Math.round((lw + recv) * 100) / 100 : null;
                             const pos = posSales[o.product] !== undefined ? parseFloat(posSales[o.product]) : null;
                             const vari = variance(dep, pos);
                             const varColor = vari === null ? "#999" : vari > 0 ? "#C8102E" : vari < 0 ? "#C8102E" : "#2a7";
