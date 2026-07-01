@@ -1730,7 +1730,7 @@ const REPORT_LABELS = {
     vodkade: "Vodkade Modifier", specialty: "Specialty Drinks"
 };
 
-function SalesUploadScreen({ onBack }) {
+function SalesUploadScreen({ onBack, onSaved }) {
     const [detected, setDetected] = useState({});
     const [parsing, setParsing] = useState(false);
     const [results, setResults] = useState(null);
@@ -1868,6 +1868,7 @@ function SalesUploadScreen({ onBack }) {
                             const posSales = Object.assign({}, results.bottles, results.kegs, results.units);
                             await sbPatch("archives", "id=eq." + archiveId, { pos_sales: posSales });
                             setSaved(true);
+                            if (onSaved) onSaved();
                         } catch(e) { setError("Save failed: " + e.message); }
                         setSaving(false);
                     }
@@ -2408,6 +2409,7 @@ function App() {
     const [open, setOpen] = useState(mkOpen);
     const [orders, setOrders] = useState(() => mkOrders(INITIAL_MASTER));
     const [archives, setArchives] = useState([]);
+    const [refreshKey, setRefreshKey] = useState(0);
 
     const [lastRollover, setLastRollover] = useState(null);
     const [master, setMaster] = useState(INITIAL_MASTER);
@@ -2441,7 +2443,8 @@ function App() {
                     const remoteArchives = archiveRows.map(a => ({
                         label: a.week_label === "Week of Jun 28, 2026" ? "Week of Jun 23, 2026" : a.week_label,
                         date: a.archive_date === "6/28/2026" ? "6/23/2026" : a.archive_date,
-                        sealed: a.sealed_counts || {}, open: a.open_counts || {}, orders: a.orders || []
+                        sealed: a.sealed_counts || {}, open: a.open_counts || {}, orders: a.orders || [],
+                        pos_sales: a.pos_sales || {}
                     }));
                     setArchives(prev => {
                         const remoteLabels = new Set(remoteArchives.map(a => a.label));
@@ -2487,7 +2490,7 @@ function App() {
             setLoading(false);
         }
         loadData();
-    }, []);
+    }, [refreshKey]);
     useEffect(() => { window.__MASTER__ = master; }, [master]);
     // Weekly auto-rollover check
     useEffect(() => {
@@ -2670,7 +2673,7 @@ function App() {
         screen === "orderguide" && React.createElement(OrderGuideScreen, { orders: orders, setOrders: setOrders, calcTotal: calcTotal, onBack: goHome }),
         screen === "oghistory" && React.createElement(OGHistoryScreen, { archives: archives, onBack: goHome }),
         screen === "sold" && React.createElement(SoldScreen, { orders: orders, setOrders: setOrders, onBack: goHome }),
-        screen === "salesupload" && React.createElement(SalesUploadScreen, { onBack: goHome }),
+        screen === "salesupload" && React.createElement(SalesUploadScreen, { onBack: goHome, onSaved: () => setRefreshKey(k => k + 1) }),
         screen === "depletion" && React.createElement(DepletionScreen, { archives: archives, onBack: goHome }),
         screen === "counthistory" && React.createElement(CountHistoryScreen, { archives: archives, master: master, onBack: goHome }),
 
