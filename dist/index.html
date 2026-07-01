@@ -1462,14 +1462,18 @@ function CountHistoryScreen({ archives, master, onBack }) {
     function getCount(archive, product) {
         if (archive.orders) {
             const row = archive.orders.find(o => o.product === product);
-            // Only use total as count when lastWeek is blank (count archive, not order archive)
+            // If lastWeek is populated, use it (this is the end-of-week count)
+            if (row && row.lastWeek !== undefined && row.lastWeek !== null && row.lastWeek !== "") {
+                return parseFloat(row.lastWeek) || 0;
+            }
+            // If lastWeek is blank but total is populated, use total (older count archive format)
             if (row && row.total !== undefined && row.total !== null && row.total !== "" && (!row.lastWeek || row.lastWeek === "")) {
-                return parseFloat(row.total);
+                return parseFloat(row.total) || 0;
             }
         }
+        // Fall back to summing sealed/open location counts
         const allLocs = [...Object.values(archive.sealed || archive.sealed_counts || {}), ...Object.values(archive.open || archive.open_counts || {})];
-        let total = 0;
-        let found = false;
+        let total = 0, found = false;
         allLocs.forEach(loc => {
             if (typeof loc === "object" && loc[product] !== undefined && loc[product] !== null && loc[product] !== "") {
                 total += parseFloat(loc[product]) || 0;
