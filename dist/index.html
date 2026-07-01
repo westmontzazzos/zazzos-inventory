@@ -1408,7 +1408,7 @@ function TrendScreen({ archives, calcTotal, onBack }) {
 // ─── DEPLETION ANALYSIS SCREEN ───────────────────────────────────────────────
 function DepletionScreen({ archives, onBack }) {
     const { useState: _useState } = React;
-    const latestArchive = archives && archives.length > 0 ? archives[archives.length - 1] : null;
+    const latestArchive = archives && archives.length > 0 ? archives[0] : null;
     const orders = latestArchive ? latestArchive.orders || [] : [];
     const posSales = latestArchive ? latestArchive.pos_sales || {} : {};
 
