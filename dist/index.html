@@ -63,6 +63,12 @@ async function sbPatch(table, filter, body) {
     if (!res.ok) throw new Error(`sbPatch ${table} failed: ${res.status} ${await res.text()}`);
     return true;
 }
+
+function fmt(n) {
+    if (n === null || n === undefined || n === "" || isNaN(Number(n))) return n;
+    const num = Math.round(Number(n) * 100) / 100;
+    return num % 1 === 0 ? String(Math.round(num)) : num.toFixed(2).replace(/\.?0+$/, '');
+}
 // ─── CONSTANTS ──────────────────────────────────────────────────────────────
 const CLASS_ORDER = ["Beer & Seltzer", "Liquor", "Wine", "Kegs", "Extras"];
 const SELENA_LOCS = ["Office", "Pepsi Cooler", "Display", "Closet", "Window/Party Room", "Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"];
@@ -1411,7 +1417,7 @@ function DepletionScreen({ archives, onBack }) {
     function variance(dep, pos) {
         if (dep === "" || dep === null || dep === undefined) return null;
         if (pos === "" || pos === null || pos === undefined) return null;
-        return Math.round((parseFloat(dep) - parseFloat(pos)) * 1000) / 1000;
+        return Math.round((parseFloat(dep) - parseFloat(pos)) * 100) / 100;
     }
 
     return React.createElement("div", { style: { display: "flex", flexDirection: "column", height: "100vh", background: "#EFEFEF" } },
@@ -1441,24 +1447,27 @@ function DepletionScreen({ archives, onBack }) {
                             const varColor = vari === null ? "#999" : vari > 0 ? "#C8102E" : vari < 0 ? "#C8102E" : "#2a7";
                             return React.createElement("tr", { key: o.product, style: { background: i % 2 === 0 ? "#fff" : "#F5F5F5", borderBottom: "1px solid #eee" } },
                                 React.createElement("td", { style: { padding: "7px 10px" } }, o.product),
-                                React.createElement("td", { style: { padding: "7px 6px", textAlign: "center" } }, dep !== null ? dep : "—"),
-                                React.createElement("td", { style: { padding: "7px 6px", textAlign: "center" } }, pos !== null ? pos : "—"),
+                                React.createElement("td", { style: { padding: "7px 6px", textAlign: "center" } }, dep !== null ? fmt(dep) : "—"),
+                                React.createElement("td", { style: { padding: "7px 6px", textAlign: "center" } }, pos !== null ? fmt(pos) : "—"),
                                 React.createElement("td", { style: { padding: "7px 6px", textAlign: "center", color: varColor, fontWeight: 600 } },
-                                    vari === null ? "—" : vari > 0 ? "+" + vari : vari));
+                                    vari === null ? "—" : vari > 0 ? "+" + fmt(vari) : fmt(vari)));
                         })))));
 }
 
 // ─── COUNT HISTORY SCREEN ─────────────────────────────────────────────────────
 function CountHistoryScreen({ archives, master, onBack }) {
-    const sortedArchives = [...(archives || [])].sort((a, b) => new Date(a.archive_date) - new Date(b.archive_date)).slice(-3);
-    const products = (master || []).map(m => m.product).sort();
+    const CLASS_ORDER_CH = ["Beer & Seltzer", "Liquor", "Wine", "Kegs", "Extras"];
+    const sortedArchives = [...(archives || [])].sort((a, b) => new Date(a.date || a.archive_date) - new Date(b.date || b.archive_date)).slice(-3);
 
     function getCount(archive, product) {
-        if (!archive) return null;
-        const allCounts = Object.assign({}, ...[...Object.values(archive.sealed_counts || {}), ...Object.values(archive.open_counts || {})].map(loc => {
-            if (typeof loc === "object") return loc;
-            return {};
-        }));
+        if (archive.orders) {
+            const row = archive.orders.find(o => o.product === product);
+            // Only use total as count when lastWeek is blank (count archive, not order archive)
+            if (row && row.total !== undefined && row.total !== null && row.total !== "" && (!row.lastWeek || row.lastWeek === "")) {
+                return parseFloat(row.total);
+            }
+        }
+        const allCounts = Object.assign({}, ...[...Object.values(archive.sealed_counts || {}), ...Object.values(archive.open_counts || {})].map(loc => typeof loc === "object" ? loc : {}));
         const val = allCounts[product];
         if (val === undefined || val === null || val === "") return null;
         return parseFloat(val) || 0;
@@ -1470,6 +1479,37 @@ function CountHistoryScreen({ archives, master, onBack }) {
         return Math.round((valid.reduce((a, b) => a + b, 0) / valid.length) * 100) / 100;
     }
 
+    const masterList = getMaster();
+    const grouped = {};
+    CLASS_ORDER_CH.forEach(cls => grouped[cls] = {});
+    masterList.forEach(item => {
+        const cls = item.class || "Extras";
+        const cat = item.category || "Other";
+        if (!grouped[cls]) grouped[cls] = {};
+        if (!grouped[cls][cat]) grouped[cls][cat] = [];
+        grouped[cls][cat].push(item.product);
+    });
+
+    const colSpan = sortedArchives.length + (sortedArchives.length > 1 ? 2 : 1);
+    const rows = [];
+    CLASS_ORDER_CH.forEach(cls => {
+        if (!grouped[cls] || Object.keys(grouped[cls]).length === 0) return;
+        rows.push(React.createElement("tr", { key: "cls-" + cls },
+            React.createElement("td", { colSpan, style: { background: "#C8102E", color: "#fff", fontWeight: 700, fontSize: 11, padding: "5px 10px", textTransform: "uppercase" } }, cls)));
+        Object.keys(grouped[cls]).sort().forEach(cat => {
+            rows.push(React.createElement("tr", { key: "cat-" + cls + cat },
+                React.createElement("td", { colSpan, style: { background: "#f0e8e8", color: "#C8102E", fontWeight: 600, fontSize: 11, padding: "3px 10px" } }, cat)));
+            grouped[cls][cat].sort().forEach((product, i) => {
+                const counts = sortedArchives.map(a => getCount(a, product));
+                const average = avg(counts);
+                rows.push(React.createElement("tr", { key: product, style: { background: i % 2 === 0 ? "#fff" : "#F5F5F5", borderBottom: "1px solid #eee" } },
+                    React.createElement("td", { style: { padding: "6px 10px", fontSize: 12 } }, product),
+                    ...counts.map((c, ci) => React.createElement("td", { key: ci, style: { padding: "6px 6px", textAlign: "center", fontSize: 12 } }, c !== null ? fmt(c) : "—")),
+                    sortedArchives.length > 1 && React.createElement("td", { style: { padding: "6px 6px", textAlign: "center", fontSize: 12, fontWeight: 600, background: "#f5f5ff" } }, average !== null ? fmt(average) : "—")));
+            });
+        });
+    });
+
     return React.createElement("div", { style: { display: "flex", flexDirection: "column", height: "100vh", background: "#EFEFEF" } },
         React.createElement("header", { className: "H no-print" },
             React.createElement("div", { className: "H-logo" }, "Zazzo's"),
@@ -1477,24 +1517,16 @@ function CountHistoryScreen({ archives, master, onBack }) {
                 React.createElement("button", { className: "B B-ghost", onClick: () => window.print() }, "🖨 Print"),
                 React.createElement("button", { className: "B B-ghost", onClick: onBack }, "← Home"))),
         React.createElement("div", { style: { flex: 1, overflowY: "auto", fontFamily: "'Inter',system-ui,sans-serif", paddingTop: 60 } },
-            React.createElement("div", { style: { overflowX: "auto" } },
-                React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 420 } },
-                    React.createElement("thead", null,
-                        React.createElement("tr", { style: { background: "#1A1A2E", color: "#fff" } },
-                            React.createElement("th", { style: { padding: "8px 10px", textAlign: "left", minWidth: 120 } }, "Product"),
-                            ...sortedArchives.map(a => React.createElement("th", { key: a.id, style: { padding: "8px 6px", textAlign: "center" } }, a.archive_date || a.week_label || "")),
-                            sortedArchives.length > 1 && React.createElement("th", { style: { padding: "8px 6px", textAlign: "center", background: "#2a3a6a" } }, "Avg"))),
-                    React.createElement("tbody", null,
-                        sortedArchives.length === 0
-                            ? React.createElement("tr", null, React.createElement("td", { colSpan: 5, style: { padding: 24, textAlign: "center", color: "#999" } }, "No archived weeks yet."))
-                            : products.map((product, i) => {
-                                const counts = sortedArchives.map(a => getCount(a, product));
-                                const average = avg(counts);
-                                return React.createElement("tr", { key: product, style: { background: i % 2 === 0 ? "#fff" : "#F5F5F5", borderBottom: "1px solid #eee" } },
-                                    React.createElement("td", { style: { padding: "7px 10px" } }, product),
-                                    ...counts.map((c, ci) => React.createElement("td", { key: ci, style: { padding: "7px 6px", textAlign: "center" } }, c !== null ? c : "—")),
-                                    sortedArchives.length > 1 && React.createElement("td", { style: { padding: "7px 6px", textAlign: "center", fontWeight: 600 } }, average !== null ? average : "—"));
-                            }))))));
+            sortedArchives.length === 0
+                ? React.createElement("div", { style: { padding: 24, textAlign: "center", color: "#999" } }, "No archived weeks yet.")
+                : React.createElement("div", { style: { overflowX: "auto" } },
+                    React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 400 } },
+                        React.createElement("thead", null,
+                            React.createElement("tr", { style: { background: "#1A1A2E", color: "#fff" } },
+                                React.createElement("th", { style: { padding: "8px 10px", textAlign: "left", minWidth: 140 } }, "Product"),
+                                ...sortedArchives.map(a => React.createElement("th", { key: a.id || a.label, style: { padding: "8px 6px", textAlign: "center", minWidth: 70 } }, a.date || a.archive_date || a.label || "")),
+                                sortedArchives.length > 1 && React.createElement("th", { style: { padding: "8px 6px", textAlign: "center", background: "#2a3a6a", minWidth: 60 } }, "Avg"))),
+                        React.createElement("tbody", null, ...rows)))));
 }
 
 // ─── SALES REPORT PARSING ENGINE ──────────────────────────────────────────────
@@ -1636,7 +1668,7 @@ function parseLiquorReport(text) {
         ozByItem[item] = (ozByItem[item] || 0) + LIQUOR_POUR_OZ[r.size] * r.qty;
     }
     const bottles = {};
-    for (const [item, oz] of Object.entries(ozByItem)) bottles[item] = Math.round((oz / 33.81) * 1000) / 1000;
+    for (const [item, oz] of Object.entries(ozByItem)) bottles[item] = Math.round((oz / 33.81) * 100) / 100;
     return { bottles, flags };
 }
 
@@ -1667,7 +1699,7 @@ function parseWineReport(text) {
         ozByItem[item] = (ozByItem[item] || 0) + oz;
     }
     const bottles = {};
-    for (const [item, oz] of Object.entries(ozByItem)) bottles[item] = Math.round((oz / 25.4) * 1000) / 1000;
+    for (const [item, oz] of Object.entries(ozByItem)) bottles[item] = Math.round((oz / 25.4) * 100) / 100;
     return { bottles, flags };
 }
 
@@ -1700,7 +1732,7 @@ async function parseSpecialtyReport(text, recipeRows, soldAsMap) {
         for (const ing of recipe) addDepletion(ing.ingredient, ing.oz * row.qty);
     }
     const bottles = {};
-    for (const [item, oz] of Object.entries(ozByItem)) bottles[item] = Math.round((oz / 33.81) * 1000) / 1000;
+    for (const [item, oz] of Object.entries(ozByItem)) bottles[item] = Math.round((oz / 33.81) * 100) / 100;
     return { bottles, units: unitDepletion, flags };
 }
 
@@ -2445,8 +2477,8 @@ function App() {
                 const archiveRows = await sbGet("archives", "select=*&order=created_at.desc");
                 if (Array.isArray(archiveRows) && archiveRows.length > 0) {
                     const remoteArchives = archiveRows.map(a => ({
-                        label: a.week_label === "Week of Jun 28, 2026" ? "Week of Jun 23, 2026" : a.week_label,
-                        date: a.archive_date === "6/28/2026" ? "6/23/2026" : a.archive_date,
+                        label: a.week_label,
+                        date: a.archive_date,
                         sealed: a.sealed_counts || {}, open: a.open_counts || {}, orders: a.orders || [],
                         pos_sales: a.pos_sales || {}
                     }));
