@@ -886,8 +886,9 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
         React.createElement("style", null, `@media print{.print-show{display:block!important;}.no-print{display:none!important;}}`)));
 }
 // ─── ORDER GUIDE SCREEN ───────────────────────────────────────────────────────
-function OrderGuideScreen({ orders, setOrders, calcTotal, onBack }) {
+function OrderGuideScreen({ orders, setOrders, calcTotal, onBack, archives }) {
     const master = getMaster();
+    const latestPosSales = (archives && archives.length > 0 && archives[0].pos_sales) ? archives[0].pos_sales : {};
     const [isLandscape, setIsLandscape] = useState(window.innerWidth > window.innerHeight);
     const scrollerRef = useRef(null);
     const prodInnerRef = useRef(null);
@@ -2391,7 +2392,7 @@ function OGHistoryScreen({ archives, onBack }) {
                             else if (col.key==='received') val=ro.received||'--';
                             else if (col.key==='total') val=tot>0?tot:'--';
                             else if (col.key==='depletion') val=ro.depletion!==''&&ro.depletion!==undefined?ro.depletion:'--';
-                            else if (col.key==='sold') val=ro.sold||'--';
+                            else if (col.key==='sold') val = ro.sold || (latestPosSales[ro.product] !== undefined ? String(latestPosSales[ro.product]) : '--');
                             else if (col.key==='variance') val=ro.variance!==''&&ro.variance!==undefined?ro.variance:'--';
                             else if (col.key==='par') val=ro.par||'--';
                             else if (col.key==='deliveryThisWeek') val=ro.deliveryThisWeek||'--';
@@ -2670,7 +2671,7 @@ function App() {
                     React.createElement("button", { className:"B B-red", style:{ flex:1 }, onClick: () => { setShowRolloverConfirm(false); doRollover(); } }, "Confirm")))),
         screen === "count" && (React.createElement(CountScreen, { user: user, locs: user === "selena" ? SELENA_LOCS : ERIKA_LOCS, counts: user === "selena" ? sealed : open, setCounts: user === "selena" ? setSealed : setOpen, onBack: goHome, sealed: sealed, open: open })),
         screen === "received" && React.createElement(ReceivedScreen, { onBack: goHome, setOrders: setOrders }),
-        screen === "orderguide" && React.createElement(OrderGuideScreen, { orders: orders, setOrders: setOrders, calcTotal: calcTotal, onBack: goHome }),
+        screen === "orderguide" && React.createElement(OrderGuideScreen, { orders: orders, setOrders: setOrders, calcTotal: calcTotal, onBack: goHome, archives: archives }),
         screen === "oghistory" && React.createElement(OGHistoryScreen, { archives: archives, onBack: goHome }),
         screen === "sold" && React.createElement(SoldScreen, { orders: orders, setOrders: setOrders, onBack: goHome }),
         screen === "salesupload" && React.createElement(SalesUploadScreen, { onBack: goHome, onSaved: () => setRefreshKey(k => k + 1) }),
