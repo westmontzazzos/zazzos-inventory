@@ -60,7 +60,8 @@ async function sbPatch(table, filter, body) {
         headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify(body)
     });
-    return res.ok;
+    if (!res.ok) throw new Error(`sbPatch ${table} failed: ${res.status} ${await res.text()}`);
+    return true;
 }
 // ─── CONSTANTS ──────────────────────────────────────────────────────────────
 const CLASS_ORDER = ["Beer & Seltzer", "Liquor", "Wine", "Kegs", "Extras"];
