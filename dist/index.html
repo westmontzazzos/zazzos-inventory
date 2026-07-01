@@ -1568,7 +1568,7 @@ const KEG_PLU_MAP = {
 };
 const VODKADE_PLU_MAP = { "3474": "Vodkade Orange", "3475": "Vodkade Red", "3476": "Vodkade Blue" };
 
-function parseBeerReport(beerText, bucketText, carryoutText, hnText) {
+function parseBeerReport(beerText, bucketText, carryoutText, hnText, vodkadeText) {
     const beer = parseSalesByItemLines(beerText);
     const bucket = bucketText ? parseModifierLines(bucketText) : [];
     const carryout = carryoutText ? parseSalesByItemLines(carryoutText) : [];
@@ -1603,7 +1603,7 @@ function parseBeerReport(beerText, bucketText, carryoutText, hnText) {
     }
 
     const vkRow = beer.find(r => r.plu === "3473");
-    if (vkRow) if (!texts.vodkade) results.flags.push(`Vodkade (PLU 3473, qty ${vkRow.qty}) - upload Vodkade modifier report to split by flavor`);
+    if (vkRow && !vodkadeText) results.flags.push(`Vodkade (PLU 3473, qty ${vkRow.qty}) - upload Vodkade modifier report to split by flavor`);
 
     return results;
 }
@@ -1765,7 +1765,7 @@ function SalesUploadScreen({ onBack }) {
             const combinedUnits = {};
 
             if (texts.beer) {
-                const r = parseBeerReport(texts.beer, texts.bucket, texts.carryout, texts.highnoon);
+                const r = parseBeerReport(texts.beer, texts.bucket, texts.carryout, texts.highnoon, texts.vodkade);
                 Object.assign(combinedBottles, r.bottles);
                 Object.assign(combinedKegs, r.kegs);
                 allFlags.push(...r.flags);
