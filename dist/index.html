@@ -222,7 +222,7 @@ const INITIAL_MASTER = [
     { product: "Jack Daniels Fire 1L", category: "Whiskey", class: "Liquor", locations: ["Office", "Coffin Cooler", "Behind Bar"], vendor: "Breakthrough", sold_as: "Partial" },
     { product: "Jack Daniels Fire 750", category: "Whiskey", class: "Liquor", locations: ["Office", "Coffin Cooler", "Behind Bar"], vendor: "Breakthrough", sold_as: "Partial" },
     { product: "Jack Daniels Honey", category: "Whiskey", class: "Liquor", locations: ["Office", "Coffin Cooler", "Behind Bar"], vendor: "Breakthrough", sold_as: "Partial" },
-    { product: "Screwball", category: "Whiskey", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Breakthrough", sold_as: "Partial" },
+    { product: "Skrewball", category: "Whiskey", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Breakthrough", sold_as: "Partial" },
     { product: "Seagram's 7", category: "Whiskey", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Breakthrough", sold_as: "Partial" },
     { product: "Seagram's VO", category: "Whiskey", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Breakthrough", sold_as: "Partial" },
     { product: "Southern Comfort", category: "Whiskey", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Breakthrough", sold_as: "Partial" },
@@ -439,7 +439,7 @@ const LAST_WEEK_COUNTS = {
   "Jim Beam": 2.25,
   "Seagram's 7": 2.95,
   "Seagram's VO": 2.4,
-  "Screwball": 1.7,
+  "Skrewball": 1.7,
   "Southern Comfort": 1.95,
   "Woodford Reserve": 1.1,
   "Canyon Road Chard": 25.0,
@@ -459,7 +459,7 @@ const LAST_WEEK_COUNTS = {
 };
 const mkOrders = (master) => master.map(i => ({
     product: i.product, category: i.category, class: i.class,
-    vendor: i.vendor, unit: "", par: "", lastWeek: String(({"Bud Light": 230.0, "Budweiser": 102.0, "Budweiser Zero": 61.0, "Cider Boys": 27.0, "Coors Light": 147.0, "Corona": 68.0, "Corona Light": 58.0, "Daura": 9.0, "Guinness": 29.0, "Heineken": 40.0, "MGD": 29.0, "Michelob Ultra": 270.0, "Miller High Life": 6.0, "Miller Lite": 154.0, "Modelo": 37.0, "Stella N/A": 25.0, "Summer Shandy": 24.0, "Yuengling Flight": 27.0, "Angel's Envy": 1.85, "Benchmark": 1.0, "Blade and Bow": 1.7, "Buffalo Trace": 0.85, "Bulleit Bourbon": 2.65, "Elijah Craig": 1.45, "High West": 0.5, "Horse Soldier": 1.5, "Knob Creek": 3.85, "Maker's Mark": 1.6, "Mitcher's": 0.6, "Old Forester": 0.95, "Piggy Back": 3.2, "Redemption": 0.6, "Row 94": 0.6, "Russell's": 0.85, "Wild Turkey": 1.4, "E&J": 0.25, "Hennessy": 1.6, "Lamarca Splitz": 21.0, "Lyric N/A Champagne": 11.0, "Whycliff Champagne": 8.0, "Hendricks": 2.35, "Tanqueray": 2.75, "Jameson": 12.7, "Red Breast": 1.0, "Tullamore D.E.W": 2.5, "Ambiegram Keg": 1.1, "Blue Moon Keg": 0.45, "Buenaveza": 0.05, "Center Line Keg": 1.75, "Dunkel Keg": 0.15, "Hopular Kid Keg": 0.5, "Labatt Blue Keg": 1.05, "Longsnapper Keg": 0.85, "Miller Lite Keg": 1.05, "Morretti": 0.5, "Old Style Keg": 0.9, "Stella Keg": 1.35, "Stone IPA Keg": 0.6, "Yuengling Keg": 2.05, "Zazzo's Point Keg": 0.7, "Aperol": 0.0, "Bailey's": 1.45, "Chambord": 1.5, "Cointreau": 2.25, "Disaronno": 2.75, "Don Q": 0.3, "Fireball Apple": 1.0, "Frangelico": 2.55, "Grand Marnier": 1.85, "Jagermeister": 2.14, "Midori": 0.9, "Peachtree": 18.01, "Rumple Minze": 1.25, "Sambuca": 0.3, "Select Aperitif": 1.85, "Tippy Cow": 1.8, "Gallo Dry Vermouth": 1.33, "Gallo Sweet Vermouth": 2.95, "Lo Fi Dry Vermouth": 1.0, "Altos Malbec": 17.5, "Canyon Road Cabernet": 27.0, "Canyon Road Pinot Noir": 9.5, "Decoy Cabernet": 13.0, "Decoy Pinot Noir": 27.0, "Duckhorn Cabernet": 12.0, "Franciscan Cabernet": 23.5, "Hahn Pinot Noir": 10.75, "Josh Cabernet": 28.25, "Ruffino Chianti": 22.5, "Unshackled Red Blend": 12.0, "Bacardi": 11.95, "Captain Morgan": 12.85, "Kahlua": 2.2, "Myers's": 3.3, "Rumchata": 3.8, "Rumhaven": 3.45, "Bulleit Rye": 2.8, "Pinhook": 0.85, "Sazerac Rye": 0.9, "Templeton Rye": 0.9, "Whistle Pig": 2.95, "Dewar's": 2.45, "Glenlivet": 2.45, "Black Cherry White Claw": 20.0, "High Noon Peach": 18.0, "High Noon Peach Tea": 15.0, "High Noon Pineapple": 43.0, "High Noon Tea": 5.0, "High Noon Watermelon": 25.0, "Suncruiser": 1.0, "Vodkade Blue": 16.0, "Vodkade Orange": 16.0, "Vodkade Red": 10.0, "Vodkade S.F Blue": 6.0, "Vodkade S.F Lime": 6.0, "Vodkade S.F Orange": 4.0, "Vodkade S.F Red": 4.0, "Don Julio": 1.9, "Hornitos": 2.45, "Milagro": 2.01, "Belvedere": 2.25, "Grey Goose": 1.8, "Kettle One": 1.5, "Sobieski Citron": 2.25, "Sobieski Vanilla": 3.75, "Tito's": 8.55, "B&B": 1.0, "Crown Royal": 1.2, "Crown Royal Apple": 1.85, "Crown Royal Peach": 3.0, "Gentleman Jack": 1.75, "Jack Daniels": 2.2, "Jack Daniels Fire 1L": 0.33, "Jack Daniels Fire 750": 1.0, "Jack Daniels Honey": 1.33, "Jim Beam": 2.25, "Seagram's 7": 2.95, "Seagram's VO": 2.4, "Screwball": 1.7, "Southern Comfort": 1.95, "Woodford Reserve": 1.1, "Canyon Road Chard": 25.0, "Canyon Road Moscato": 33.75, "Canyon Road Pinot Grigio": 28.25, "Canyon Road Sauv Blanc": 27.0, "Caposaldo Pinot Grigio": 27.25, "Harken Chard": 25.5, "Santa Margherita Pinot Grigio": 28.0, "Whitehaven Sauv Blanc": 20.75, "Zazzo's Bourbon": 26.25, "Zazzo's Gin": 19.25, "Zazzo's Rum": 16.01, "Zazzo's Straight Bourbon": 17.84, "Zazzo's Tequila": 14.01, "Zazzo's Vodka": 28.3})[i.product] || ""), received: "", sold: "", order: ""
+    vendor: i.vendor, unit: "", par: "", lastWeek: String(({"Bud Light": 230.0, "Budweiser": 102.0, "Budweiser Zero": 61.0, "Cider Boys": 27.0, "Coors Light": 147.0, "Corona": 68.0, "Corona Light": 58.0, "Daura": 9.0, "Guinness": 29.0, "Heineken": 40.0, "MGD": 29.0, "Michelob Ultra": 270.0, "Miller High Life": 6.0, "Miller Lite": 154.0, "Modelo": 37.0, "Stella N/A": 25.0, "Summer Shandy": 24.0, "Yuengling Flight": 27.0, "Angel's Envy": 1.85, "Benchmark": 1.0, "Blade and Bow": 1.7, "Buffalo Trace": 0.85, "Bulleit Bourbon": 2.65, "Elijah Craig": 1.45, "High West": 0.5, "Horse Soldier": 1.5, "Knob Creek": 3.85, "Maker's Mark": 1.6, "Mitcher's": 0.6, "Old Forester": 0.95, "Piggy Back": 3.2, "Redemption": 0.6, "Row 94": 0.6, "Russell's": 0.85, "Wild Turkey": 1.4, "E&J": 0.25, "Hennessy": 1.6, "Lamarca Splitz": 21.0, "Lyric N/A Champagne": 11.0, "Whycliff Champagne": 8.0, "Hendricks": 2.35, "Tanqueray": 2.75, "Jameson": 12.7, "Red Breast": 1.0, "Tullamore D.E.W": 2.5, "Ambiegram Keg": 1.1, "Blue Moon Keg": 0.45, "Buenaveza": 0.05, "Center Line Keg": 1.75, "Dunkel Keg": 0.15, "Hopular Kid Keg": 0.5, "Labatt Blue Keg": 1.05, "Longsnapper Keg": 0.85, "Miller Lite Keg": 1.05, "Morretti": 0.5, "Old Style Keg": 0.9, "Stella Keg": 1.35, "Stone IPA Keg": 0.6, "Yuengling Keg": 2.05, "Zazzo's Point Keg": 0.7, "Aperol": 0.0, "Bailey's": 1.45, "Chambord": 1.5, "Cointreau": 2.25, "Disaronno": 2.75, "Don Q": 0.3, "Fireball Apple": 1.0, "Frangelico": 2.55, "Grand Marnier": 1.85, "Jagermeister": 2.14, "Midori": 0.9, "Peachtree": 18.01, "Rumple Minze": 1.25, "Sambuca": 0.3, "Select Aperitif": 1.85, "Tippy Cow": 1.8, "Gallo Dry Vermouth": 1.33, "Gallo Sweet Vermouth": 2.95, "Lo Fi Dry Vermouth": 1.0, "Altos Malbec": 17.5, "Canyon Road Cabernet": 27.0, "Canyon Road Pinot Noir": 9.5, "Decoy Cabernet": 13.0, "Decoy Pinot Noir": 27.0, "Duckhorn Cabernet": 12.0, "Franciscan Cabernet": 23.5, "Hahn Pinot Noir": 10.75, "Josh Cabernet": 28.25, "Ruffino Chianti": 22.5, "Unshackled Red Blend": 12.0, "Bacardi": 11.95, "Captain Morgan": 12.85, "Kahlua": 2.2, "Myers's": 3.3, "Rumchata": 3.8, "Rumhaven": 3.45, "Bulleit Rye": 2.8, "Pinhook": 0.85, "Sazerac Rye": 0.9, "Templeton Rye": 0.9, "Whistle Pig": 2.95, "Dewar's": 2.45, "Glenlivet": 2.45, "Black Cherry White Claw": 20.0, "High Noon Peach": 18.0, "High Noon Peach Tea": 15.0, "High Noon Pineapple": 43.0, "High Noon Tea": 5.0, "High Noon Watermelon": 25.0, "Suncruiser": 1.0, "Vodkade Blue": 16.0, "Vodkade Orange": 16.0, "Vodkade Red": 10.0, "Vodkade S.F Blue": 6.0, "Vodkade S.F Lime": 6.0, "Vodkade S.F Orange": 4.0, "Vodkade S.F Red": 4.0, "Don Julio": 1.9, "Hornitos": 2.45, "Milagro": 2.01, "Belvedere": 2.25, "Grey Goose": 1.8, "Kettle One": 1.5, "Sobieski Citron": 2.25, "Sobieski Vanilla": 3.75, "Tito's": 8.55, "B&B": 1.0, "Crown Royal": 1.2, "Crown Royal Apple": 1.85, "Crown Royal Peach": 3.0, "Gentleman Jack": 1.75, "Jack Daniels": 2.2, "Jack Daniels Fire 1L": 0.33, "Jack Daniels Fire 750": 1.0, "Jack Daniels Honey": 1.33, "Jim Beam": 2.25, "Seagram's 7": 2.95, "Seagram's VO": 2.4, "Skrewball": 1.7, "Southern Comfort": 1.95, "Woodford Reserve": 1.1, "Canyon Road Chard": 25.0, "Canyon Road Moscato": 33.75, "Canyon Road Pinot Grigio": 28.25, "Canyon Road Sauv Blanc": 27.0, "Caposaldo Pinot Grigio": 27.25, "Harken Chard": 25.5, "Santa Margherita Pinot Grigio": 28.0, "Whitehaven Sauv Blanc": 20.75, "Zazzo's Bourbon": 26.25, "Zazzo's Gin": 19.25, "Zazzo's Rum": 16.01, "Zazzo's Straight Bourbon": 17.84, "Zazzo's Tequila": 14.01, "Zazzo's Vodka": 28.3})[i.product] || ""), received: "", sold: "", order: ""
 }));
 // ─── CSS ────────────────────────────────────────────────────────────────────
 const CSS = `
@@ -628,6 +628,7 @@ html,body{background:#EFEFEF;color:#111111;font-family:'Inter',system-ui,sans-se
   .ProdList{display:none!important;}
   .Stepper{display:none!important;}
   .print-show{display:block!important;}
+  .print-sheet-wrapper{position:fixed!important;top:0!important;left:0!important;width:100%!important;height:auto!important;overflow:visible!important;z-index:9999!important;background:#fff!important;}
   body{background:#FFFFFF!important;}
   div[style*="minHeight"]{background:#FFFFFF!important;}
   div[style*="min-height"]{background:#FFFFFF!important;}
@@ -864,7 +865,7 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
                             " entered")),
                     React.createElement("div", { className: "ProdList" },
                         React.createElement(ProdRows, { groups: groups, counts: counts, loc: curLoc, isDecimal: isDecimal, onStep: step, onChange: onChange }))))),
-            React.createElement("div", { style: { display: "none" }, className: "print-show" },
+            React.createElement("div", { style: { display: "none" }, className: "print-show print-sheet-wrapper" },
                 React.createElement(PrintSheet, { user: user, locs: locs, sealed: sealed, open: open, blank: printMode === "blank" }))),
         !allDone && (React.createElement("div", { className: "Footer no-print" },
             activeIdx > 0 ? React.createElement("button", { className: "Footer-btn", onClick: () => setActiveIdx(p => p - 1) }, "\u2190 Back") : React.createElement("div", { className: "Footer-spacer" }),
@@ -2195,7 +2196,12 @@ function MasterEditor({ master, onSave, onClose }) {
     const [newProd, setNewProd] = useState(false);
     const [draft, setDraft] = useState({ product: "", category: "", class: "Beer & Seltzer", vendor: "TBD", locations: [] });
     const [activeVendor, setActiveVendor] = useState(VENDOR_ORDER[0]);
-    const vendorItems = sorted(items.filter(i => i.vendor === activeVendor));
+    const vendorItems = [...items.filter(i => i.vendor === activeVendor)].sort((a,b) => {
+        const ci = CLASS_ORDER.indexOf(a.class) - CLASS_ORDER.indexOf(b.class);
+        if (ci !== 0) return ci;
+        if (a.category !== b.category) return a.category.localeCompare(b.category);
+        return a.product.localeCompare(b.product);
+    });
     const update = (idx, field, val) => {
         setItems(prev => { const next = [...prev]; next[idx] = Object.assign(Object.assign({}, next[idx]), { [field]: val }); return next; });
         const orig = master[idx];
