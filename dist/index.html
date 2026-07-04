@@ -1607,10 +1607,11 @@ function parseSizesSoldWine(text) {
 const BEER_PLU_MAP = {
     "2884": "Budweiser", "3152": "Budweiser Zero", "2904": "Cider Boys",
     "2885": "Coors Light", "2895": "Corona", "2898": "Corona Light",
-    "2899": "Heineken", "2887": "MGD", "2886": "Michelob Ultra",
+    "2899": "Heineken", "2900": "Heineken", "2887": "MGD", "2886": "Michelob Ultra",
     "2889": "Miller High Life", "2890": "Miller Lite", "2897": "Modelo",
     "3431": "Yuengling Flight", "2908": "Black Cherry White Claw",
     "3230": "High Noon Tea", "3264": "Suncruiser",
+    "2902": "Daura",
 };
 const KEG_PLU_MAP = {
     "2931": "Ambiegram Keg", "2927": "Blue Moon Keg", "3521": "Buenaveza Keg (Pony)",
@@ -1620,7 +1621,28 @@ const KEG_PLU_MAP = {
     "3256": "Yuengling Keg", "2916": "Zazzo's Point Keg", "2918": "Miller Lite Keg",
 };
 const VODKADE_PLU_MAP = { "3474": "Vodkade Orange", "3475": "Vodkade Red", "3476": "Vodkade Blue" };
+const VODKADE_SF_BUCKET_PLU_MAP = {
+    "3499": "Vodkade S.F Orange", "3500": "Vodkade S.F Red", "3501": "Vodkade S.F Blue",
+    "3502": "Vodkade S.F Orange", "3503": "Vodkade S.F Red", "3504": "Vodkade S.F Blue",
+    "3505": "Vodkade S.F Orange", "3506": "Vodkade S.F Red", "3507": "Vodkade S.F Blue",
+    "3508": "Vodkade S.F Orange", "3509": "Vodkade S.F Red", "3510": "Vodkade S.F Blue",
+    "3511": "Vodkade S.F Orange", "3512": "Vodkade S.F Red", "3513": "Vodkade S.F Blue",
+    "3514": "Vodkade S.F Green", "3515": "Vodkade S.F Green",
+    "3516": "Vodkade S.F Green", "3517": "Vodkade S.F Green", "3518": "Vodkade S.F Green",
+};
 
+const CARRYOUT_BEER_PLU = { "1075": "Budweiser", "1076": "Corona" }; // carryout 6-packs
+const CARRYOUT_WINE_PLU = {
+    "1088": "Canyon Road Cabernet", "1133": "Canyon Road Chard",
+    "1090": "Canyon Road Pinot Grigio", "1087": "Canyon Road Pinot Noir",
+    "1091": "Canyon Road Sauv Blanc", "3401": "Decoy Cabernet",
+    "3399": "Franciscan Cabernet", "369369": "Josh Cabernet",
+    "258258": "Santa Margherita Pinot Grigio", "3398": "Decoy Pinot Noir",
+}; // carryout wine bottles (×1)
+const CARRYOUT_OTHER_PLU = {
+    "3196": { item: "Black Cherry White Claw", mult: 8 },
+    "231334687": { item: "Zazzo's Vodka", mult: 1 },
+};
 function parseBeerReport(beerText, bucketText, carryoutText, hnText, vodkadeText) {
     const beer = parseSalesByItemLines(beerText);
     const bucket = bucketText ? parseModifierLines(bucketText) : [];
@@ -1631,6 +1653,7 @@ function parseBeerReport(beerText, bucketText, carryoutText, hnText, vodkadeText
     for (const row of beer) {
         if (row.plu === "2883" || row.plu === "2910" || row.plu === "3473") continue; // handled separately
         if (row.plu === "2941") { continue; } // Domestic Bucket handled via bucket modifier report
+        if (row.plu === "3498") { continue; } // Vodkade SF Bucket handled via Bucket Bottles modifier report
         if (row.plu === "3394") continue; // specialty drink, not beer
         if (KEG_PLU_MAP[row.plu]) {
             results.kegs[KEG_PLU_MAP[row.plu]] = row.qty; // whole pours
@@ -1643,8 +1666,27 @@ function parseBeerReport(beerText, bucketText, carryoutText, hnText, vodkadeText
     const budRow = beer.find(r => r.plu === "2883");
     const budBtl = budRow ? budRow.qty : 0;
     const budBucket = bucket.filter(r => r.name === "Bud Light").reduce((s, r) => s + r.qty, 0);
+    // Bud Light: bottle + bucket + carryout
     const budCarryout = carryout.find(r => r.name.toLowerCase() === "budlight");
     results.bottles["Bud Light"] = budBtl + budBucket + (budCarryout ? budCarryout.qty * 6 : 0);
+    // Other carryout beers (6-pack)
+    for (const r of carryout) {
+        const item = CARRYOUT_BEER_PLU[r.plu];
+        if (item) results.bottles[item] = (results.bottles[item] || 0) + r.qty * 6;
+    }
+    // Carryout wine (1 bottle each)
+    for (const r of carryout) {
+        const item = CARRYOUT_WINE_PLU[r.plu];
+        if (item) {
+            if (!results._carryoutWine) results._carryoutWine = {};
+            results._carryoutWine[item] = (results._carryoutWine[item] || 0) + r.qty;
+        }
+    }
+    // Carryout other items
+    for (const r of carryout) {
+        const mapping = CARRYOUT_OTHER_PLU[r.plu];
+        if (mapping) results.bottles[mapping.item] = (results.bottles[mapping.item] || 0) + r.qty * mapping.mult;
+    }
 
     const hnTotal = highnoon.reduce((s, r) => s + r.qty, 0);
     const hnGeneric = beer.find(r => r.plu === "2910");
@@ -1673,6 +1715,8 @@ const LIQUOR_PLU_MAP = {
     "3327": "Tullamore D.E.W", "2724": "Woodford Reserve", "2658": "Zazzo's Vodka",
     "2739": "Zazzo's Gin", "2662": "Zazzo's Rum", "3456": "Zazzo's Tequila",
     "2720": "Zazzo's Bourbon", "3455": "Zazzo's Straight Bourbon",
+    "3315": "Benchmark", "2680": "Bulleit Bourbon", "2688": "Bulleit Rye",
+    "2698": "Glenlivet", "3392": "Horse Soldier", "2721": "Seagram's 7",
 };
 function parseLiquorReport(text) {
     const rows = parseSizesSoldLiquor(text);
@@ -1696,10 +1740,13 @@ const WINE_PLU_MAP = {
     "3372": "Ruffino Chianti", "3366": "Unshackled Red Blend", "3361": "Whitehaven Sauv Blanc",
     "3356": "Caposaldo Pinot Grigio",
     "3354": "Lamarca Splitz",
+    "3371": "Decoy Cabernet", "3398": "Decoy Pinot Noir",
+    "3369": "Franciscan Cabernet",
+    "2876": "__sangria__", "2877": "__sangria__",
 };
 const WINE_INFERRED = new Set(); // All house-pour brands confirmed as Canyon Road
-const WINE_COCKTAIL_PLUS = new Set(); // Aperol Spritz and Mimosa routed through recipe engine
-const WINE_SUPPRESS = new Set(["3367", "2874", "2879"]); // Terrazaz discontinued; Aperol Spritz + Mimosa route through recipe engine
+const WINE_COCKTAIL_PLUS = new Set(["2876", "2877"]); // Red/White Sangria routed through recipe engine
+const WINE_SUPPRESS = new Set(["3367"]); // Terrazaz discontinued
 function parseWineReport(text) {
     const rows = parseSizesSoldWine(text);
     const ozByItem = {};
@@ -1719,8 +1766,14 @@ function parseWineReport(text) {
     return { bottles, flags };
 }
 
-const SPECIALTY_NAME_FIX = { "Expresso Martini": "Espresso Martini", "Perfect Manahattan": "Perfect Manhattan", "Zazzo's Cosmo": "Sparkling Cosmo", "Premium Long Island": "Zazzo's Long Island", "Mimosa": "Mimosa", "Aperol Spritz": "Aperol Spritz", "Sparkling Cosmo": "Sparkling Cosmo", "Zazzo's Long Island": "Zazzo's Long Island" };
-const SPECIALTY_STRAIGHT_POUR = { "Baileys": { ingredient: "Bailey's", oz: 1.5 } };
+const SPECIALTY_NAME_FIX = { "Expresso Martini": "Espresso Martini", "Perfect Manahattan": "Perfect Manhattan", "Zazzo's Cosmo": "Sparkling Cosmo", "Premium Long Island": "Zazzo's Long Island", "Mimosa": "Mimosa", "Aperol Spritz": "Aperol Spritz", "Sparkling Cosmo": "Sparkling Cosmo", "Zazzo's Long Island": "Zazzo's Long Island", "Chocolate Martini": "Chocolate Martini", "Lemon Drop Shot": "Lemon Drop Martini", "Crown Vegas Bomb": "Vegas Bomb", "Original Mule": "Original Mule" };
+const SPECIALTY_STRAIGHT_POUR = {
+    "Baileys": { ingredient: "Bailey's", oz: 1.5 },
+    "Disaronno": { ingredient: "Disaronno", oz: 1.5 },
+    "E&J Brandy": { ingredient: "E&J", oz: 1.5 },
+    "Jack Fire": { ingredient: "Jack Daniels Fire 1L", oz: 1.5 },
+    "Jack Honey": { ingredient: "Jack Daniels Honey", oz: 1.5 },
+};
 const SPECIALTY_NO_RECIPE = new Set(); // All drinks now have recipes or aliases
 async function parseSpecialtyReport(text, recipeRows, soldAsMap) {
     const rows = parseSalesByItemLines(text);
@@ -1766,11 +1819,16 @@ function parseVodkadeModifiers(text) {
 // ─── SALES REPORTS UPLOAD SCREEN ─────────────────────────────────────────────
 function detectReportType(text) {
     if (/Category:\s*Beer\b/i.test(text)) return "beer";
+    if (/Category:\s*Bucket Bottles/i.test(text)) return "vodkade_sf_bucket";
     if (/Category:\s*Bucket/i.test(text)) return "bucket";
     if (/Category:\s*Carryout/i.test(text)) return "carryout";
     if (/Category:\s*Liquor/i.test(text)) return "liquor";
     if (/Category:\s*Wine/i.test(text)) return "wine";
-    if (/Category:\s*High Noon/i.test(text)) return "highnoon";
+    if (/Category:\s*High Noon/i.test(text)) {
+        // Vodkade modifiers are filed under High Noon category in Speedline
+        if (/PLU:\s*347[4-6]/i.test(text)) return "vodkade";
+        return "highnoon";
+    }
     if (/Category:\s*Vodkade/i.test(text) || /Vodkade SF/i.test(text)) return "vodkade";
     if (/Category:\s*Specialty/i.test(text)) return "specialty";
     return null;
@@ -1779,7 +1837,7 @@ function detectReportType(text) {
 const REPORT_LABELS = {
     beer: "Beer Report", bucket: "Bucket Report", carryout: "Carryout Report",
     liquor: "Liquor Sizes Sold", wine: "Wine Sizes Sold", highnoon: "High Noon Modifier",
-    vodkade: "Vodkade Modifier", specialty: "Specialty Drinks"
+    vodkade: "Vodkade Modifier", vodkade_sf_bucket: "Vodkade SF Bucket", specialty: "Specialty Drinks"
 };
 
 function SalesUploadScreen({ onBack, onSaved }) {
@@ -1837,6 +1895,14 @@ function SalesUploadScreen({ onBack, onSaved }) {
                 const r = parseVodkadeModifiers(texts.vodkade);
                 Object.assign(combinedBottles, r.bottles);
                 allFlags.push(...r.flags);
+            }
+            if (texts.vodkade_sf_bucket) {
+                const rows = parseModifierLines(texts.vodkade_sf_bucket);
+                for (const r of rows) {
+                    const item = VODKADE_SF_BUCKET_PLU_MAP[r.plu];
+                    if (item) combinedBottles[item] = (combinedBottles[item] || 0) + r.qty;
+                    else allFlags.push("Unrecognized Vodkade SF Bucket PLU " + r.plu + " qty " + r.qty);
+                }
             }
             if (texts.specialty) {
                 const recipeRows = await sbGet("recipe_database", "select=*");
