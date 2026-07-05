@@ -616,6 +616,7 @@ html,body{background:#EFEFEF;color:#111111;font-family:'Inter',system-ui,sans-se
 .Banner-r{background:#FDECEA;color:#C8102E;border:1px solid #F5C0C8;}
 @media print{
   .no-print{display:none!important;}
+  .top-print-sheet{display:none;}
   .H{display:none!important;}
   .LocBar{display:none!important;}
   .Footer{display:none!important;}
@@ -628,7 +629,8 @@ html,body{background:#EFEFEF;color:#111111;font-family:'Inter',system-ui,sans-se
   .ProdList{display:none!important;}
   .Stepper{display:none!important;}
   .print-show{display:block!important;}
-  .print-sheet-wrapper{position:fixed!important;top:0!important;left:0!important;width:100%!important;height:auto!important;overflow:visible!important;z-index:9999!important;background:#fff!important;}
+  .top-print-sheet{display:block!important;position:static!important;width:100%!important;height:auto!important;overflow:visible!important;}
+  .print-sheet-wrapper{display:none!important;}
   body{background:#FFFFFF!important;}
   div[style*="minHeight"]{background:#FFFFFF!important;}
   div[style*="min-height"]{background:#FFFFFF!important;}
@@ -767,13 +769,16 @@ function PrintSheet({ user, locs, sealed, open, blank }) {
         React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 9, tableLayout: "fixed" } },
             React.createElement("tbody", null, rows)));
 }
-function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
+function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open, onPrint }) {
+    const triggerPrint = (blank) => {
+        if (onPrint) onPrint({ user, locs, sealed, open, blank });
+        setTimeout(() => window.print(), 80);
+    };
     const [activeIdx, setActiveIdx] = useState(0);
     const [completed, setCompleted] = useState([]);
     const [modal, setModal] = useState(false);
     const [lockWarn, setLockWarn] = useState(false);
     const [managerMode, setManagerMode] = useState(false);
-    const [printMode, setPrintMode] = useState("filled");
     const contentRef = useRef(null);
     const [showUp, setShowUp] = useState(false);
     const [showDown, setShowDown] = useState(false);
@@ -829,8 +834,8 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
         React.createElement("header", { className: "H no-print" },
             React.createElement("div", { className: "H-logo", onClick: tap, style: { userSelect: "none" } }, "Zazzo's"),
             React.createElement("div", { className: "H-right" },
-                React.createElement("button", { className: "B B-ghost", onClick: () => { setPrintMode("blank"); setTimeout(() => window.print(), 50); } }, "\uD83D\uDDA8 Blank"),
-                React.createElement("button", { className: "B B-ghost", onClick: () => { setPrintMode("filled"); setTimeout(() => window.print(), 50); } }, "\uD83D\uDDA8 Filled"),
+                React.createElement("button", { className: "B B-ghost", onClick: () => triggerPrint(true) }, "\uD83D\uDDA8 Blank"),
+                React.createElement("button", { className: "B B-ghost", onClick: () => triggerPrint(false) }, "\uD83D\uDDA8 Filled"),
                 React.createElement("button", { className: "B B-ghost", onClick: onBack }, "\u2190 Home"))),
         React.createElement("div", { className: "LocBar no-print" },
             managerMode && React.createElement("div", { className: "MgrBanner" }, "Manager Mode \u2014 Triple Tap Logo to Lock"),
@@ -852,8 +857,8 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
                     user === "selena" ? "Sealed Stock" : "Open Stock",
                     "."),
                 React.createElement("div", { className: "Complete-actions" },
-                    React.createElement("button", { className: "B B-outline B-lg", onClick: () => { setPrintMode("filled"); setTimeout(() => window.print(), 50); } }, "\uD83D\uDDA8 Print Filled"),
-                    React.createElement("button", { className: "B B-outline B-lg", onClick: () => { setPrintMode("blank"); setTimeout(() => window.print(), 50); } }, "\uD83D\uDDA8 Print Blank"),
+                    React.createElement("button", { className: "B B-outline B-lg", onClick: () => triggerPrint(false) }, "\uD83D\uDDA8 Print Filled"),
+                    React.createElement("button", { className: "B B-outline B-lg", onClick: () => triggerPrint(true) }, "\uD83D\uDDA8 Print Blank"),
                     React.createElement("button", { className: "B B-outline B-lg", onClick: () => { setActiveIdx(0); setCompleted([]); } }, "Start Over"),
                     React.createElement("button", { className: "B B-red B-lg", onClick: onBack }, "\u2190 Home")))) : (React.createElement(React.Fragment, null,
                 React.createElement("div", { className: "SHead", style: { marginBottom: 12 } },
@@ -876,8 +881,6 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
                             " entered")),
                     React.createElement("div", { className: "ProdList" },
                         React.createElement(ProdRows, { groups: groups, counts: counts, loc: curLoc, isDecimal: isDecimal, onStep: step, onChange: onChange }))))),
-            React.createElement("div", { style: { display: "none" }, className: "print-show print-sheet-wrapper" },
-                React.createElement(PrintSheet, { user: user, locs: locs, sealed: sealed, open: open, blank: printMode === "blank" }))),
         !allDone && (React.createElement("div", { className: "Footer no-print" },
             activeIdx > 0 ? React.createElement("button", { className: "Footer-btn", onClick: () => setActiveIdx(p => p - 1) }, "\u2190 Back") : React.createElement("div", { className: "Footer-spacer" }),
             React.createElement("div", { className: "Footer-prog" },
@@ -2544,6 +2547,7 @@ function App() {
     const [orders, setOrders] = useState(() => mkOrders(INITIAL_MASTER));
     const [archives, setArchives] = useState([]);
     const [refreshKey, setRefreshKey] = useState(0);
+    const [printJob, setPrintJob] = useState(null); // { user, locs, sealed, open, blank }
 
     const [lastRollover, setLastRollover] = useState(null);
     const [master, setMaster] = useState(INITIAL_MASTER);
@@ -2802,7 +2806,7 @@ function App() {
                 React.createElement("div", { style: { display:"flex", gap:12 } },
                     React.createElement("button", { className:"B B-outline", style:{ flex:1 }, onClick: () => setShowRolloverConfirm(false) }, "Cancel"),
                     React.createElement("button", { className:"B B-red", style:{ flex:1 }, onClick: () => { setShowRolloverConfirm(false); doRollover(); } }, "Confirm")))),
-        screen === "count" && (React.createElement(CountScreen, { user: user, locs: user === "selena" ? SELENA_LOCS : ERIKA_LOCS, counts: user === "selena" ? sealed : open, setCounts: user === "selena" ? setSealed : setOpen, onBack: goHome, sealed: sealed, open: open })),
+        screen === "count" && (React.createElement(CountScreen, { user: user, locs: user === "selena" ? SELENA_LOCS : ERIKA_LOCS, counts: user === "selena" ? sealed : open, setCounts: user === "selena" ? setSealed : setOpen, onBack: goHome, sealed: sealed, open: open, onPrint: setPrintJob })),
         screen === "received" && React.createElement(ReceivedScreen, { onBack: goHome, setOrders: setOrders }),
         screen === "orderguide" && React.createElement(OrderGuideScreen, { orders: orders, setOrders: setOrders, calcTotal: calcTotal, onBack: goHome, archives: archives }),
         screen === "oghistory" && React.createElement(OGHistoryScreen, { archives: archives, onBack: goHome }),
@@ -2813,7 +2817,9 @@ function App() {
 
         showMaster && (React.createElement(MasterEditor, { master: master, onSave: (updated) => { setMaster(updated); setOrders(mkOrders(updated)); }, onClose: () => setShowMaster(false) })),
         React.createElement("div", { style: { position: "fixed", inset: 0, pointerEvents: "none", zIndex: 900 } }, [["TL", { top: 0, left: 0 }], ["TR", { top: 0, right: 0 }], ["BL", { bottom: 0, left: 0 }], ["BR", { bottom: 0, right: 0 }]].map(([id, pos]) => (React.createElement("div", { key: id, style: Object.assign(Object.assign({ position: "absolute" }, pos), { width: 60, height: 60, pointerEvents: "auto", cursor: "default" }), onClick: () => handleCornerTap(id) })))),
-        React.createElement(MasterGuardModal, { show: showMasterPin, input: masterPinInput, error: masterPinError, onKey: masterPressKey, onCancel: masterCancel })));
+        React.createElement(MasterGuardModal, { show: showMasterPin, input: masterPinInput, error: masterPinError, onKey: masterPressKey, onCancel: masterCancel }),
+        printJob && React.createElement("div", { className: "top-print-sheet" },
+            React.createElement(PrintSheet, { user: printJob.user, locs: printJob.locs, sealed: printJob.sealed, open: printJob.open, blank: printJob.blank }))));
 }
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(React.createElement(App, null));
