@@ -803,12 +803,23 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
         const next = Math.max(0, Math.round((cur + delta) * (isDecimal ? 100 : 1)) / (isDecimal ? 100 : 1));
         setCounts(prev => (Object.assign(Object.assign({}, prev), { [curLoc]: Object.assign(Object.assign({}, prev[curLoc]), { [product]: String(next) }) })));
     };
+    const autoAdvanceTimer = useRef(null);
     const onChange = (product, val) => {
         setCounts(prev => (Object.assign(Object.assign({}, prev), { [curLoc]: Object.assign(Object.assign({}, prev[curLoc]), { [product]: val }) })));
         if (val !== "") {
             sbUpsert("counts", { week_label: "current", user_type: user, location: curLoc, product, count_value: Number(val) }, "week_label,user_type,location,product")
                 .catch(e => console.error("Count save:", e));
         }
+        // Auto-advance to next input after 2 seconds
+        if (autoAdvanceTimer.current) clearTimeout(autoAdvanceTimer.current);
+        autoAdvanceTimer.current = setTimeout(() => {
+            const inputs = contentRef.current ? contentRef.current.querySelectorAll("input.StepInput") : [];
+            let found = false;
+            for (let i = 0; i < inputs.length; i++) {
+                if (inputs[i] === document.activeElement) { found = true; }
+                else if (found) { inputs[i].focus(); inputs[i].select(); break; }
+            }
+        }, 2000);
     };
     const hasBlank = () => products.some(i => { var _a; const v = (_a = counts[curLoc]) === null || _a === void 0 ? void 0 : _a[i.product]; return v === "" || v === undefined; });
     const tryAdvance = () => hasBlank() ? setModal(true) : advance();
