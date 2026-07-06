@@ -772,7 +772,6 @@ function PrintSheet({ user, locs, sealed, open, blank }) {
 function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open, onPrint }) {
     const triggerPrint = (blank) => {
         if (onPrint) onPrint({ user, locs, sealed, open, blank });
-        setTimeout(() => window.print(), 80);
     };
     const [activeIdx, setActiveIdx] = useState(0);
     const [completed, setCompleted] = useState([]);
@@ -2548,6 +2547,11 @@ function App() {
     const [archives, setArchives] = useState([]);
     const [refreshKey, setRefreshKey] = useState(0);
     const [printJob, setPrintJob] = useState(null); // { user, locs, sealed, open, blank }
+    useEffect(() => {
+        if (!printJob) return;
+        const t = setTimeout(() => { window.print(); setPrintJob(null); }, 400);
+        return () => clearTimeout(t);
+    }, [printJob]);
 
     const [lastRollover, setLastRollover] = useState(null);
     const [master, setMaster] = useState(INITIAL_MASTER);
