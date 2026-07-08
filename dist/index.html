@@ -252,7 +252,7 @@ const INITIAL_MASTER = [
 function getMaster() { return window.__MASTER__ || INITIAL_MASTER; }
 function sorted(arr) {
     return [...arr].sort((a, b) => {
-        const ci = CLASS_ORDER.indexOf(a.class) - CLASS_ORDER.indexOf(b.class);
+        const ci = classSort(a.class, a.category) - classSort(b.class, b.category);
         if (ci !== 0)
             return ci;
         if (a.category !== b.category)
@@ -767,6 +767,18 @@ function PrintSheet({ user, locs, sealed, open, blank }) {
         React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 9, tableLayout: "fixed" } },
             React.createElement("tbody", null, rows)));
 }
+function doPrintClassOrder(cls, cat) {
+    if (cls === "Beer & Seltzer" && cat === "Beer") return 0;
+    if (cls === "Kegs") return 1;
+    if (cls === "Beer & Seltzer" && cat === "Seltzer") return 2;
+    if (cls === "Liquor") return 3;
+    if (cls === "Extras") return 4;
+    if (cls === "Wine") return 5;
+    return 99;
+}
+function doPrintSortKey(p) {
+    return [doPrintClassOrder(p.class, p.category), (p.category||'').toLowerCase(), (p.product||'').toLowerCase()];
+}
 function doPrint(user, locs, sealed, open, blank) {
     const master = getMaster();
     const CLASS_ORDER_P = ["Beer & Seltzer", "Kegs", "Liquor", "Extras", "Wine"];
@@ -778,7 +790,7 @@ function doPrint(user, locs, sealed, open, blank) {
     for (const loc of locs) {
         let products = master.filter(p => (p.locations||[]).includes(loc));
         if (user === 'erika') products = products.filter(p => p.sold_as === 'Partial');
-        products.sort((a,b) => { const ak=sortKey(a),bk=sortKey(b); for(let i=0;i<ak.length;i++){if(ak[i]<bk[i])return -1;if(ak[i]>bk[i])return 1;} return 0; });
+        products.sort((a,b) => { const ak=doPrintSortKey(a),bk=doPrintSortKey(b); for(let i=0;i<ak.length;i++){if(ak[i]<bk[i])return -1;if(ak[i]>bk[i])return 1;} return 0; });
         if (!products.length) continue;
         rows += `<tr><td colspan="3" style="background:#1A1A2E;color:#fff;font-weight:700;font-size:9pt;padding:3px 6px;text-transform:uppercase">${loc}</td></tr>`;
         rows += `<tr><td style="background:#A50E1F;color:#fff;font-weight:700;font-size:8pt;padding:2px 6px">Product</td><td style="background:#A50E1F;color:#fff;font-weight:700;font-size:8pt;padding:2px 6px">Category</td><td style="background:#A50E1F;color:#fff;font-weight:700;font-size:8pt;padding:2px 6px;text-align:center">Count</td></tr>`;
@@ -1382,7 +1394,7 @@ function TrendScreen({ archives, calcTotal, onBack }) {
     if (sortBy === "alpha")
         filtered.sort((a, b) => a.product.localeCompare(b.product));
     if (sortBy === "class")
-        filtered.sort((a, b) => { const ci = CLASS_ORDER.indexOf(a.class) - CLASS_ORDER.indexOf(b.class); return ci !== 0 ? ci : a.product.localeCompare(b.product); });
+        filtered.sort((a, b) => { const ci = classSort(a.class, a.category) - classSort(b.class, b.category); return ci !== 0 ? ci : a.product.localeCompare(b.product); });
     return (React.createElement("div", { style: { display: "flex", flexDirection: "column", minHeight: "100vh", background: "#EFEFEF" } },
         React.createElement("header", { className: "H no-print" },
             React.createElement("div", { className: "H-logo", style: { cursor: "default" } }, "Zazzo's"),
@@ -2225,7 +2237,7 @@ function TrendScreen({ archives, calcTotal, onBack }) {
     if (sortBy === "alpha")
         filtered.sort((a, b) => a.product.localeCompare(b.product));
     if (sortBy === "class")
-        filtered.sort((a, b) => { const ci = CLASS_ORDER.indexOf(a.class) - CLASS_ORDER.indexOf(b.class); return ci !== 0 ? ci : a.product.localeCompare(b.product); });
+        filtered.sort((a, b) => { const ci = classSort(a.class, a.category) - classSort(b.class, b.category); return ci !== 0 ? ci : a.product.localeCompare(b.product); });
     return (React.createElement("div", { style: { display: "flex", flexDirection: "column", minHeight: "100vh", background: "#EFEFEF" } },
         React.createElement("header", { className: "H no-print" },
             React.createElement("div", { className: "H-logo", style: { cursor: "default" } }, "Zazzo's"),
@@ -2302,7 +2314,7 @@ function MasterEditor({ master, onSave, onClose }) {
     const [draft, setDraft] = useState({ product: "", category: "", class: "Beer & Seltzer", vendor: "TBD", locations: [] });
     const [activeVendor, setActiveVendor] = useState(VENDOR_ORDER[0]);
     const vendorItems = [...items.filter(i => i.vendor === activeVendor)].sort((a,b) => {
-        const ci = CLASS_ORDER.indexOf(a.class) - CLASS_ORDER.indexOf(b.class);
+        const ci = classSort(a.class, a.category) - classSort(b.class, b.category);
         if (ci !== 0) return ci;
         if (a.category !== b.category) return a.category.localeCompare(b.category);
         return a.product.localeCompare(b.product);
