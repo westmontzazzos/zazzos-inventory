@@ -70,7 +70,7 @@ function fmt(n) {
     return num % 1 === 0 ? String(Math.round(num)) : num.toFixed(2).replace(/\.?0+$/, '');
 }
 // ─── CONSTANTS ──────────────────────────────────────────────────────────────
-const CLASS_ORDER = ["Beer & Seltzer", "Liquor", "Wine", "Kegs", "Extras"];
+const CLASS_ORDER = ["Beer & Seltzer", "Extras", "Kegs", "Liquor", "Wine"];
 const SELENA_LOCS = ["Office", "Pepsi Cooler", "Display", "Closet", "Window/Party Room", "Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"];
 const ERIKA_LOCS = ["Behind Bar", "Keg Cooler"];
 const ALL_LOCS = ["Office", "Pepsi Cooler", "Display", "Closet", "Window/Party Room", "Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"];
@@ -734,7 +734,7 @@ function PrintSheet({ user, locs, sealed, open, blank }) {
     const rows = [];
     locs.forEach(function(loc) {
         const products = forLoc(master, loc, user).sort(function(a,b){
-            const classOrder = ["Beer & Seltzer","Liquor","Wine","Kegs","Extras"];
+            const classOrder = ["Beer & Seltzer","Extras","Kegs","Liquor","Wine"];
             const ci = classOrder.indexOf(a.class) - classOrder.indexOf(b.class);
             if (ci !== 0) return ci;
             if (a.category !== b.category) return a.category.localeCompare(b.category);
@@ -769,7 +769,7 @@ function PrintSheet({ user, locs, sealed, open, blank }) {
 }
 function doPrint(user, locs, sealed, open, blank) {
     const master = getMaster();
-    const CLASS_ORDER_P = ["Beer & Seltzer","Liquor","Wine","Kegs","Extras"];
+    const CLASS_ORDER_P = ["Beer & Seltzer","Extras","Kegs","Liquor","Wine"];
     function sortKey(p) {
         const ci = CLASS_ORDER_P.indexOf(p.class);
         return [ci < 0 ? 99 : ci, p.category||'', p.product||''];
@@ -978,7 +978,7 @@ function OrderGuideScreen({ orders, setOrders, calcTotal, onBack, archives }) {
     };
 
     // Build flat row list from master
-    const CLASS_ORDER_OG = ["Beer & Seltzer","Liquor","Wine","Kegs","Extras"];
+    const CLASS_ORDER_OG = ["Beer & Seltzer","Extras","Kegs","Liquor","Wine"];
     const flatRows = [];
     CLASS_ORDER_OG.forEach(cls => {
         const clsItems = master.filter(i => i.class === cls);
@@ -1501,7 +1501,7 @@ function DepletionScreen({ archives, onBack }) {
 
 // ─── COUNT HISTORY SCREEN ─────────────────────────────────────────────────────
 function CountHistoryScreen({ archives, master, onBack }) {
-    const CLASS_ORDER_CH = ["Beer & Seltzer", "Liquor", "Wine", "Kegs", "Extras"];
+    const CLASS_ORDER_CH = ["Beer & Seltzer", "Extras", "Kegs", "Liquor", "Wine"];
     const sortedArchives = [...(archives || [])].sort((a, b) => new Date(a.date || a.archive_date) - new Date(b.date || b.archive_date)).slice(-3);
 
     function getCount(archive, product) {
@@ -2425,7 +2425,7 @@ function OGHistoryScreen({ archives, onBack }) {
     const L2dataRef = useRef(null);
     const L3ref = useRef(null);
     const L4ref = useRef(null);
-    const CLASS_ORDER_OG = ["Beer & Seltzer","Liquor","Wine","Kegs","Extras","Liqueur & Extras"];
+    const CLASS_ORDER_OG = ["Beer & Seltzer","Extras","Kegs","Liquor","Wine","Liqueur & Extras"];
     const RH = { data: 32, RC: 26, RK: 22 };
 
     useEffect(() => {
