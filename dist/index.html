@@ -250,6 +250,15 @@ const INITIAL_MASTER = [
     { product: "Lamarca Splitz", category: "Champagne", class: "Wine", locations: ["Closet", "Keg Cooler", "Behind Bar"], vendor: "Name Needed", sold_as: "Unit" },
 ];// ─── HELPERS ────────────────────────────────────────────────────────────────
 function getMaster() { return window.__MASTER__ || INITIAL_MASTER; }
+function classSort(cls, cat) {
+    if (cls === "Beer & Seltzer" && cat === "Beer") return 0;
+    if (cls === "Kegs") return 1;
+    if (cls === "Beer & Seltzer" && cat === "Seltzer") return 2;
+    if (cls === "Liquor") return 3;
+    if (cls === "Extras") return 4;
+    if (cls === "Wine") return 5;
+    return 99;
+}
 function sorted(arr) {
     return [...arr].sort((a, b) => {
         const ci = classSort(a.class, a.category) - classSort(b.class, b.category);
@@ -1674,7 +1683,7 @@ const KEG_PLU_MAP = {
 };
 const VODKADE_PLU_MAP = { "3473": "Vodkade Orange", "3474": "Vodkade Orange", "3475": "Vodkade Red", "3476": "Vodkade Blue" };
 const VODKADE_SF_BUCKET_PLU_MAP = {
-    "3475": "Vodkade S.F Red", "3499": "Vodkade S.F Orange",
+    "3475": "Vodkade S.F Red", "3476": "Vodkade S.F Blue", "3499": "Vodkade S.F Orange",
     "2945": "Vodkade S.F Orange", "2954": "Vodkade S.F Orange", "2963": "Vodkade S.F Orange",
     "2972": "Vodkade S.F Orange", "2981": "Vodkade S.F Orange",
     "2947": "Vodkade S.F Red", "2956": "Vodkade S.F Red", "2965": "Vodkade S.F Red",
