@@ -1674,7 +1674,15 @@ const KEG_PLU_MAP = {
 };
 const VODKADE_PLU_MAP = { "3474": "Vodkade Orange", "3475": "Vodkade Red", "3476": "Vodkade Blue" };
 const VODKADE_SF_BUCKET_PLU_MAP = {
-    "3475": "Vodkade S.F Red", "3499": "Vodkade S.F Orange", "3500": "Vodkade S.F Red", "3501": "Vodkade S.F Blue",
+    "3475": "Vodkade S.F Red", "3499": "Vodkade S.F Orange",
+    "2945": "Vodkade S.F Orange", "2954": "Vodkade S.F Orange", "2963": "Vodkade S.F Orange",
+    "2972": "Vodkade S.F Orange", "2981": "Vodkade S.F Orange",
+    "2947": "Vodkade S.F Red", "2956": "Vodkade S.F Red", "2965": "Vodkade S.F Red",
+    "2974": "Vodkade S.F Red", "2983": "Vodkade S.F Red",
+    "2951": "Vodkade S.F Blue", "2960": "Vodkade S.F Blue", "2969": "Vodkade S.F Blue",
+    "2978": "Vodkade S.F Blue", "2987": "Vodkade S.F Blue",
+    "3036": "Vodkade S.F Green", "3040": "Vodkade S.F Green", "3044": "Vodkade S.F Green",
+    "3048": "Vodkade S.F Green", "3052": "Vodkade S.F Green",, "3500": "Vodkade S.F Red", "3501": "Vodkade S.F Blue",
     "3502": "Vodkade S.F Orange", "3503": "Vodkade S.F Red", "3504": "Vodkade S.F Blue",
     "3505": "Vodkade S.F Orange", "3506": "Vodkade S.F Red", "3507": "Vodkade S.F Blue",
     "3508": "Vodkade S.F Orange", "3509": "Vodkade S.F Red", "3510": "Vodkade S.F Blue",
@@ -2188,125 +2196,7 @@ function SoldScreen({ onBack, setOrders }) {
                     React.createElement("button", { className: "B B-red", onClick: () => setLockWarn(false) }, "OK"))))),
         PinModal));
 }
-// ─── ARCHIVE SCREEN ───────────────────────────────────────────────────────────
-function TrendScreen({ archives, calcTotal, onBack }) {
-    const master = getMaster();
-    const [filter, setFilter] = useState("all");
-    const [sortBy, setSortBy] = useState("pct_desc");
-    const [classFilter, setClassFilter] = useState("all");
-    const rows = master.map(item => {
-        const current = calcTotal(item.product);
-        const lastArchive = archives[0];
-        const lw = lastArchive ? (() => {
-            let t = 0;
-            SELENA_LOCS.forEach(l => { var _a; const v = (_a = lastArchive.sealed[l]) === null || _a === void 0 ? void 0 : _a[item.product]; if (v !== "" && v !== undefined)
-                t += Number(v); });
-            ERIKA_LOCS.forEach(l => { var _a; const v = (_a = lastArchive.open[l]) === null || _a === void 0 ? void 0 : _a[item.product]; if (v !== "" && v !== undefined)
-                t += Number(v); });
-            return Math.round(t * 100) / 100;
-        })() : null;
-        const avg = archives.length > 0 ? (() => {
-            const totals = archives.map(a => {
-                let t = 0;
-                SELENA_LOCS.forEach(l => { var _a; const v = (_a = a.sealed[l]) === null || _a === void 0 ? void 0 : _a[item.product]; if (v !== "" && v !== undefined)
-                    t += Number(v); });
-                ERIKA_LOCS.forEach(l => { var _a; const v = (_a = a.open[l]) === null || _a === void 0 ? void 0 : _a[item.product]; if (v !== "" && v !== undefined)
-                    t += Number(v); });
-                return t;
-            });
-            return Math.round((totals.reduce((a, b) => a + b, 0) / totals.length) * 10) / 10;
-        })() : null;
-        const rawChange = lw !== null ? Math.round((current - lw) * 100) / 100 : null;
-        const pctChange = (lw !== null && lw > 0) ? Math.round((rawChange / lw) * 100) : null;
-        return { product: item.product, category: item.category, class: item.class, current, lastWeek: lw, rawChange, pctChange, avg };
-    });
-    let filtered = rows.filter(r => r.current > 0 || r.lastWeek > 0);
-    if (classFilter !== "all")
-        filtered = filtered.filter(r => r.class === classFilter);
-    if (filter === "down")
-        filtered = filtered.filter(r => r.rawChange !== null && r.rawChange < 0);
-    if (filter === "up")
-        filtered = filtered.filter(r => r.rawChange !== null && r.rawChange > 0);
-    if (filter === "below")
-        filtered = filtered.filter(r => r.avg !== null && r.current < r.avg);
-    if (sortBy === "pct_desc")
-        filtered.sort((a, b) => { var _a, _b; return ((_a = a.pctChange) !== null && _a !== void 0 ? _a : 0) - ((_b = b.pctChange) !== null && _b !== void 0 ? _b : 0); });
-    if (sortBy === "pct_asc")
-        filtered.sort((a, b) => { var _a, _b; return ((_a = b.pctChange) !== null && _a !== void 0 ? _a : 0) - ((_b = a.pctChange) !== null && _b !== void 0 ? _b : 0); });
-    if (sortBy === "raw_desc")
-        filtered.sort((a, b) => { var _a, _b; return ((_a = a.rawChange) !== null && _a !== void 0 ? _a : 0) - ((_b = b.rawChange) !== null && _b !== void 0 ? _b : 0); });
-    if (sortBy === "alpha")
-        filtered.sort((a, b) => a.product.localeCompare(b.product));
-    if (sortBy === "class")
-        filtered.sort((a, b) => { const ci = classSort(a.class, a.category) - classSort(b.class, b.category); return ci !== 0 ? ci : a.product.localeCompare(b.product); });
-    return (React.createElement("div", { style: { display: "flex", flexDirection: "column", minHeight: "100vh", background: "#EFEFEF" } },
-        React.createElement("header", { className: "H no-print" },
-            React.createElement("div", { className: "H-logo", style: { cursor: "default" } }, "Zazzo's"),
-            React.createElement("div", { className: "H-right" },
-                React.createElement("button", { className: "B B-ghost", onClick: onBack }, "\u2190 Home"))),
-        React.createElement("div", { className: "Page" },
-            React.createElement("div", { className: "SHead", style: { marginBottom: 16 } },
-                React.createElement("div", null,
-                    React.createElement("div", { className: "STitle" }, "Trend Analysis"),
-                    React.createElement("div", { className: "SSub" },
-                        "Week over week changes with running averages.",
-                        archives.length > 0 ? ` ${archives.length} week${archives.length !== 1 ? "s" : ""} of data.` : ""))),
-            archives.length === 0 ? (React.createElement("div", { className: "Empty" },
-                React.createElement("div", { className: "Empty-icon" }, "\uD83D\uDCCA"),
-                "No data yet. Trend Analysis populates after the first weekly rollover.")) : (React.createElement(React.Fragment, null,
-                React.createElement("div", { className: "Card", style: { marginBottom: 16 } },
-                    React.createElement("div", { className: "Card-head" },
-                        React.createElement("span", { className: "Card-title" }, "Filters")),
-                    React.createElement("div", { style: { padding: "12px 16px", display: "flex", flexWrap: "wrap", gap: 12 } },
-                        React.createElement("div", null,
-                            React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "#777777", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 } }, "Movement"),
-                            React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap" } }, [["all", "All"], ["down", "↓ Down"], ["up", "↑ Up"], ["below", "Below Avg"]].map(([val, lbl]) => (React.createElement("button", { key: val, className: `ATab${filter === val ? " on" : ""}`, onClick: () => setFilter(val), style: { height: 30, padding: "0 12px", fontSize: 11 } }, lbl))))),
-                        React.createElement("div", null,
-                            React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "#777777", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 } }, "Class"),
-                            React.createElement("select", { style: { height: 30, background: "#FFFFFF", border: "2px solid #E2E2E2", borderRadius: 6, padding: "0 8px", fontSize: 12, fontWeight: 600, color: "#111111" }, value: classFilter, onChange: e => setClassFilter(e.target.value) },
-                                React.createElement("option", { value: "all" }, "All Classes"),
-                                CLASS_ORDER.map(cls => React.createElement("option", { key: cls, value: cls }, cls)))),
-                        React.createElement("div", null,
-                            React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "#777777", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 } }, "Sort By"),
-                            React.createElement("select", { style: { height: 30, background: "#FFFFFF", border: "2px solid #E2E2E2", borderRadius: 6, padding: "0 8px", fontSize: 12, fontWeight: 600, color: "#111111" }, value: sortBy, onChange: e => setSortBy(e.target.value) },
-                                React.createElement("option", { value: "pct_desc" }, "Biggest Drop % First"),
-                                React.createElement("option", { value: "pct_asc" }, "Biggest Gain % First"),
-                                React.createElement("option", { value: "raw_desc" }, "Biggest Raw Drop First"),
-                                React.createElement("option", { value: "alpha" }, "Alphabetical"),
-                                React.createElement("option", { value: "class" }, "By Class"))))),
-                React.createElement("div", { style: { fontSize: 12, color: "#777777", marginBottom: 10, fontWeight: 600 } },
-                    filtered.length,
-                    " product",
-                    filtered.length !== 1 ? "s" : "",
-                    " shown"),
-                React.createElement("div", { className: "Card" }, filtered.length === 0 ? (React.createElement("div", { className: "Empty", style: { padding: "32px 20px" } }, "No products match the selected filters.")) : filtered.map((row) => {
-                    const isDown = row.rawChange !== null && row.rawChange < 0;
-                    const isUp = row.rawChange !== null && row.rawChange > 0;
-                    const cc = isDown ? "#C8102E" : isUp ? "#1B6B3A" : "#777777";
-                    const belowAvg = row.avg !== null && row.current < row.avg;
-                    return (React.createElement("div", { className: "TrendRow", key: row.product },
-                        React.createElement("div", { style: { flex: 1, minWidth: 0 } },
-                            React.createElement("div", { className: "TrendName" }, row.product),
-                            React.createElement("div", { className: "TrendMeta" },
-                                row.category,
-                                " \u00B7 ",
-                                row.class)),
-                        React.createElement("div", { className: "TrendStats" },
-                            React.createElement("div", { className: "TStat" },
-                                React.createElement("div", { className: "TStat-val" }, row.lastWeek !== null ? row.lastWeek : "—"),
-                                React.createElement("div", { className: "TStat-label" }, "Last Wk")),
-                            React.createElement("div", { className: "TStat" },
-                                React.createElement("div", { className: "TStat-val" }, row.current),
-                                React.createElement("div", { className: "TStat-label" }, "This Wk")),
-                            React.createElement("div", { className: "TStat" },
-                                React.createElement("div", { className: "TStat-val", style: { color: cc } }, row.rawChange !== null ? (row.rawChange > 0 ? `+${row.rawChange}` : row.rawChange) : "—"),
-                                React.createElement("div", { className: "TStat-label" }, "vs Last")),
-                            React.createElement("div", { className: "TStat" },
-                                React.createElement("div", { className: "TStat-val", style: { color: belowAvg ? "#C8102E" : "#444444" } }, row.avg !== null ? (row.current - row.avg > 0 ? "+" + Math.round((row.current - row.avg)*100)/100 : Math.round((row.current - row.avg)*100)/100) : "—"),
-                                React.createElement("div", { className: "TStat-label" }, "vs Avg")))));
-                })))))));
-}
-// ─── MASTER EDITOR ────────────────────────────────────────────────────────────
+
 function MasterEditor({ master, onSave, onClose }) {
     const [items, setItems] = useState(JSON.parse(JSON.stringify(master)));
     const [changes, setChanges] = useState([]);
