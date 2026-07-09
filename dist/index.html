@@ -1517,20 +1517,36 @@ function DepletionScreen({ archives, onBack }) {
                 React.createElement("tbody", null,
                     rows.length === 0
                         ? React.createElement("tr", null, React.createElement("td", { colSpan: 4, style: { padding: 24, textAlign: "center", color: "#999" } }, "No data yet. Run Start New Week to archive counts."))
-                        : rows.map((o, i) => {
-                            const lw = parseFloat(o.lastWeek) || 0;
-                            const recv = parseFloat(o.received) || 0;
-                            const dep = lw > 0 ? Math.round((lw + recv) * 100) / 100 : null;
-                            const pos = posSales[o.product] !== undefined ? parseFloat(posSales[o.product]) : null;
-                            const vari = variance(dep, pos);
-                            const varColor = vari === null ? "#999" : vari > 0 ? "#C8102E" : vari < 0 ? "#C8102E" : "#2a7";
-                            return React.createElement("tr", { key: o.product, style: { background: i % 2 === 0 ? "#fff" : "#F5F5F5", borderBottom: "1px solid #eee" } },
-                                React.createElement("td", { style: { padding: "7px 10px" } }, o.product),
-                                React.createElement("td", { style: { padding: "7px 6px", textAlign: "center" } }, dep !== null ? fmt(dep) : "—"),
-                                React.createElement("td", { style: { padding: "7px 6px", textAlign: "center" } }, pos !== null ? fmt(pos) : "—"),
-                                React.createElement("td", { style: { padding: "7px 6px", textAlign: "center", color: varColor, fontWeight: 600 } },
-                                    vari === null ? "—" : vari > 0 ? "+" + fmt(vari) : fmt(vari)));
-                        })))));
+                        : (() => {
+                            const out = [];
+                            let prevSection = null; let prevCat = null;
+                            rows.forEach((o, i) => {
+                                const pm = prodMap[o.product] || {};
+                                const cls = pm.class || ""; const cat = pm.category || "";
+                                const ci = classSort(cls, cat);
+                                const section = ci===0?"BEER":ci===1?"KEGS":ci===2?"SELTZER":cls.toUpperCase()||"OTHER";
+                                if (section !== prevSection) {
+                                    out.push(React.createElement("tr", { key: "s-"+section }, React.createElement("td", { colSpan: 4, style: { background: "#1A1A2E", color: "#fff", fontWeight: 700, padding: "6px 10px", fontSize: 11, letterSpacing: 1 } }, section)));
+                                    prevSection = section; prevCat = null;
+                                }
+                                if (cat && cat !== prevCat) {
+                                    out.push(React.createElement("tr", { key: "c-"+cls+cat }, React.createElement("td", { colSpan: 4, style: { background: "#C8102E", color: "#fff", fontWeight: 600, padding: "4px 10px", fontSize: 10 } }, cat.toUpperCase())));
+                                    prevCat = cat;
+                                }
+                                const lw = parseFloat(o.lastWeek) || 0;
+                                const recv = parseFloat(o.received) || 0;
+                                const dep = lw > 0 ? Math.round((lw + recv) * 100) / 100 : null;
+                                const pos = posSales[o.product] !== undefined ? parseFloat(posSales[o.product]) : null;
+                                const vari = dep !== null && pos !== null ? Math.round((dep - pos) * 100) / 100 : null;
+                                const varColor = vari === null ? "#999" : vari > 0 ? "#C8102E" : vari < 0 ? "#C8102E" : "#2a7";
+                                out.push(React.createElement("tr", { key: o.product, style: { background: i % 2 === 0 ? "#fff" : "#F5F5F5", borderBottom: "1px solid #eee" } },
+                                    React.createElement("td", { style: { padding: "7px 10px" } }, o.product),
+                                    React.createElement("td", { style: { padding: "7px 6px", textAlign: "center" } }, dep !== null ? fmt(dep) : "—"),
+                                    React.createElement("td", { style: { padding: "7px 6px", textAlign: "center" } }, pos !== null ? fmt(pos) : "—"),
+                                    React.createElement("td", { style: { padding: "7px 6px", textAlign: "center", color: varColor, fontWeight: 600 } }, vari === null ? "—" : vari > 0 ? "+"+fmt(vari) : fmt(vari))));
+                            });
+                            return out;
+                        })()))));
 }
 
 // ─── COUNT HISTORY SCREEN ─────────────────────────────────────────────────────
