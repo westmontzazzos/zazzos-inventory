@@ -1758,7 +1758,7 @@ function parseBeerReport(beerText, bucketText, carryoutText, hnText, vodkadeText
     }
 
     const vkRow = beer.find(r => r.plu === "3473");
-    if (vkRow && !vodkadeText) results.flags.push(`Vodkade (PLU 3473, qty ${vkRow.qty}) - upload Vodkade modifier report to split by flavor`);
+    if (vkRow && !vodkadeText) results.bottles["Vodkade Orange"] = (results.bottles["Vodkade Orange"] || 0) + vkRow.qty;
 
     return results;
 }
