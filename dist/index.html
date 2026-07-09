@@ -1818,13 +1818,13 @@ function parseWineReport(text) {
     return { bottles, flags };
 }
 
-const SPECIALTY_NAME_FIX = { "Expresso Martini": "Espresso Martini", "Perfect Manahattan": "Perfect Manhattan", "Zazzo's Cosmo": "Sparkling Cosmo", "Premium Long Island": "Zazzo's Long Island", "Mimosa": "Mimosa", "Aperol Spritz": "Aperol Spritz", "Sparkling Cosmo": "Sparkling Cosmo", "Zazzo's Long Island": "Zazzo's Long Island", "Chocolate Martini": "Chocolate Martini", "Lemon Drop Shot": "Lemon Drop Martini", "Crown Vegas Bomb": "Vegas Bomb", "Original Mule": "Original Mule" };
+const SPECIALTY_NAME_FIX = { "Expresso Martini": "Espresso Martini", "Perfect Manahattan": "Perfect Manhattan", "Zazzo's Cosmo": "Sparkling Cosmo", "Premium Long Island": "Zazzo's Long Island", "Mimosa": "Mimosa", "Aperol Spritz": "Aperol Spritz", "Sparkling Cosmo": "Sparkling Cosmo", "Zazzo's Long Island": "Zazzo's Long Island", "Chocolate Martini": "Chocolate Martini", "Lemon Drop Shot": "Lemon Drop Martini", "Sambucca": "Sambuca", "Kahlúa": "Kahlua", "Crown Vegas Bomb": "Vegas Bomb", "Original Mule": "Original Mule" };
 const SPECIALTY_STRAIGHT_POUR = {
     "Baileys": { ingredient: "Bailey's", oz: 1.5 },
     "Disaronno": { ingredient: "Disaronno", oz: 1.5 },
     "E&J Brandy": { ingredient: "E&J", oz: 1.5 },
     "Jack Fire": { ingredient: "Jack Daniels Fire 1L", oz: 1.5 },
-    "Jack Honey": { ingredient: "Jack Daniels Honey", oz: 1.5 }, "Kahlua": { ingredient: "Kahlua", oz: 1.5 }, "Sambuca": { ingredient: "Sambuca", oz: 1.5 }, "Sambucca": { ingredient: "Sambuca", oz: 1.5 },
+    "Jack Honey": { ingredient: "Jack Daniels Honey", oz: 1.5 }, "Kahlua": { ingredient: "Kahlua", oz: 1.5 }, "Sambuca": { ingredient: "Sambuca", oz: 1.5 }, "Sambucca": { ingredient: "Sambuca", oz: 1.5 }, "Kahlúa": { ingredient: "Kahlua", oz: 1.5 },
 };
 const SPECIALTY_NO_RECIPE = new Set(); // All drinks now have recipes or aliases
 async function parseSpecialtyReport(text, recipeRows, soldAsMap) {
