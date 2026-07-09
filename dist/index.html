@@ -1478,8 +1478,20 @@ function DepletionScreen({ archives, onBack }) {
     const latestArchive = archives && archives.length > 0 ? archives[0] : null;
     const orders = latestArchive ? latestArchive.orders || [] : [];
     const posSales = latestArchive ? latestArchive.pos_sales || {} : {};
+    const master = getMaster();
+    const prodMap = {};
+    master.forEach(p => { prodMap[p.product] = p; });
 
-    const rows = orders.filter(o => o.product && (o.total !== undefined || o.lastWeek !== undefined));
+    const rows = orders
+        .filter(o => o.product && (o.total !== undefined || o.lastWeek !== undefined))
+        .sort((a, b) => {
+            const am = prodMap[a.product] || {}; const bm = prodMap[b.product] || {};
+            const ci = classSort(am.class, am.category) - classSort(bm.class, bm.category);
+            if (ci !== 0) return ci;
+            const ac = am.category || ''; const bc = bm.category || '';
+            if (ac !== bc) return ac.localeCompare(bc);
+            return (a.product || '').localeCompare(b.product || '');
+        });
 
     function variance(dep, pos) {
         if (dep === "" || dep === null || dep === undefined) return null;
