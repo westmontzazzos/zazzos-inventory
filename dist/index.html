@@ -253,11 +253,11 @@ function getMaster() { return window.__MASTER__ || INITIAL_MASTER; }
 function sorted(arr) {
     return [...arr].sort((a, b) => {
         const ci = classSort(a.class, a.category) - classSort(b.class, b.category);
-        if (ci !== 0) return ci;
-        const ac = a.category || ''; const bc = b.category || '';
-        if (ac !== bc) return ac.localeCompare(bc);
-        const ap = a.product || ''; const bp = b.product || '';
-        return ap.localeCompare(bp);
+        if (ci !== 0)
+            return ci;
+        if (a.category !== b.category)
+            return a.category.localeCompare(b.category);
+        return a.product.localeCompare(b.product);
     });
 }
 function forLoc(master, loc, user) {
@@ -1155,7 +1155,7 @@ function OrderGuideScreen({ orders, setOrders, calcTotal, onBack, archives }) {
                             if (isRC || isRK) return React.createElement("div", { key: col.key, className: cls, style: cellStyle });
 
                             const ro = orders.find(x => x.product === r.item.product) || {};
-                            const tot = Math.round(calcTotal(r.item.product) * 100) / 100;
+                            const tot = calcTotal(r.item.product);
                             const par = Number(ro.par) || 0;
                             const diff = Math.round((tot - par) * 100) / 100;
                             const hp = ro.par !== "" && ro.par !== undefined;
@@ -1352,7 +1352,7 @@ function TrendScreen({ archives, calcTotal, onBack }) {
     const [sortBy, setSortBy] = useState("pct_desc");
     const [classFilter, setClassFilter] = useState("all");
     const rows = master.map(item => {
-        const current = Math.round(calcTotal(item.product) * 100) / 100;
+        const current = calcTotal(item.product);
         const lastArchive = archives[0];
         const lw = lastArchive ? (() => {
             let t = 0;
@@ -1663,7 +1663,7 @@ const BEER_PLU_MAP = {
     "2889": "Miller High Life", "2890": "Miller Lite", "2897": "Modelo",
     "3431": "Yuengling Flight", "2908": "Black Cherry White Claw",
     "3230": "High Noon Tea", "3264": "Suncruiser",
-    "2902": "Daura", "2905": "Stella Liberte", "2936": "Shiner Holiday Cheer", "2943": "Import Bucket",
+    "2902": "Daura", "2936": "Shiner Holiday Cheer", "2943": "Import Bucket",
 };
 const KEG_PLU_MAP = {
     "2931": "Ambiegram Keg", "2927": "Blue Moon Keg", "3521": "Buenaveza Keg (Pony)",
@@ -2586,7 +2586,7 @@ function App() {
             sealed: fillBlanks(sealed),
             open: fillBlanks(open),
             orders: orders.map(r => {
-                const tot = Math.round(calcTotal(r.product) * 100) / 100;
+                const tot = calcTotal(r.product);
                 const lw = Number(r.lastWeek) || 0;
                 const recv = Number(r.received) || 0;
                 const dep = Math.round((lw + recv - tot) * 100) / 100;
@@ -2615,7 +2615,7 @@ function App() {
         catch (e) {
             console.error("Archive save error:", e);
         }
-        const newOrders = orders.map(r => (Object.assign(Object.assign({}, r), { lastWeek: String(Math.round(calcTotal(r.product) * 100) / 100), received: "", sold: "", order: "" })));
+        const newOrders = orders.map(r => (Object.assign(Object.assign({}, r), { lastWeek: String(calcTotal(r.product)), received: "", sold: "", order: "" })));
         setOrders(newOrders);
         try {
             await Promise.all(newOrders.map(r => sbUpsert("orders", {
