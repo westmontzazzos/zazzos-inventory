@@ -19,6 +19,7 @@
   <div id="root"></div>
   <script>
 const { useState, useEffect, useCallback, useRef, Fragment } = React;
+const APP_VERSION = "v5.0";
 // ─── SUPABASE ───────────────────────────────────────────────────────────────
 const SUPABASE_URL = "https://wkzhmfyfxlfkkqevzxvf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_B1EXocVYT57f5fpvVLONZA_YZx5trib";
@@ -547,16 +548,19 @@ html,body{background:#EFEFEF;color:#111111;font-family:'Inter',system-ui,sans-se
 .TInput:focus{outline:none;border-color:#C8102E;}
 .TInput-w70{width:70px;}
 .pos{color:#1B6B3A;font-weight:700;}.neg{color:#C8102E;font-weight:700;}
-.Login{min-height:100vh;background:#EFEFEF;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;gap:40px;}
+.Login{min-height:100vh;background:#EFEFEF;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;gap:32px;}
 .Login-brand{text-align:center;}
 .Login-logo{font-family:'Libre Baskerville',Georgia,serif;font-size:48px;font-weight:700;color:#C8102E;letter-spacing:0.03em;line-height:1;}
 .Login-tag{margin-top:10px;font-family:'Inter',system-ui,sans-serif;font-size:11px;font-weight:700;color:#777777;letter-spacing:0.2em;text-transform:uppercase;}
-.Login-grid{display:grid;grid-template-columns:200px 200px;grid-auto-rows:160px;gap:20px;justify-content:center;}
-.LCard{width:200px;height:160px;background:#FFFFFF;border:2px solid #1B6B3A;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.07);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;transition:border-color 0.15s,box-shadow 0.15s,transform 0.15s;user-select:none;-webkit-tap-highlight-color:transparent;}
+.Login-grid{display:grid;grid-template-columns:170px 170px;grid-auto-rows:128px;gap:14px;justify-content:center;}
+.LCard{width:170px;height:128px;background:#FFFFFF;border:2px solid #1B6B3A;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.07);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;transition:border-color 0.15s,box-shadow 0.15s,transform 0.15s;user-select:none;-webkit-tap-highlight-color:transparent;padding:8px;text-align:center;}
 .LCard:hover{border-color:#C8102E;box-shadow:0 6px 24px rgba(200,16,46,0.13);transform:translateY(-3px);}
 .LCard:active{transform:translateY(0);}
 .LCard-role{font-family:'Libre Baskerville',Georgia,serif;font-size:17px;font-weight:700;color:#111111;text-align:center;line-height:1.2;}
 .LCard-name{font-family:'Inter',system-ui,sans-serif;font-size:13px;font-weight:600;font-style:italic;color:#C8102E;text-align:center;}
+.ClearDivider{width:170px;height:1px;background:#D9D6CC;margin:4px 0 0;}
+.ClearCircle{width:56px;height:56px;border-radius:50%;background:#FFFFFF;border:2px solid #C8102E;color:#C8102E;font-family:'Inter',system-ui,sans-serif;font-size:10px;font-weight:700;line-height:1.15;cursor:pointer;-webkit-tap-highlight-color:transparent;padding:4px;text-align:center;white-space:normal;}
+.ClearCircle:hover{background:#FDECEA;}
 .Overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:500;padding:20px;}
 .Modal{background:#FFFFFF;border-radius:12px;padding:28px;max-width:420px;width:100%;box-shadow:0 24px 64px rgba(0,0,0,0.22);}
 .Modal-title{font-family:'Libre Baskerville',Georgia,serif;font-size:19px;font-weight:700;color:#111111;margin-bottom:10px;}
@@ -1091,10 +1095,7 @@ function OrderGuideScreen({ orders, setOrders, calcTotal, onBack, archives }) {
         { key: 'depletion',        label: 'Depletion',    w: _colW },
         { key: 'sold',             label: 'Sales',        w: _colW },
         { key: 'variance',         label: 'Variance',     w: _colW },
-        { key: 'par',              label: 'Par',          w: _colW },
-        { key: 'deliveryThisWeek', label: 'Delivery',     w: _colW },
         { key: 'order',            label: 'Order',        w: _colW },
-        { key: 'freq',             label: 'Freq',         w: _colW },
     ];
     const ALL_COLS = [{ key: 'product', label: 'Item', w: PROD_W }, { key: 'vendor', label: 'Vendor', w: _colW }, ...DATA_COLS];
     const tableWidth = ALL_COLS.reduce((s,c) => s+c.w, 0);
@@ -1168,9 +1169,6 @@ function OrderGuideScreen({ orders, setOrders, calcTotal, onBack, archives }) {
 
                             const ro = orders.find(x => x.product === r.item.product) || {};
                             const tot = calcTotal(r.item.product);
-                            const par = Number(ro.par) || 0;
-                            const diff = Math.round((tot - par) * 100) / 100;
-                            const hp = ro.par !== "" && ro.par !== undefined;
 
                             const lw = Number(ro.lastWeek) || 0;
                             const recv = Number(ro.received) || 0;
@@ -1180,7 +1178,13 @@ function OrderGuideScreen({ orders, setOrders, calcTotal, onBack, archives }) {
                             else if (col.key === 'total') cellContent = React.createElement("span", null, tot > 0 ? tot : "—");
                             else if (col.key === 'lw') cellContent = React.createElement("span", { style:{color:'#777'} }, ro.lastWeek || "—");
                             else if (col.key === 'depletion') cellContent = React.createElement("span", { className: dep > 0 ? 'neg' : dep < 0 ? 'pos' : '' }, (lw > 0 || recv > 0) ? dep : "—");
-                            else if (col.key === 'variance') { const par2=Number(ro.par)||0; const v=Math.round((tot-par2)*100)/100; cellContent = React.createElement("span", { className: par2>0?(v>=0?'pos':'neg'):'' }, par2>0?(v>=0?'+'+v:v):"—"); }
+                            else if (col.key === 'variance') {
+                                const posSalesVal = latestPosSales[ro.product] !== undefined ? Number(latestPosSales[ro.product]) : null;
+                                const pos = (ro.sold !== undefined && ro.sold !== "") ? Number(ro.sold) : posSalesVal;
+                                const depValid = (lw > 0 || recv > 0);
+                                const v = (depValid && pos !== null) ? Math.round((dep - pos) * 100) / 100 : null;
+                                cellContent = React.createElement("span", { className: v === null ? '' : (v > 0 ? 'neg' : v < 0 ? 'pos' : '') }, v === null ? "—" : (v >= 0 ? '+' + v : v));
+                            }
                             else if (col.key === 'freq') cellContent = React.createElement("span", { style:{color:'#777',fontSize:11} }, ro.freq || "—");
                             else if (col.key === 'deliveryThisWeek') cellContent = React.createElement("span", { style:{color: ro.deliveryThisWeek==='Yes'?'#1B6B3A':'#777', fontWeight: ro.deliveryThisWeek==='Yes'?700:400, fontSize:11} }, ro.deliveryThisWeek || "—");
                             else if (col.key === 'sold') { const posSalesVal = latestPosSales[ro.product] !== undefined ? String(latestPosSales[ro.product]) : ""; cellContent = React.createElement("span", { style:{fontSize:12} }, ro.sold || posSalesVal || "—"); }
@@ -1538,7 +1542,8 @@ function DepletionScreen({ archives, onBack }) {
                                 }
                                 const lw = parseFloat(o.lastWeek) || 0;
                                 const recv = parseFloat(o.received) || 0;
-                                const dep = lw > 0 ? Math.round((lw + recv) * 100) / 100 : null;
+                                const tot = parseFloat(o.total) || 0;
+                                const dep = lw > 0 ? Math.round((lw + recv - tot) * 100) / 100 : null;
                                 const pos = posSales[o.product] !== undefined ? parseFloat(posSales[o.product]) : null;
                                 const vari = dep !== null && pos !== null ? Math.round((dep - pos) * 100) / 100 : null;
                                 const varColor = vari === null ? "#999" : vari > 0 ? "#C8102E" : vari < 0 ? "#C8102E" : "#2a7";
@@ -1721,14 +1726,14 @@ const VODKADE_SF_BUCKET_PLU_MAP = {
     "2974": "Vodkade S.F Red", "2983": "Vodkade S.F Red",
     "2951": "Vodkade S.F Blue", "2960": "Vodkade S.F Blue", "2969": "Vodkade S.F Blue",
     "2978": "Vodkade S.F Blue", "2987": "Vodkade S.F Blue",
-    "3036": "Vodkade S.F Green", "3040": "Vodkade S.F Green", "3044": "Vodkade S.F Green",
-    "3048": "Vodkade S.F Green", "3052": "Vodkade S.F Green", "3500": "Vodkade S.F Red", "3501": "Vodkade S.F Blue",
+    "3036": "Vodkade S.F Lime", "3040": "Vodkade S.F Lime", "3044": "Vodkade S.F Lime",
+    "3048": "Vodkade S.F Lime", "3052": "Vodkade S.F Lime", "3500": "Vodkade S.F Red", "3501": "Vodkade S.F Blue",
     "3502": "Vodkade S.F Orange", "3503": "Vodkade S.F Red", "3504": "Vodkade S.F Blue",
     "3505": "Vodkade S.F Orange", "3506": "Vodkade S.F Red", "3507": "Vodkade S.F Blue",
     "3508": "Vodkade S.F Orange", "3509": "Vodkade S.F Red", "3510": "Vodkade S.F Blue",
     "3511": "Vodkade S.F Orange", "3512": "Vodkade S.F Red", "3513": "Vodkade S.F Blue",
-    "3514": "Vodkade S.F Green", "3515": "Vodkade S.F Green",
-    "3516": "Vodkade S.F Green", "3517": "Vodkade S.F Green", "3518": "Vodkade S.F Green",
+    "3514": "Vodkade S.F Lime", "3515": "Vodkade S.F Lime",
+    "3516": "Vodkade S.F Lime", "3517": "Vodkade S.F Lime", "3518": "Vodkade S.F Lime",
 };
 
 const CARRYOUT_BEER_PLU = { "1075": "Budweiser", "1076": "Corona" }; // carryout 6-packs
@@ -2740,7 +2745,7 @@ function App() {
         !loading && screen === "login" && (React.createElement("div", { className: "Login" },
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
-                React.createElement("div", { className: "Login-tag" }, "Liquor Inventory")),
+                React.createElement("div", { className: "Login-tag" }, "Liquor Inventory " + APP_VERSION)),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
@@ -2757,15 +2762,11 @@ function App() {
                 React.createElement("div", { className: "LCard", onClick: () => setScreen("depletion") },
                     React.createElement("div", { className: "LCard-role" }, "Depletion Analysis"),
                     React.createElement("div", { className: "LCard-name" }, "Theoretical vs actual")),
-                React.createElement("div", { className: "LCard", onClick: () => setScreen("counthistory") },
-                    React.createElement("div", { className: "LCard-role" }, "Count History"),
-                    React.createElement("div", { className: "LCard-name" }, "Weekly averages")),
                 React.createElement("div", { className: "LCard", onClick: () => setScreen("orderguide") },
-                    React.createElement("div", { className: "LCard-role" }, "Order Guide"),
-                    React.createElement("div", { className: "LCard-name" }, "Weekly ordering")),
-                React.createElement("div", { className: "LCard", onClick: () => setShowRolloverConfirm(true) },
-                    React.createElement("div", { className: "LCard-role" }, "Start New Week"),
-                    React.createElement("div", { className: "LCard-name" }, "Archive & reset counts"))))),
+                    React.createElement("div", { className: "LCard-role" }, "Inventory Analysis"),
+                    React.createElement("div", { className: "LCard-name" }, "Weekly ordering"))),
+            React.createElement("div", { className: "ClearDivider" }),
+            React.createElement("button", { className: "ClearCircle", onClick: () => setShowRolloverConfirm(true) }, "Start New Week"))),
         showRolloverConfirm && React.createElement("div", { style: { position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:24 } },
             React.createElement("div", { style: { background:"#fff", borderRadius:12, padding:24, width:"100%", maxWidth:360 } },
                 React.createElement("div", { style: { fontFamily:"'Inter',system-ui,sans-serif", fontSize:17, fontWeight:700, marginBottom:12 } }, "Start New Week?"),
