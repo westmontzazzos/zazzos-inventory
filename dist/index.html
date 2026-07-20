@@ -1304,12 +1304,12 @@ function ReceivedScreen({ onBack, setOrders }) {
         setReceived(prev => (Object.assign(Object.assign({}, prev), { [product]: val })));
         setOrders(prev => prev.map(r => r.product === product ? Object.assign(Object.assign({}, r), { received: val }) : r));
     };
-    const blankItems = () => vendorProds.filter(i => sold_counts[i.product] === "" || sold_counts[i.product] === undefined);
+    const blankItems = () => vendorProds.filter(i => received[i.product] === "" || received[i.product] === undefined);
     const hasBlank = () => blankItems().length > 0;
     const tryAdvance = () => hasBlank() ? setModal(true) : advance();
     const fillZerosAndAdvance = () => {
         const blanks = blankItems();
-        setSoldCounts(prev => {
+        setReceived(prev => {
             const next = Object.assign({}, prev);
             blanks.forEach(i => { next[i.product] = "0"; });
             return next;
