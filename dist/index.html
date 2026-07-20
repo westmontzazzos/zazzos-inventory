@@ -887,8 +887,22 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
             }
         }
     };
-    const hasBlank = () => products.some(i => { var _a; const v = (_a = counts[curLoc]) === null || _a === void 0 ? void 0 : _a[i.product]; return v === "" || v === undefined; });
+    const blankItems = () => products.filter(i => { var _a; const v = (_a = counts[curLoc]) === null || _a === void 0 ? void 0 : _a[i.product]; return v === "" || v === undefined; });
+    const hasBlank = () => blankItems().length > 0;
     const tryAdvance = () => hasBlank() ? setModal(true) : advance();
+    const fillZerosAndAdvance = () => {
+        const blanks = blankItems();
+        setCounts(prev => {
+            const locCounts = Object.assign({}, prev[curLoc]);
+            blanks.forEach(i => { locCounts[i.product] = "0"; });
+            return Object.assign(Object.assign({}, prev), { [curLoc]: locCounts });
+        });
+        blanks.forEach(i => {
+            sbUpsert("counts", { week_label: "current", user_type: user, location: curLoc, product: i.product, count_value: 0 }, "week_label,user_type,location,product")
+                .catch(e => console.error("Zero-fill save:", e));
+        });
+        advance();
+    };
     const advance = () => { setCompleted(prev => [...prev, curLoc]); if (activeIdx < locs.length - 1)
         setActiveIdx(p => p + 1); setModal(false); };
     return (React.createElement("div", { style: { display: "flex", flexDirection: "column", height: "100vh", overflowY: "hidden", background: "#EFEFEF" } },
@@ -957,14 +971,15 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
         showDown && React.createElement("button", { className: "ScrollBtn ScrollDown no-print", onClick: scrollBot }, "\u2193"),
         modal && (React.createElement("div", { className: "Overlay" },
             React.createElement("div", { className: "Modal" },
-                React.createElement("div", { className: "Modal-title" }, "Incomplete Count"),
+                React.createElement("div", { className: "Modal-title" }, "Confirm Zero Counts"),
                 React.createElement("div", { className: "Modal-body" },
-                    "Some items in ",
+                    React.createElement("strong", null, blankItems().length),
+                    " item(s) in ",
                     React.createElement("strong", null, curLoc),
-                    " have not been entered. Continue anyway?"),
+                    " were left blank. Confirm they should be recorded as a count of zero?"),
                 React.createElement("div", { className: "Modal-actions" },
                     React.createElement("button", { className: "B B-outline", onClick: () => setModal(false) }, "No, Go Back"),
-                    React.createElement("button", { className: "B B-red", onClick: advance }, "Yes, Continue"))))),
+                    React.createElement("button", { className: "B B-red", onClick: fillZerosAndAdvance }, "Yes, Enter Zeros"))))),
         lockWarn && (React.createElement("div", { className: "Overlay" },
             React.createElement("div", { className: "Modal" },
                 React.createElement("div", { className: "Modal-title" }, "Location Locked"),
@@ -1289,8 +1304,19 @@ function ReceivedScreen({ onBack, setOrders }) {
         setReceived(prev => (Object.assign(Object.assign({}, prev), { [product]: val })));
         setOrders(prev => prev.map(r => r.product === product ? Object.assign(Object.assign({}, r), { received: val }) : r));
     };
-    const hasBlank = () => vendorProds.some(i => received[i.product] === "" || received[i.product] === undefined);
+    const blankItems = () => vendorProds.filter(i => sold_counts[i.product] === "" || sold_counts[i.product] === undefined);
+    const hasBlank = () => blankItems().length > 0;
     const tryAdvance = () => hasBlank() ? setModal(true) : advance();
+    const fillZerosAndAdvance = () => {
+        const blanks = blankItems();
+        setSoldCounts(prev => {
+            const next = Object.assign({}, prev);
+            blanks.forEach(i => { next[i.product] = "0"; });
+            return next;
+        });
+        setOrders(prev => prev.map(r => blanks.some(b => b.product === r.product) ? Object.assign(Object.assign({}, r), { received: "0" }) : r));
+        advance();
+    };
     const advance = () => { setCompletedVendors(prev => [...prev, curVendor]); if (activeVendorIdx < vendors.length - 1)
         setActiveVendorIdx(p => p + 1); setModal(false); };
     return (React.createElement("div", { style: { display: "flex", flexDirection: "column", height: "100vh", overflowY: "hidden", background: "#EFEFEF" } },
@@ -1354,14 +1380,15 @@ function ReceivedScreen({ onBack, setOrders }) {
         React.createElement(ReceivedPrintSheet, { vendors: vendors, master: master, received: received }),
         modal && (React.createElement("div", { className: "Overlay" },
             React.createElement("div", { className: "Modal" },
-                React.createElement("div", { className: "Modal-title" }, "Incomplete Entry"),
+                React.createElement("div", { className: "Modal-title" }, "Confirm Zero Counts"),
                 React.createElement("div", { className: "Modal-body" },
-                    "Some items for ",
+                    React.createElement("strong", null, blankItems().length),
+                    " item(s) for ",
                     React.createElement("strong", null, curVendor),
-                    " have not been entered. Continue anyway?"),
+                    " were left blank. Confirm they should be recorded as a count of zero?"),
                 React.createElement("div", { className: "Modal-actions" },
                     React.createElement("button", { className: "B B-outline", onClick: () => setModal(false) }, "No, Go Back"),
-                    React.createElement("button", { className: "B B-red", onClick: advance }, "Yes, Continue"))))),
+                    React.createElement("button", { className: "B B-red", onClick: fillZerosAndAdvance }, "Yes, Enter Zeros"))))),
         lockWarn && (React.createElement("div", { className: "Overlay" },
             React.createElement("div", { className: "Modal" },
                 React.createElement("div", { className: "Modal-title" }, "Vendor Locked"),
