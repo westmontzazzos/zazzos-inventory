@@ -805,19 +805,23 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
     const [printMode, setPrintMode] = useState("filled");
     const triggerPrint = (isBlank) => {
         setPrintMode(isBlank ? "blank" : "filled");
-        // Two problems to solve before calling print():
-        // 1. Wait for React to commit + paint the updated PrintSheet (blank/filled state).
-        // 2. For a large hidden-to-visible table (400+ rows), the browser needs real wall-clock
-        //    time to fully compute layout - two animation frames alone isn't enough. Without this,
-        //    the FIRST print catches an incompletely-laid-out page (content visually overlaps/gets
-        //    clipped) while a SECOND print immediately after works because the browser already
-        //    cached the layout from the first attempt. This settle delay closes that gap so the
-        //    first print is correct too.
-        requestAnimationFrame(() => {
+        // The real cause of inconsistent page counts (9/10/11/12 for identical content) was
+        // the "Inter" web font loading asynchronously - if print layout gets computed before
+        // it's ready, the browser falls back to a system font with different letter widths,
+        // reflowing the whole document differently each time. Wait for the browser's own
+        // font-loading-complete signal (not a guessed delay) before printing.
+        const doActualPrint = () => {
             requestAnimationFrame(() => {
-                setTimeout(() => { window.print(); }, 600);
+                requestAnimationFrame(() => {
+                    window.print();
+                });
             });
-        });
+        };
+        if (document.fonts && document.fonts.ready) {
+            document.fonts.ready.then(doActualPrint).catch(doActualPrint);
+        } else {
+            setTimeout(doActualPrint, 600);
+        }
     };
     const contentRef = useRef(null);
     const [showUp, setShowUp] = useState(false);
@@ -1264,11 +1268,18 @@ function ReceivedScreen({ onBack, setOrders }) {
     const [printMode, setPrintMode] = useState("filled");
     const triggerPrint = (isBlank) => {
         setPrintMode(isBlank ? "blank" : "filled");
-        requestAnimationFrame(() => {
+        const doActualPrint = () => {
             requestAnimationFrame(() => {
-                setTimeout(() => { window.print(); }, 600);
+                requestAnimationFrame(() => {
+                    window.print();
+                });
             });
-        });
+        };
+        if (document.fonts && document.fonts.ready) {
+            document.fonts.ready.then(doActualPrint).catch(doActualPrint);
+        } else {
+            setTimeout(doActualPrint, 600);
+        }
     };
     const contentRef = useRef(null);
     const [showUp, setShowUp] = useState(false);
@@ -2798,7 +2809,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v2.8")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v2.9")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
