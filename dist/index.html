@@ -783,24 +783,36 @@ function PrintSheet({ user, locs, sealed, open, blank }) {
 function roundCount(n) { return Math.round(n * 100) / 100; }
 function doPrint(user, locs, sealed, open, blank) {
     const master = getMaster();
-    let rows = '';
+    let sections = '';
     for (const loc of locs) {
         let products = master.filter(p => (p.locations||[]).includes(loc));
         if (user === 'erika') products = products.filter(p => p.sold_as === 'Partial');
         products.sort((a,b) => a.category.localeCompare(b.category) || a.product.localeCompare(b.product));
         if (!products.length) continue;
-        rows += `<tr><td colspan="3" style="background:#1A1A2E;color:#fff;font-weight:700;font-size:9pt;padding:3px 6px;text-transform:uppercase">${loc}</td></tr>`;
-        rows += `<tr><td style="background:#A50E1F;color:#fff;font-weight:700;font-size:8pt;padding:2px 6px">Product</td><td style="background:#A50E1F;color:#fff;font-weight:700;font-size:8pt;padding:2px 6px">Category</td><td style="background:#A50E1F;color:#fff;font-weight:700;font-size:8pt;padding:2px 6px;text-align:center">Count</td></tr>`;
+        let rows = '';
         products.forEach((p,i) => {
             const src = user==='erika' ? open : sealed;
             const val = !blank && src[loc] ? (src[loc][p.product]||'') : '';
             const bg = i%2===0?'#fff':'#F9F9F9';
             rows += `<tr style="background:${bg}"><td style="padding:2px 6px;border:1px solid #DDD;font-size:9pt;white-space:nowrap;overflow:hidden;height:18px">${p.product}</td><td style="padding:2px 6px;border:1px solid #DDD;font-size:9pt;color:#555;white-space:nowrap;overflow:hidden;height:18px">${p.category}</td><td style="padding:2px 6px;border:1px solid #DDD;font-size:9pt;text-align:center;height:18px">${val}</td></tr>`;
         });
+        // Each location gets its OWN separate table (not appended into one giant table).
+        // WebKit/Safari's print engine can silently truncate content in very long single tables;
+        // splitting into one table per section avoids that failure mode entirely.
+        sections += `<div style="break-inside:auto;page-break-inside:auto">
+            <table style="width:100%;border-collapse:collapse;table-layout:fixed;break-inside:auto;page-break-inside:auto">
+                <colgroup><col class="cp"><col class="cc"><col class="cn"></colgroup>
+                <thead>
+                    <tr><td colspan="3" style="background:#1A1A2E;color:#fff;font-weight:700;font-size:9pt;padding:3px 6px;text-transform:uppercase">${loc}</td></tr>
+                    <tr><td style="background:#A50E1F;color:#fff;font-weight:700;font-size:8pt;padding:2px 6px">Product</td><td style="background:#A50E1F;color:#fff;font-weight:700;font-size:8pt;padding:2px 6px">Category</td><td style="background:#A50E1F;color:#fff;font-weight:700;font-size:8pt;padding:2px 6px;text-align:center">Count</td></tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>`;
     }
     const title = user==='selena'?'SEALED STOCK':'OPEN / PARTIAL STOCK';
     const counter = user==='selena'?'Selena':'Erika';
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Zazzo's Inventory</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;font-size:9pt;padding:10px}table{width:100%;border-collapse:collapse;table-layout:fixed}col.cp{width:52%}col.cc{width:30%}col.cn{width:18%}@media print{@page{margin:0.5in}}</style></head><body><div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #1A1A2E;padding-bottom:4px;margin-bottom:6px"><div><div style="font-size:13pt;font-weight:700;color:#C8102E">ZAZZO'S LIQUOR INVENTORY</div><div style="font-size:8pt;font-weight:700;text-transform:uppercase;margin-top:2px">${title}</div></div><div style="font-size:8pt;color:#555;text-align:right;line-height:1.8">Date: _______________<br>Counter: ${counter}</div></div><table><colgroup><col class="cp"><col class="cc"><col class="cn"></colgroup><tbody>${rows}</tbody></table></body></html>`;
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Zazzo's Inventory</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;font-size:9pt;padding:10px}table{width:100%;border-collapse:collapse;table-layout:fixed}col.cp{width:52%}col.cc{width:30%}col.cn{width:18%}@media print{@page{margin:0.5in}}</style></head><body><div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #1A1A2E;padding-bottom:4px;margin-bottom:6px"><div><div style="font-size:13pt;font-weight:700;color:#C8102E">ZAZZO'S LIQUOR INVENTORY</div><div style="font-size:8pt;font-weight:700;text-transform:uppercase;margin-top:2px">${title}</div></div><div style="font-size:8pt;color:#555;text-align:right;line-height:1.8">Date: _______________<br>Counter: ${counter}</div></div>${sections}</body></html>`;
     const win = window.open('','_blank');
     if (win) { win.document.write(html); win.document.close(); win.focus(); setTimeout(()=>{ win.print(); },300); }
 }
@@ -2780,7 +2792,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v2.1")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v2.2")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
