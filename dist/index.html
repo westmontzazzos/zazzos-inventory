@@ -1201,7 +1201,7 @@ function OrderGuideScreen({ orders, setOrders, calcTotal, onBack, archives }) {
 }
 
 
-function ReceivedPrintSheet({ vendors, master, received }) {
+function ReceivedPrintSheet({ vendors, master, received, blank }) {
     const FONT = "'Inter',system-ui,sans-serif";
     return React.createElement("div", { style: { display: "none" }, className: "print-show print-sheet-wrapper" },
         React.createElement("div", { style: { fontFamily: FONT, fontSize: 9 } },
@@ -1210,7 +1210,7 @@ function ReceivedPrintSheet({ vendors, master, received }) {
                 if (!vProds.length) return null;
                 const rows = [];
                 vProds.forEach(function(item, ii) {
-                    var val = received[item.product] || "";
+                    var val = blank ? "" : (received[item.product] || "");
                     var bg = ii % 2 === 0 ? "#FFFFFF" : "#FFFFFF";
                     rows.push(React.createElement("tr", { key: item.product },
                         React.createElement("td", { style: { background: bg, padding: "2px 6px", border: "1px solid #DDDDDD", fontSize: 9 } }, item.product),
@@ -1244,6 +1244,15 @@ function ReceivedScreen({ onBack, setOrders }) {
     const [modal, setModal] = useState(false);
     const [lockWarn, setLockWarn] = useState(false);
     const [managerMode, setManagerMode] = useState(false);
+    const [printMode, setPrintMode] = useState("filled");
+    const triggerPrint = (isBlank) => {
+        setPrintMode(isBlank ? "blank" : "filled");
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                window.print();
+            });
+        });
+    };
     const contentRef = useRef(null);
     const [showUp, setShowUp] = useState(false);
     const [showDown, setShowDown] = useState(false);
@@ -1295,7 +1304,8 @@ function ReceivedScreen({ onBack, setOrders }) {
         React.createElement("header", { className: "H no-print" },
             React.createElement("div", { className: "H-logo", onClick: tap, style: { userSelect: "none" } }, "Zazzo's"),
             React.createElement("div", { className: "H-right" },
-                React.createElement("button", { className: "B B-ghost", onClick: () => window.print() }, "\uD83D\uDDA8 Print"),
+                React.createElement("button", { className: "B B-ghost", onClick: () => triggerPrint(true) }, "\uD83D\uDDA8 Blank"),
+                React.createElement("button", { className: "B B-ghost", onClick: () => triggerPrint(false) }, "\uD83D\uDDA8 Filled"),
                 React.createElement("button", { className: "B B-ghost", onClick: onBack }, "\u2190 Home"))),
         React.createElement("div", { className: "LocBar no-print" },
             managerMode && React.createElement("div", { className: "MgrBanner" }, "Manager Mode \u2014 Triple Tap Logo to Lock"),
@@ -1349,7 +1359,7 @@ function ReceivedScreen({ onBack, setOrders }) {
             React.createElement("button", { className: "Footer-btn Footer-btn-next", onClick: tryAdvance }, activeVendorIdx < vendors.length - 1 ? "Next →" : "Done ✓"))),
         showUp && React.createElement("button", { className: "ScrollBtn ScrollUp no-print", onClick: scrollTop }, "\u2191"),
         showDown && React.createElement("button", { className: "ScrollBtn ScrollDown no-print", onClick: scrollBot }, "\u2193"),
-        React.createElement(ReceivedPrintSheet, { vendors: vendors, master: master, received: received }),
+        React.createElement(ReceivedPrintSheet, { vendors: vendors, master: master, received: received, blank: printMode === "blank" }),
         modal && (React.createElement("div", { className: "Overlay" },
             React.createElement("div", { className: "Modal" },
                 React.createElement("div", { className: "Modal-title" }, "Confirm Zero Counts"),
@@ -2771,7 +2781,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v2.4")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v2.5")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
