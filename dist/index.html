@@ -744,30 +744,32 @@ function PrintSheet({ user, locs, sealed, open, blank }) {
     const master = getMaster();
     const counts = user === "selena" ? sealed : open;
     const FONT = "'Inter',system-ui,sans-serif";
-    const rows = [];
+    const sections = [];
     locs.forEach(function(loc) {
         const products = forLoc(master, loc, user).sort(function(a,b){
-            const classOrder = ["Beer & Seltzer", "Kegs", "Liquor", "Extras", "Wine"];
-            const ci = classOrder.indexOf(a.class) - classOrder.indexOf(b.class);
-            if (ci !== 0) return ci;
-            if (a.category !== b.category) return a.category.localeCompare(b.category);
-            return a.product.localeCompare(b.product);
+            return a.category.localeCompare(b.category) || a.product.localeCompare(b.product);
         });
         if (!products.length) return;
-        rows.push(React.createElement("tr", { key: "loc-" + loc },
-            React.createElement("td", { colSpan: 3, style: { background: "#1A1A2E", color: "#fff", fontWeight: "700", padding: "3px 6px", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.08em", borderBottom: "2px solid #000", borderTop: "2px solid #000" } }, loc)));
-        rows.push(React.createElement("tr", { key: "hdr-" + loc },
-            React.createElement("td", { style: { background: "#A50E1F", color: "#fff", fontWeight: "700", padding: "2px 6px", fontSize: 8, textTransform: "uppercase", letterSpacing: "0.06em", width: "50%", borderRight: "1px solid #8B0000" } }, "Product"),
-            React.createElement("td", { style: { background: "#A50E1F", color: "#fff", fontWeight: "700", padding: "2px 6px", fontSize: 8, textTransform: "uppercase", letterSpacing: "0.06em", width: "25%", borderRight: "1px solid #8B0000" } }, "Category"),
-            React.createElement("td", { style: { background: "#A50E1F", color: "#fff", fontWeight: "700", padding: "2px 6px", fontSize: 8, textTransform: "uppercase", letterSpacing: "0.06em", width: "25%" } }, "Count")));
-        products.forEach(function(item, ii) {
+        const rows = products.map(function(item, ii) {
             var val = (counts[loc] && counts[loc][item.product]) || "";
             var bg = ii % 2 === 0 ? "#FFFFFF" : "#FFFFFF";
-            rows.push(React.createElement("tr", { key: loc + item.product },
+            return React.createElement("tr", { key: loc + item.product },
                 React.createElement("td", { style: { background: bg, padding: "2px 6px", border: "1px solid #DDDDDD", fontSize: 9 } }, item.product),
                 React.createElement("td", { style: { background: bg, padding: "2px 6px", border: "1px solid #DDDDDD", fontSize: 9, color: "#555" } }, item.category),
-                React.createElement("td", { style: { background: bg, padding: "2px 6px", border: "1px solid #DDDDDD", fontSize: 9 } }, blank ? "" : val)));
+                React.createElement("td", { style: { background: bg, padding: "2px 6px", border: "1px solid #DDDDDD", fontSize: 9 } }, blank ? "" : val));
         });
+        // Each location gets its own separate table, matching the proven-working ReceivedPrintSheet
+        // pattern - avoids issues some print engines have pagination one giant continuous table.
+        sections.push(React.createElement("div", { key: "sec-" + loc, style: { marginBottom: 12, pageBreakInside: "avoid", breakInside: "avoid" } },
+            React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 9, tableLayout: "fixed" } },
+                React.createElement("thead", null,
+                    React.createElement("tr", null,
+                        React.createElement("td", { colSpan: 3, style: { background: "#1A1A2E", color: "#fff", fontWeight: "700", padding: "3px 6px", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.08em", borderBottom: "2px solid #000", borderTop: "2px solid #000" } }, loc)),
+                    React.createElement("tr", null,
+                        React.createElement("td", { style: { background: "#A50E1F", color: "#fff", fontWeight: "700", padding: "2px 6px", fontSize: 8, textTransform: "uppercase", letterSpacing: "0.06em", width: "50%", borderRight: "1px solid #8B0000" } }, "Product"),
+                        React.createElement("td", { style: { background: "#A50E1F", color: "#fff", fontWeight: "700", padding: "2px 6px", fontSize: 8, textTransform: "uppercase", letterSpacing: "0.06em", width: "25%", borderRight: "1px solid #8B0000" } }, "Category"),
+                        React.createElement("td", { style: { background: "#A50E1F", color: "#fff", fontWeight: "700", padding: "2px 6px", fontSize: 8, textTransform: "uppercase", letterSpacing: "0.06em", width: "25%" } }, "Count"))),
+                React.createElement("tbody", null, rows))));
     });
     return React.createElement("div", { style: { fontFamily: FONT, fontSize: 9 } },
         React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "2px solid #1A1A2E", paddingBottom: 3, marginBottom: 6 } },
@@ -777,67 +779,12 @@ function PrintSheet({ user, locs, sealed, open, blank }) {
             React.createElement("div", { style: { textAlign: "right", fontSize: 8, color: "#555", lineHeight: 1.6 } },
                 React.createElement("div", null, "Date: " + (blank ? "_________________" : new Date().toLocaleDateString())),
                 React.createElement("div", null, "Counter: " + (blank ? "_________________" : (user === "selena" ? "Selena" : "Erika"))))),
-        React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 9, tableLayout: "fixed" } },
-            React.createElement("tbody", null, rows)));
+        sections);
 }
 function roundCount(n) { return Math.round(n * 100) / 100; }
-function doPrint(user, locs, sealed, open, blank) {
-    const master = getMaster();
-    let sections = '';
-    for (const loc of locs) {
-        let products = master.filter(p => (p.locations||[]).includes(loc));
-        if (user === 'erika') products = products.filter(p => p.sold_as === 'Partial');
-        products.sort((a,b) => a.category.localeCompare(b.category) || a.product.localeCompare(b.product));
-        if (!products.length) continue;
-        let rows = '';
-        products.forEach((p,i) => {
-            const src = user==='erika' ? open : sealed;
-            const val = !blank && src[loc] ? (src[loc][p.product]||'') : '';
-            const bg = i%2===0?'#fff':'#F9F9F9';
-            rows += `<tr style="background:${bg}"><td style="padding:2px 6px;border:1px solid #DDD;font-size:9pt;white-space:nowrap;overflow:hidden;height:18px">${p.product}</td><td style="padding:2px 6px;border:1px solid #DDD;font-size:9pt;color:#555;white-space:nowrap;overflow:hidden;height:18px">${p.category}</td><td style="padding:2px 6px;border:1px solid #DDD;font-size:9pt;text-align:center;height:18px">${val}</td></tr>`;
-        });
-        // Each location gets its OWN separate table (not appended into one giant table).
-        // WebKit/Safari's print engine can silently truncate content in very long single tables;
-        // splitting into one table per section avoids that failure mode entirely.
-        sections += `<div style="break-inside:auto;page-break-inside:auto">
-            <table style="width:100%;border-collapse:collapse;table-layout:fixed;break-inside:auto;page-break-inside:auto">
-                <colgroup><col class="cp"><col class="cc"><col class="cn"></colgroup>
-                <thead>
-                    <tr><td colspan="3" style="background:#1A1A2E;color:#fff;font-weight:700;font-size:9pt;padding:3px 6px;text-transform:uppercase">${loc}</td></tr>
-                    <tr><td style="background:#A50E1F;color:#fff;font-weight:700;font-size:8pt;padding:2px 6px">Product</td><td style="background:#A50E1F;color:#fff;font-weight:700;font-size:8pt;padding:2px 6px">Category</td><td style="background:#A50E1F;color:#fff;font-weight:700;font-size:8pt;padding:2px 6px;text-align:center">Count</td></tr>
-                </thead>
-                <tbody>${rows}</tbody>
-            </table>
-        </div>`;
-    }
-    const title = user==='selena'?'SEALED STOCK':'OPEN / PARTIAL STOCK';
-    const counter = user==='selena'?'Selena':'Erika';
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Zazzo's Inventory</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;font-size:9pt;padding:10px}table{width:100%;border-collapse:collapse;table-layout:fixed}col.cp{width:52%}col.cc{width:30%}col.cn{width:18%}@media print{@page{margin:0.5in}}</style></head><body><div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #1A1A2E;padding-bottom:4px;margin-bottom:6px"><div><div style="font-size:13pt;font-weight:700;color:#C8102E">ZAZZO'S LIQUOR INVENTORY</div><div style="font-size:8pt;font-weight:700;text-transform:uppercase;margin-top:2px">${title}</div></div><div style="font-size:8pt;color:#555;text-align:right;line-height:1.8">Date: _______________<br>Counter: ${counter}</div></div>${sections}</body></html>`;
-    const win = window.open('','_blank');
-    if (win) {
-        win.document.write(html);
-        win.document.close();
-        win.focus();
-        // Don't just guess a fixed delay before printing - wait for the popup to actually
-        // finish loading/laying out its content first. On iOS Safari, a huge multi-table
-        // document (400+ rows) may not be fully laid out yet if print() fires too early,
-        // which silently truncates the print job partway through instead of erroring.
-        let printed = false;
-        const doPrintNow = () => {
-            if (printed) return;
-            printed = true;
-            // extra settle time after load, for layout/reflow of large tables to finish
-            setTimeout(() => { win.print(); }, 400);
-        };
-        if (win.document.readyState === 'complete') {
-            doPrintNow();
-        } else {
-            win.addEventListener('load', doPrintNow);
-        }
-        // safety net in case 'load' never fires for some reason
-        setTimeout(doPrintNow, 2500);
-    }
-}
+// doPrint (popup-window + document.write approach) was removed - it was unreliable on
+// mobile Safari (silently truncated large print jobs). Selena/Erika print now uses the
+// same hidden-PrintSheet + window.print() mechanism already proven to work for Received.
 function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
     const [activeIdx, setActiveIdx] = useState(0);
     const [completed, setCompleted] = useState([]);
@@ -845,6 +792,16 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
     const [lockWarn, setLockWarn] = useState(false);
     const [managerMode, setManagerMode] = useState(false);
     const [printMode, setPrintMode] = useState("filled");
+    const triggerPrint = (isBlank) => {
+        setPrintMode(isBlank ? "blank" : "filled");
+        // Wait for React to actually commit + paint the updated PrintSheet (correct blank/filled
+        // state) before invoking print - a fixed timeout guess is what caused the old bug.
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                window.print();
+            });
+        });
+    };
     const contentRef = useRef(null);
     const [showUp, setShowUp] = useState(false);
     const [showDown, setShowDown] = useState(false);
@@ -924,8 +881,8 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
         React.createElement("header", { className: "H no-print" },
             React.createElement("div", { className: "H-logo", onClick: tap, style: { userSelect: "none" } }, "Zazzo's"),
             React.createElement("div", { className: "H-right" },
-                React.createElement("button", { className: "B B-ghost", onClick: () => doPrint(user, locs, sealed, open, true) }, "\uD83D\uDDA8 Blank"),
-                React.createElement("button", { className: "B B-ghost", onClick: () => doPrint(user, locs, sealed, open, false) }, "\uD83D\uDDA8 Filled"),
+                React.createElement("button", { className: "B B-ghost", onClick: () => triggerPrint(true) }, "\uD83D\uDDA8 Blank"),
+                React.createElement("button", { className: "B B-ghost", onClick: () => triggerPrint(false) }, "\uD83D\uDDA8 Filled"),
                 React.createElement("button", { className: "B B-ghost", onClick: onBack }, "\u2190 Home"))),
         React.createElement("div", { className: "LocBar no-print" },
             managerMode && React.createElement("div", { className: "MgrBanner" }, "Manager Mode \u2014 Triple Tap Logo to Lock"),
@@ -947,8 +904,8 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
                     user === "selena" ? "Sealed Stock" : "Open Stock",
                     "."),
                 React.createElement("div", { className: "Complete-actions" },
-                    React.createElement("button", { className: "B B-outline B-lg", onClick: () => doPrint(user, locs, sealed, open, false) }, "\uD83D\uDDA8 Print Filled"),
-                    React.createElement("button", { className: "B B-outline B-lg", onClick: () => doPrint(user, locs, sealed, open, true) }, "\uD83D\uDDA8 Print Blank"),
+                    React.createElement("button", { className: "B B-outline B-lg", onClick: () => triggerPrint(false) }, "\uD83D\uDDA8 Print Filled"),
+                    React.createElement("button", { className: "B B-outline B-lg", onClick: () => triggerPrint(true) }, "\uD83D\uDDA8 Print Blank"),
                     React.createElement("button", { className: "B B-outline B-lg", onClick: () => { setActiveIdx(0); setCompleted([]); } }, "Start Over"),
                     React.createElement("button", { className: "B B-red B-lg", onClick: onBack }, "\u2190 Home")))) : (React.createElement(React.Fragment, null,
                 React.createElement("div", { className: "SHead", style: { marginBottom: 12 } },
@@ -2814,7 +2771,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v2.3")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v2.4")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
