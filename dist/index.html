@@ -814,7 +814,29 @@ function doPrint(user, locs, sealed, open, blank) {
     const counter = user==='selena'?'Selena':'Erika';
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Zazzo's Inventory</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;font-size:9pt;padding:10px}table{width:100%;border-collapse:collapse;table-layout:fixed}col.cp{width:52%}col.cc{width:30%}col.cn{width:18%}@media print{@page{margin:0.5in}}</style></head><body><div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #1A1A2E;padding-bottom:4px;margin-bottom:6px"><div><div style="font-size:13pt;font-weight:700;color:#C8102E">ZAZZO'S LIQUOR INVENTORY</div><div style="font-size:8pt;font-weight:700;text-transform:uppercase;margin-top:2px">${title}</div></div><div style="font-size:8pt;color:#555;text-align:right;line-height:1.8">Date: _______________<br>Counter: ${counter}</div></div>${sections}</body></html>`;
     const win = window.open('','_blank');
-    if (win) { win.document.write(html); win.document.close(); win.focus(); setTimeout(()=>{ win.print(); },300); }
+    if (win) {
+        win.document.write(html);
+        win.document.close();
+        win.focus();
+        // Don't just guess a fixed delay before printing - wait for the popup to actually
+        // finish loading/laying out its content first. On iOS Safari, a huge multi-table
+        // document (400+ rows) may not be fully laid out yet if print() fires too early,
+        // which silently truncates the print job partway through instead of erroring.
+        let printed = false;
+        const doPrintNow = () => {
+            if (printed) return;
+            printed = true;
+            // extra settle time after load, for layout/reflow of large tables to finish
+            setTimeout(() => { win.print(); }, 400);
+        };
+        if (win.document.readyState === 'complete') {
+            doPrintNow();
+        } else {
+            win.addEventListener('load', doPrintNow);
+        }
+        // safety net in case 'load' never fires for some reason
+        setTimeout(doPrintNow, 2500);
+    }
 }
 function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
     const [activeIdx, setActiveIdx] = useState(0);
@@ -2792,7 +2814,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v2.2")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v2.3")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
