@@ -763,8 +763,11 @@ function PrintSheet({ user, locs, sealed, open, blank }) {
                 React.createElement("td", { style: { background: bg, padding: "2px 6px", border: "1px solid #DDDDDD", fontSize: 9 } }, blank ? "" : val));
         });
         // Each location gets its own separate table, matching the proven-working ReceivedPrintSheet
-        // pattern - avoids issues some print engines have pagination one giant continuous table.
-        sections.push(React.createElement("div", { key: "sec-" + loc, style: { marginBottom: 12, pageBreakInside: "avoid", breakInside: "avoid" } },
+        // pattern. NOTE: no page-break-inside:avoid on this wrapper - some sections (e.g. Behind Bar,
+        // 143 rows) are far taller than one printed page, and forcing an oversized block to stay
+        // together in one unbreakable piece can cause print engines to silently drop content instead
+        // of erroring. Individual rows still won't split (see global .print-show tr rule).
+        sections.push(React.createElement("div", { key: "sec-" + loc, style: { marginBottom: 12 } },
             React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 9, tableLayout: "fixed" } },
                 React.createElement("thead", null,
                     React.createElement("tr", null,
@@ -1225,7 +1228,7 @@ function ReceivedPrintSheet({ vendors, master, received, blank }) {
                         React.createElement("td", { style: { background: bg, padding: "2px 6px", border: "1px solid #DDDDDD", fontSize: 9, color: "#555" } }, item.category),
                         React.createElement("td", { style: { background: bg, padding: "2px 6px", border: "1px solid #DDDDDD", fontSize: 9 } }, val)));
                 });
-                return React.createElement("div", { key: vendor, style: { marginBottom: 16, pageBreakInside: "avoid", breakInside: "avoid" } },
+                return React.createElement("div", { key: vendor, style: { marginBottom: 16 } },
                     React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "2px solid #1A1A2E", paddingBottom: 3, marginBottom: 6, pageBreakAfter: "avoid", breakAfter: "avoid" } },
                         React.createElement("div", null,
                             React.createElement("div", { style: { fontSize: 13, fontWeight: "700", color: "#C8102E", textTransform: "uppercase", letterSpacing: "0.05em" } }, "ZAZZO'S LIQUOR INVENTORY"),
@@ -2789,7 +2792,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v2.6")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v2.7")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
