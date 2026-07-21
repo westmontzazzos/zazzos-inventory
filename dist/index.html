@@ -73,7 +73,7 @@ function fmt(n) {
     return num % 1 === 0 ? String(Math.round(num)) : num.toFixed(2).replace(/\.?0+$/, '');
 }
 // ─── CONSTANTS ──────────────────────────────────────────────────────────────
-const CLASS_ORDER = ["Beer & Seltzer", "Kegs", "Liquor", "Extras", "Wine"];
+const CLASS_ORDER = ["Beer & Seltzer", "Extras", "Kegs", "Liquor", "Wine"];
 const SELENA_LOCS = ["Office", "Pepsi Cooler", "Display", "Closet", "Window/Party Room", "Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"];
 const ERIKA_LOCS = ["Behind Bar", "Keg Cooler"];
 const ALL_LOCS = ["Office", "Pepsi Cooler", "Display", "Closet", "Window/Party Room", "Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"];
@@ -254,13 +254,8 @@ const INITIAL_MASTER = [
 ];// ─── HELPERS ────────────────────────────────────────────────────────────────
 function getMaster() { return window.__MASTER__ || INITIAL_MASTER; }
 function classSort(cls, cat) {
-    if (cls === "Beer & Seltzer" && cat === "Beer") return 0;
-    if (cls === "Kegs") return 1;
-    if (cls === "Beer & Seltzer" && cat === "Seltzer") return 2;
-    if (cls === "Liquor") return 3;
-    if (cls === "Extras") return 4;
-    if (cls === "Wine") return 5;
-    return 99;
+    const idx = CLASS_ORDER.indexOf(cls);
+    return idx < 0 ? 99 : idx;
 }
 function sorted(arr) {
     return [...arr].sort((a, b) => {
@@ -786,30 +781,13 @@ function PrintSheet({ user, locs, sealed, open, blank }) {
             React.createElement("tbody", null, rows)));
 }
 function roundCount(n) { return Math.round(n * 100) / 100; }
-function doPrintClassOrder(cls, cat) {
-    if (cls === "Beer & Seltzer" && cat === "Beer") return 0;
-    if (cls === "Kegs") return 1;
-    if (cls === "Beer & Seltzer" && cat === "Seltzer") return 2;
-    if (cls === "Liquor") return 3;
-    if (cls === "Extras") return 4;
-    if (cls === "Wine") return 5;
-    return 99;
-}
-function doPrintSortKey(p) {
-    return [doPrintClassOrder(p.class, p.category), (p.category||'').toLowerCase(), (p.product||'').toLowerCase()];
-}
 function doPrint(user, locs, sealed, open, blank) {
     const master = getMaster();
-    const CLASS_ORDER_P = ["Beer & Seltzer", "Kegs", "Liquor", "Extras", "Wine"];
-    function sortKey(p) {
-        const ci = CLASS_ORDER_P.indexOf(p.class);
-        return [ci < 0 ? 99 : ci, p.category||'', p.product||''];
-    }
     let rows = '';
     for (const loc of locs) {
         let products = master.filter(p => (p.locations||[]).includes(loc));
         if (user === 'erika') products = products.filter(p => p.sold_as === 'Partial');
-        products.sort((a,b) => { const ak=doPrintSortKey(a),bk=doPrintSortKey(b); for(let i=0;i<ak.length;i++){if(ak[i]<bk[i])return -1;if(ak[i]>bk[i])return 1;} return 0; });
+        products.sort((a,b) => a.category.localeCompare(b.category) || a.product.localeCompare(b.product));
         if (!products.length) continue;
         rows += `<tr><td colspan="3" style="background:#1A1A2E;color:#fff;font-weight:700;font-size:9pt;padding:3px 6px;text-transform:uppercase">${loc}</td></tr>`;
         rows += `<tr><td style="background:#A50E1F;color:#fff;font-weight:700;font-size:8pt;padding:2px 6px">Product</td><td style="background:#A50E1F;color:#fff;font-weight:700;font-size:8pt;padding:2px 6px">Category</td><td style="background:#A50E1F;color:#fff;font-weight:700;font-size:8pt;padding:2px 6px;text-align:center">Count</td></tr>`;
@@ -1570,8 +1548,7 @@ function DepletionScreen({ archives, onBack }) {
                             rows.forEach((o, i) => {
                                 const pm = prodMap[o.product] || {};
                                 const cls = pm.class || ""; const cat = pm.category || "";
-                                const ci = classSort(cls, cat);
-                                const section = ci===0?"BEER":ci===1?"KEGS":ci===2?"SELTZER":cls.toUpperCase()||"OTHER";
+                                const section = cls.toUpperCase() || "OTHER";
                                 if (section !== prevSection) {
                                     out.push(React.createElement("tr", { key: "s-"+section }, React.createElement("td", { colSpan: 4, style: { background: "#1A1A2E", color: "#fff", fontWeight: 700, padding: "6px 10px", fontSize: 11, letterSpacing: 1 } }, section)));
                                     prevSection = section; prevCat = null;
@@ -2287,7 +2264,7 @@ function MasterEditor({ master, onSave, onClose }) {
     const [changes, setChanges] = useState([]);
     const [confirm, setConfirm] = useState(false);
     const [newProd, setNewProd] = useState(false);
-    const [draft, setDraft] = useState({ product: "", category: "", class: "Beer & Seltzer", vendor: "TBD", locations: [] });
+    const [draft, setDraft] = useState({ product: "", category: "", class: "Beer & Seltzer", vendor: "Name Needed", locations: [] });
     const [activeVendor, setActiveVendor] = useState(VENDOR_ORDER[0]);
     const vendorItems = [...items.filter(i => i.vendor === activeVendor)].sort((a,b) => {
         const ci = classSort(a.class, a.category) - classSort(b.class, b.category);
@@ -2317,7 +2294,7 @@ function MasterEditor({ master, onSave, onClose }) {
             return;
         setItems(prev => [...prev, Object.assign({}, draft)]);
         setChanges(prev => [...prev, { key: `add|${draft.product}`, desc: `${draft.product} — ADDED (${draft.category}, ${draft.class}, ${draft.vendor})` }]);
-        setDraft({ product: "", category: "", class: "Beer & Seltzer", vendor: "TBD", locations: [] });
+        setDraft({ product: "", category: "", class: "Beer & Seltzer", vendor: "Name Needed", locations: [] });
         setNewProd(false);
     };
     const handleSave = () => { if (changes.length === 0) {
@@ -2747,6 +2724,23 @@ function App() {
             return next;
         });
     };
+    // Passive corner-tap detection: watches click coordinates without blocking the click,
+    // so real UI (Home/Print/Next buttons etc.) underneath always still receives the click normally.
+    useEffect(() => {
+        const Z = 60;
+        const onGlobalClick = (e) => {
+            const x = e.clientX, y = e.clientY;
+            const w = window.innerWidth, h = window.innerHeight;
+            let corner = null;
+            if (x <= Z && y <= Z) corner = "TL";
+            else if (x >= w - Z && y <= Z) corner = "TR";
+            else if (x <= Z && y >= h - Z) corner = "BL";
+            else if (x >= w - Z && y >= h - Z) corner = "BR";
+            if (corner) handleCornerTap(corner);
+        };
+        window.addEventListener("click", onGlobalClick);
+        return () => window.removeEventListener("click", onGlobalClick);
+    }, [handleCornerTap]);
     const submitMasterPin = (pin) => {
         if (pin === CORRECT_PIN) {
             setShowMaster(true);
@@ -2786,7 +2780,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v1.5")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v2.0")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
@@ -2829,7 +2823,6 @@ function App() {
         screen === "counthistory" && React.createElement(CountHistoryScreen, { archives: archives, master: master, onBack: goHome }),
 
         showMaster && (React.createElement(MasterEditor, { master: master, onSave: (updated) => { setMaster(updated); setOrders(mkOrders(updated)); }, onClose: () => setShowMaster(false) })),
-        React.createElement("div", { style: { position: "fixed", inset: 0, pointerEvents: "none", zIndex: 900 } }, [["TL", { top: 0, left: 0 }], ["TR", { top: 0, right: 0 }], ["BL", { bottom: 0, left: 0 }], ["BR", { bottom: 0, right: 0 }]].map(([id, pos]) => (React.createElement("div", { key: id, style: Object.assign(Object.assign({ position: "absolute" }, pos), { width: 60, height: 60, pointerEvents: "auto", cursor: "default" }), onClick: () => handleCornerTap(id) })))),
         React.createElement(MasterGuardModal, { show: showMasterPin, input: masterPinInput, error: masterPinError, onKey: masterPressKey, onCancel: masterCancel })));
 }
 const root = ReactDOM.createRoot(document.getElementById('root'));
