@@ -745,11 +745,15 @@ function PrintSheet({ user, locs, sealed, open, blank }) {
     const counts = user === "selena" ? sealed : open;
     const FONT = "'Inter',system-ui,sans-serif";
     const sections = [];
+    let totalRows = 0;
+    let locsWithData = 0;
     locs.forEach(function(loc) {
         const products = forLoc(master, loc, user).sort(function(a,b){
             return a.category.localeCompare(b.category) || a.product.localeCompare(b.product);
         });
         if (!products.length) return;
+        locsWithData++;
+        totalRows += products.length;
         const rows = products.map(function(item, ii) {
             var val = (counts[loc] && counts[loc][item.product]) || "";
             var bg = ii % 2 === 0 ? "#FFFFFF" : "#FFFFFF";
@@ -771,6 +775,10 @@ function PrintSheet({ user, locs, sealed, open, blank }) {
                         React.createElement("td", { style: { background: "#A50E1F", color: "#fff", fontWeight: "700", padding: "2px 6px", fontSize: 8, textTransform: "uppercase", letterSpacing: "0.06em", width: "25%" } }, "Count"))),
                 React.createElement("tbody", null, rows))));
     });
+    // Diagnostic end-of-document marker - tells us definitively whether all content
+    // actually generated, regardless of what happens during physical print pagination.
+    sections.push(React.createElement("div", { key: "end-marker", style: { marginTop: 20, padding: "10px", background: "#000", color: "#0f0", fontFamily: "monospace", fontSize: 12, fontWeight: "bold", textAlign: "center", pageBreakInside: "avoid", breakInside: "avoid" } },
+        `=== END OF PRINTOUT — ${locsWithData} LOCATIONS, ${totalRows} TOTAL ROWS ===`));
     return React.createElement("div", { style: { fontFamily: FONT, fontSize: 9 } },
         React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "2px solid #1A1A2E", paddingBottom: 3, marginBottom: 6 } },
             React.createElement("div", null,
@@ -2781,7 +2789,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v2.5")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v2.6")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
