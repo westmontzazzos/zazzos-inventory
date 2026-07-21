@@ -767,7 +767,7 @@ function PrintSheet({ user, locs, sealed, open, blank }) {
         // 143 rows) are far taller than one printed page, and forcing an oversized block to stay
         // together in one unbreakable piece can cause print engines to silently drop content instead
         // of erroring. Individual rows still won't split (see global .print-show tr rule).
-        sections.push(React.createElement("div", { key: "sec-" + loc, style: { marginBottom: 12 } },
+        sections.push(React.createElement("div", { key: "sec-" + loc, style: { marginBottom: 12, pageBreakInside: "avoid", breakInside: "avoid" } },
             React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 9, tableLayout: "fixed" } },
                 React.createElement("thead", null,
                     React.createElement("tr", null,
@@ -805,11 +805,17 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
     const [printMode, setPrintMode] = useState("filled");
     const triggerPrint = (isBlank) => {
         setPrintMode(isBlank ? "blank" : "filled");
-        // Wait for React to actually commit + paint the updated PrintSheet (correct blank/filled
-        // state) before invoking print - a fixed timeout guess is what caused the old bug.
+        // Two problems to solve before calling print():
+        // 1. Wait for React to commit + paint the updated PrintSheet (blank/filled state).
+        // 2. For a large hidden-to-visible table (400+ rows), the browser needs real wall-clock
+        //    time to fully compute layout - two animation frames alone isn't enough. Without this,
+        //    the FIRST print catches an incompletely-laid-out page (content visually overlaps/gets
+        //    clipped) while a SECOND print immediately after works because the browser already
+        //    cached the layout from the first attempt. This settle delay closes that gap so the
+        //    first print is correct too.
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
-                window.print();
+                setTimeout(() => { window.print(); }, 600);
             });
         });
     };
@@ -1228,7 +1234,7 @@ function ReceivedPrintSheet({ vendors, master, received, blank }) {
                         React.createElement("td", { style: { background: bg, padding: "2px 6px", border: "1px solid #DDDDDD", fontSize: 9, color: "#555" } }, item.category),
                         React.createElement("td", { style: { background: bg, padding: "2px 6px", border: "1px solid #DDDDDD", fontSize: 9 } }, val)));
                 });
-                return React.createElement("div", { key: vendor, style: { marginBottom: 16 } },
+                return React.createElement("div", { key: vendor, style: { marginBottom: 16, pageBreakInside: "avoid", breakInside: "avoid" } },
                     React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "2px solid #1A1A2E", paddingBottom: 3, marginBottom: 6, pageBreakAfter: "avoid", breakAfter: "avoid" } },
                         React.createElement("div", null,
                             React.createElement("div", { style: { fontSize: 13, fontWeight: "700", color: "#C8102E", textTransform: "uppercase", letterSpacing: "0.05em" } }, "ZAZZO'S LIQUOR INVENTORY"),
@@ -1260,7 +1266,7 @@ function ReceivedScreen({ onBack, setOrders }) {
         setPrintMode(isBlank ? "blank" : "filled");
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
-                window.print();
+                setTimeout(() => { window.print(); }, 600);
             });
         });
     };
@@ -2792,7 +2798,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v2.7")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v2.8")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
