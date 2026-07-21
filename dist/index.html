@@ -77,7 +77,7 @@ const CLASS_ORDER = ["Beer & Seltzer", "Kegs", "Liquor", "Extras", "Wine"];
 const SELENA_LOCS = ["Office", "Pepsi Cooler", "Display", "Closet", "Window/Party Room", "Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"];
 const ERIKA_LOCS = ["Behind Bar", "Keg Cooler"];
 const ALL_LOCS = ["Office", "Pepsi Cooler", "Display", "Closet", "Window/Party Room", "Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"];
-const VENDOR_ORDER = ["Breakthrough", "Cello", "Euclid", "Name Needed", "Sch", "Southern", "Superior", "Windy City"];
+const VENDOR_ORDER = ["Breakthru", "Euclid", "Schamberger", "Southern", "Superior", "Unknown", "Windy City"];
 const CORRECT_PIN = "2026";
 // ─── MASTER PRODUCT LIST ────────────────────────────────────────────────────
 
@@ -2786,7 +2786,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v1.4")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v1.5")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
