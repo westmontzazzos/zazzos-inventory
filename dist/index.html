@@ -1234,7 +1234,7 @@ function OrderGuideScreen({ orders, setOrders, calcTotal, onBack, archives }) {
 
 function ReceivedPrintSheet({ vendors, master, received }) {
     const FONT = "'Inter',system-ui,sans-serif";
-    return React.createElement("div", { style: { display: "none" }, className: "print-show" },
+    return React.createElement("div", { style: { display: "none" }, className: "print-show print-sheet-wrapper" },
         React.createElement("div", { style: { fontFamily: FONT, fontSize: 9 } },
             vendors.map(function(vendor, vi) {
                 const vProds = [...master.filter(function(i){ return i.vendor === vendor; })].sort(function(a,b){ return a.category.localeCompare(b.category) || a.product.localeCompare(b.product); });
@@ -1248,8 +1248,8 @@ function ReceivedPrintSheet({ vendors, master, received }) {
                         React.createElement("td", { style: { background: bg, padding: "2px 6px", border: "1px solid #DDDDDD", fontSize: 9, color: "#555" } }, item.category),
                         React.createElement("td", { style: { background: bg, padding: "2px 6px", border: "1px solid #DDDDDD", fontSize: 9 } }, val)));
                 });
-                return React.createElement("div", { key: vendor, style: { marginBottom: 16 } },
-                    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "2px solid #1A1A2E", paddingBottom: 3, marginBottom: 6 } },
+                return React.createElement("div", { key: vendor, style: { marginBottom: 16, pageBreakInside: "avoid", breakInside: "avoid" } },
+                    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "2px solid #1A1A2E", paddingBottom: 3, marginBottom: 6, pageBreakAfter: "avoid", breakAfter: "avoid" } },
                         React.createElement("div", null,
                             React.createElement("div", { style: { fontSize: 13, fontWeight: "700", color: "#C8102E", textTransform: "uppercase", letterSpacing: "0.05em" } }, "ZAZZO'S LIQUOR INVENTORY"),
                             React.createElement("div", { style: { fontSize: 8, fontWeight: "700", textTransform: "uppercase", color: "#333", marginTop: 1, letterSpacing: "0.06em" } }, "RECEIVED ITEMS — " + vendor.toUpperCase())),
@@ -1398,7 +1398,8 @@ function ReceivedScreen({ onBack, setOrders }) {
                 React.createElement("div", { className: "Modal-body" }, "Please finalize current vendor entries before moving on."),
                 React.createElement("div", { className: "Modal-actions" },
                     React.createElement("button", { className: "B B-red", onClick: () => setLockWarn(false) }, "OK"))))),
-        PinModal));
+        PinModal,
+        React.createElement("style", null, `@media print{.print-show{display:block!important;}.no-print{display:none!important;}}`)));
 }
 // ─── ARCHIVE SCREEN ───────────────────────────────────────────────────────────
 function TrendScreen({ archives, calcTotal, onBack }) {
@@ -2277,7 +2278,8 @@ function SoldScreen({ onBack, setOrders }) {
                 React.createElement("div", { className: "Modal-body" }, "Please finalize current vendor entries before moving on."),
                 React.createElement("div", { className: "Modal-actions" },
                     React.createElement("button", { className: "B B-red", onClick: () => setLockWarn(false) }, "OK"))))),
-        PinModal));
+        PinModal,
+        React.createElement("style", null, `@media print{.print-show{display:block!important;}.no-print{display:none!important;}}`)));
 }
 
 function MasterEditor({ master, onSave, onClose }) {
