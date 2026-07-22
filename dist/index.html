@@ -1529,9 +1529,11 @@ function TrendScreen({ archives, calcTotal, onBack }) {
 // ─── DEPLETION ANALYSIS SCREEN ───────────────────────────────────────────────
 function DepletionScreen({ archives, onBack }) {
     const { useState: _useState } = React;
-    const latestArchive = archives && archives.length > 0 ? archives[0] : null;
-    const orders = latestArchive ? latestArchive.orders || [] : [];
-    const posSales = latestArchive ? latestArchive.pos_sales || {} : {};
+    const sortedArchives = [...(archives || [])].sort((a, b) => new Date(b.date || b.archive_date) - new Date(a.date || a.archive_date));
+    const [selectedLabel, setSelectedLabel] = useState(sortedArchives.length ? sortedArchives[0].label : null);
+    const selectedArchive = sortedArchives.find(a => a.label === selectedLabel) || sortedArchives[0] || null;
+    const orders = selectedArchive ? selectedArchive.orders || [] : [];
+    const posSales = selectedArchive ? selectedArchive.pos_sales || {} : {};
     const master = getMaster();
     const prodMap = {};
     master.forEach(p => { prodMap[p.product] = p; });
@@ -1559,8 +1561,19 @@ function DepletionScreen({ archives, onBack }) {
             React.createElement("div", { className: "H-right" },
                 React.createElement("button", { className: "B B-ghost", onClick: () => window.print() }, "🖨 Print"),
                 React.createElement("button", { className: "B B-ghost", onClick: onBack }, "← Home"))),
-        React.createElement("div", { style: { flex: 1, overflowY: "auto", fontFamily: "'Inter',system-ui,sans-serif", paddingTop: 60 } },
-            latestArchive && React.createElement("div", { style: { padding: "8px 16px", fontSize: 12, color: "#666" } }, latestArchive.week_label || ""),
+        React.createElement("div", { className: "no-print", style: { padding: "10px 16px", background: "#fff", borderBottom: "1px solid #ddd", marginTop: 60, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" } },
+            React.createElement("span", { style: { fontSize: 12, color: "#666", fontWeight: 600, marginRight: 4 } }, "Week:"),
+            sortedArchives.length === 0
+                ? React.createElement("span", { style: { fontSize: 12, color: "#999" } }, "No archived weeks yet")
+                : sortedArchives.map((a, i) => React.createElement("button", {
+                    key: a.label + "-" + i,
+                    className: "B " + (a.label === selectedLabel ? "B-primary" : "B-outline"),
+                    style: { fontSize: 11, padding: "6px 10px", height: "auto" },
+                    onClick: () => setSelectedLabel(a.label)
+                }, a.label || a.date))),
+        React.createElement("div", { style: { flex: 1, overflowY: "auto", fontFamily: "'Inter',system-ui,sans-serif" } },
+            selectedArchive && React.createElement("div", { style: { padding: "8px 16px", fontSize: 12, color: "#666" } },
+                (selectedArchive.label || "") + "  ·  archive date: " + (selectedArchive.date || "")),
             React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 12 } },
                 React.createElement("thead", null,
                     React.createElement("tr", { style: { background: "#1A1A2E", color: "#fff" } },
@@ -1570,7 +1583,7 @@ function DepletionScreen({ archives, onBack }) {
                         React.createElement("th", { style: { padding: "8px 6px", textAlign: "center" } }, "Variance"))),
                 React.createElement("tbody", null,
                     rows.length === 0
-                        ? React.createElement("tr", null, React.createElement("td", { colSpan: 4, style: { padding: 24, textAlign: "center", color: "#999" } }, "No data yet. Run Start New Week to archive counts."))
+                        ? React.createElement("tr", null, React.createElement("td", { colSpan: 4, style: { padding: 24, textAlign: "center", color: "#999" } }, "No data for this week."))
                         : (() => {
                             const out = [];
                             let prevSection = null; let prevCat = null;
@@ -1588,7 +1601,9 @@ function DepletionScreen({ archives, onBack }) {
                                 }
                                 const lw = parseFloat(o.lastWeek) || 0;
                                 const recv = parseFloat(o.received) || 0;
-                                const dep = lw > 0 ? Math.round((lw + recv) * 100) / 100 : null;
+                                const tot = parseFloat(o.total) || 0;
+                                // Depletion = Last Week + Received - Current Count (locked business rule)
+                                const dep = lw > 0 ? Math.round((lw + recv - tot) * 100) / 100 : null;
                                 const pos = posSales[o.product] !== undefined ? parseFloat(posSales[o.product]) : null;
                                 const vari = dep !== null && pos !== null ? Math.round((dep - pos) * 100) / 100 : null;
                                 const varColor = vari === null ? "#999" : vari > 0 ? "#C8102E" : vari < 0 ? "#C8102E" : "#2a7";
@@ -1990,7 +2005,19 @@ function SalesUploadScreen({ onBack, onSaved }) {
     const [error, setError] = useState(null);
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
+    const [archiveList, setArchiveList] = useState([]);
+    const [targetArchiveId, setTargetArchiveId] = useState("");
     const fileInputRef = React.useRef(null);
+
+    useEffect(() => {
+        (async () => {
+            try {
+                const rows = await sbGet("archives", "select=id,week_label,archive_date,created_at&order=created_at.desc&limit=10");
+                setArchiveList(rows || []);
+                if (rows && rows.length) setTargetArchiveId(rows[0].id);
+            } catch (e) { /* leave list empty, user will see no options */ }
+        })();
+    }, []);
 
     const handleFiles = async (e) => {
         const fileList = Array.from(e.target.files);
@@ -2802,7 +2829,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v3.3")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v3.4")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
