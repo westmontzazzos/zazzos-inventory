@@ -2024,31 +2024,19 @@ const REPORT_LABELS = {
     vodkade: "Vodkade Modifier", vodkade_sf_bucket: "Vodkade SF Bucket", specialty: "Specialty Drinks"
 };
 
-function SalesUploadScreen({ onBack, onSaved }) {
+function SalesUploadScreen({ onBack, onSaved, orders, setOrders }) {
     const [detected, setDetected] = useState({});
     const [parsing, setParsing] = useState(false);
     const [results, setResults] = useState(null);
     const [error, setError] = useState(null);
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
-    const [archiveList, setArchiveList] = useState([]);
-    const [targetArchiveId, setTargetArchiveId] = useState("");
     const fileInputRef = React.useRef(null);
-
-    useEffect(() => {
-        (async () => {
-            try {
-                const rows = await sbGet("archives", "select=id,week_label,archive_date,created_at&order=created_at.desc&limit=20");
-                // Sort by the archive's real calendar date, not by when its DB row was created/touched.
-                // Using created_at here mis-targets sales onto whichever archive was most recently
-                // written to Supabase (e.g. a rebuilt/corrected old week), instead of the actual
-                // most recent week.
-                const byRealDate = [...(rows || [])].sort((a, b) => new Date(b.archive_date) - new Date(a.archive_date));
-                setArchiveList(byRealDate);
-                if (byRealDate.length) setTargetArchiveId(byRealDate[0].id);
-            } catch (e) { /* leave list empty, user will see no options */ }
-        })();
-    }, []);
+    // Sales no longer patch onto an existing archive after the fact. Parsed Speedline
+    // sales now write into the CURRENT week's orders.sold field, the same way Received
+    // already works. Close Week then picks up sold/received/counts together and
+    // calculates Depletion + Variance in one step at close time. This removes the need
+    // to guess "which archive is this week" entirely.
 
     const handleFiles = async (e) => {
         const fileList = Array.from(e.target.files);
@@ -2179,25 +2167,30 @@ function SalesUploadScreen({ onBack, onSaved }) {
                     onClick: async () => {
                         setSaving(true);
                         try {
-                            let archiveId = "ab96eb5b-6159-4e5a-804c-3d70d35d96f3"; // fallback to known ID
-                            try {
-                                const archiveRows = await sbGet("archives", "select=id&order=created_at.desc&limit=1");
-                                if (archiveRows.length) archiveId = archiveRows[0].id;
-                            } catch(e) { /* use fallback ID */ }
+                            // Parsed sales write into the CURRENT week, same as Received does.
+                            // No archive lookup, no "which week is this" guessing — the numbers
+                            // just sit on the current week's orders until Close Week archives them.
                             const posSales = Object.assign({}, results.bottles, results.kegs, results.units);
-                            await sbPatch("archives", "id=eq." + archiveId, { pos_sales: posSales });
+                            setOrders(prev => prev.map(r => posSales.hasOwnProperty(r.product)
+                                ? Object.assign(Object.assign({}, r), { sold: String(posSales[r.product]) })
+                                : r));
+                            await Promise.all(Object.entries(posSales).map(([product, qty]) =>
+                                sbUpsert("orders", { product, sold: Number(qty) }, "product")));
                             setSaved(true);
                             if (onSaved) onSaved();
                         } catch(e) { setError("Save failed: " + e.message); }
                         setSaving(false);
                     }
-                }, saving ? "Saving..." : saved ? "✓ Saved" : "Save to This Week\'s Archive"),
+                }, saving ? "Saving..." : saved ? "✓ Saved" : "Save to Current Week"),
                 saved && React.createElement("button", { className: "B B-ghost", style: { width: "100%", marginTop: 8 },
                     onClick: async () => {
                         try {
-                            const archives = await sbGet("archives", "select=id&order=created_at.desc&limit=1");
-                            if (!archives.length) return;
-                            await sbPatch("archives", "id=eq." + archives[0].id, { pos_sales: null });
+                            const posSales = Object.assign({}, results.bottles, results.kegs, results.units);
+                            setOrders(prev => prev.map(r => posSales.hasOwnProperty(r.product)
+                                ? Object.assign(Object.assign({}, r), { sold: "" })
+                                : r));
+                            await Promise.all(Object.keys(posSales).map(product =>
+                                sbUpsert("orders", { product, sold: null }, "product")));
                             setSaved(false); setResults(null); setDetected({});
                             if (fileInputRef.current) fileInputRef.current.value = "";
                         } catch(e) { setError("Clear failed: " + e.message); }
@@ -2206,139 +2199,6 @@ function SalesUploadScreen({ onBack, onSaved }) {
 }
 
 // ─── MASTER EDITOR ────────────────────────────────────────────────────────────
-function SoldScreen({ onBack, setOrders }) {
-    const master = getMaster();
-    const vendors = VENDOR_ORDER.filter(v => master.some(i => i.vendor === v));
-    const [activeVendorIdx, setActiveVendorIdx] = useState(0);
-    const [completedVendors, setCompletedVendors] = useState([]);
-    const [sold_counts, setSoldCounts] = useState(() => { const r = {}; master.forEach(i => { r[i.product] = ""; }); return r; });
-    const [modal, setModal] = useState(false);
-    const [lockWarn, setLockWarn] = useState(false);
-    const [managerMode, setManagerMode] = useState(false);
-    const contentRef = useRef(null);
-    const [showUp, setShowUp] = useState(false);
-    const [showDown, setShowDown] = useState(false);
-    const { tap, Modal: PinModal } = usePIN(() => setManagerMode(true));
-    const curVendor = vendors[activeVendorIdx];
-    const vendorProds = sorted(master.filter(i => i.vendor === curVendor));
-    const allDone = new Set(completedVendors).size >= vendors.length && vendors.length > 0;
-    const filled = vendorProds.filter(p => sold_counts[p.product] !== "" && sold_counts[p.product] !== undefined).length;
-    const groups = groupCC(vendorProds);
-    const cols = Math.min(vendors.length, 3);
-    const handleScroll = () => {
-        const el = contentRef.current;
-        if (!el)
-            return;
-        setShowUp(el.scrollTop > 100);
-        setShowDown(el.scrollHeight - el.clientHeight - el.scrollTop > 100);
-    };
-    const scrollTop = () => { if (contentRef.current)
-        contentRef.current.scrollTo({ top: 0, behavior: "smooth" }); };
-    const scrollBot = () => { if (contentRef.current)
-        contentRef.current.scrollTo({ top: contentRef.current.scrollHeight, behavior: "smooth" }); };
-    const step = (product, delta) => {
-        const cur = Number(received[product] || 0);
-        const next = Math.max(0, cur + delta);
-        const val = String(next);
-        setSoldCounts(prev => (Object.assign(Object.assign({}, prev), { [product]: val })));
-        setOrders(prev => prev.map(r => r.product === product ? Object.assign(Object.assign({}, r), { received: val }) : r));
-    };
-    const updateSold = (product, val) => {
-        setSoldCounts(prev => (Object.assign(Object.assign({}, prev), { [product]: val })));
-        setOrders(prev => prev.map(r => r.product === product ? Object.assign(Object.assign({}, r), { received: val }) : r));
-    };
-    const hasBlank = () => vendorProds.some(i => received[i.product] === "" || received[i.product] === undefined);
-    const tryAdvance = () => hasBlank() ? setModal(true) : advance();
-    const advance = () => { setCompletedVendors(prev => prev.includes(curVendor) ? prev : [...prev, curVendor]); if (activeVendorIdx < vendors.length - 1)
-        setActiveVendorIdx(p => p + 1); setModal(false); };
-    return (React.createElement("div", { style: { display: "flex", flexDirection: "column", height: "100vh", overflowY: "hidden", background: "#EFEFEF" } },
-        React.createElement("header", { className: "H no-print" },
-            React.createElement("div", { className: "H-logo", onClick: tap, style: { userSelect: "none" } }, "Zazzo's"),
-            React.createElement("div", { className: "H-right" },
-                React.createElement("button", { className: "B B-ghost", onClick: () => window.print() }, "\uD83D\uDDA8 Print"),
-                React.createElement("button", { className: "B B-ghost", onClick: onBack }, "\u2190 Home"))),
-        React.createElement("div", { className: "LocBar no-print" },
-            managerMode && React.createElement("div", { className: "MgrBanner" }, "Manager Mode \u2014 Triple Tap Logo to Lock"),
-            React.createElement("div", { className: "LocBar-grid", style: { gridTemplateColumns: `repeat(${cols},1fr)` } }, vendors.map((v, i) => {
-                const done = completedVendors.includes(v), active = i === activeVendorIdx, locked = !done && !active;
-                return (React.createElement("span", { key: v, className: `Pill ${done ? "Pill-done" : active ? "Pill-active" : "Pill-locked"}`, onClick: () => { if (done || managerMode)
-                        setActiveVendorIdx(i);
-                    else if (locked)
-                        setLockWarn(true); } },
-                    done ? "✓ " : active ? "● " : "○ ",
-                    v));
-            }))),
-        React.createElement("div", { ref: contentRef, onScroll: handleScroll, style: { flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "16px 16px 80px" } }, allDone ? (React.createElement("div", { className: "Complete" },
-            React.createElement("div", { className: "Complete-circle" }, "\u2713"),
-            React.createElement("div", { className: "Complete-title" }, "Sold Items Complete"),
-            React.createElement("div", { className: "Complete-sub" }, "All sold quantities have been logged."),
-            React.createElement("div", { className: "Complete-actions" },
-                React.createElement("button", { className: "B B-outline B-lg", onClick: () => { setActiveVendorIdx(0); setCompletedVendors([]); } }, "Start Over"),
-                React.createElement("button", { className: "B B-red B-lg", onClick: onBack }, "\u2190 Home")))) : (React.createElement(React.Fragment, null,
-            React.createElement("div", { className: "SHead", style: { marginBottom: 12 } },
-                React.createElement("div", null,
-                    React.createElement("div", { className: "STitle" }, curVendor),
-                    React.createElement("div", { className: "SSub" },
-                        "Enter quantities received. Vendor ",
-                        activeVendorIdx + 1,
-                        " of ",
-                        vendors.length,
-                        "."))),
-            React.createElement("div", { className: "Card" },
-                React.createElement("div", { className: "Card-head" },
-                    React.createElement("span", { className: "Card-title" }, curVendor),
-                    React.createElement("span", { className: "Card-badge" },
-                        filled,
-                        " / ",
-                        vendorProds.length,
-                        " entered")),
-                React.createElement("div", { className: "ProdList" }, Object.entries(groups).map(([cls, cats]) => (React.createElement("div", { key: cls },
-                    React.createElement("div", { className: "ClassDiv" }, cls),
-                    Object.entries(cats).map(([cat, items]) => (React.createElement("div", { key: cat },
-                        React.createElement("div", { className: "CatDiv" }, cat),
-                        items.map(item => {
-                            var _a;
-                            const val = (_a = sold_counts[item.product]) !== null && _a !== void 0 ? _a : "";
-                            return (React.createElement("div", { className: "ProdRow", key: item.product },
-                                React.createElement("div", { className: "ProdRow-info" },
-                                    React.createElement("div", { className: "ProdRow-name" }, item.product),
-                                    React.createElement("div", { className: "ProdRow-meta" }, "units")),
-                                React.createElement("div", { className: "Stepper" },
-                                    React.createElement("div", { className: "StepBtn", onClick: () => step(item.product, -1) }, "\u2212"),
-                                    React.createElement("input", { className: "StepInput" + (val !== "" ? " filled" : ""), type: "number", min: "0", step: "1", inputMode: "numeric", placeholder: "0", value: val, onChange: e => updateSold(item.product, e.target.value) }),
-                                    React.createElement("div", { className: "StepBtn", onClick: () => step(item.product, 1) }, "+"))));
-                        })))))))))))),
-        !allDone && (React.createElement("div", { className: "Footer no-print" },
-            activeVendorIdx > 0 ? React.createElement("button", { className: "Footer-btn", onClick: () => setActiveVendorIdx(p => p - 1) }, "\u2190 Back") : React.createElement("div", { className: "Footer-spacer" }),
-            React.createElement("div", { className: "Footer-prog" },
-                curVendor,
-                " \u00B7 ",
-                filled,
-                " / ",
-                vendorProds.length),
-            React.createElement("button", { className: "Footer-btn Footer-btn-next", onClick: tryAdvance }, activeVendorIdx < vendors.length - 1 ? "Next →" : "Done ✓"))),
-        showUp && React.createElement("button", { className: "ScrollBtn ScrollUp no-print", onClick: scrollTop }, "\u2191"),
-        showDown && React.createElement("button", { className: "ScrollBtn ScrollDown no-print", onClick: scrollBot }, "\u2193"),
-        modal && (React.createElement("div", { className: "Overlay" },
-            React.createElement("div", { className: "Modal" },
-                React.createElement("div", { className: "Modal-title" }, "Incomplete Entry"),
-                React.createElement("div", { className: "Modal-body" },
-                    "Some items for ",
-                    React.createElement("strong", null, curVendor),
-                    " have not been entered. Continue anyway?"),
-                React.createElement("div", { className: "Modal-actions" },
-                    React.createElement("button", { className: "B B-outline", onClick: () => setModal(false) }, "No, Go Back"),
-                    React.createElement("button", { className: "B B-red", onClick: advance }, "Yes, Continue"))))),
-        lockWarn && (React.createElement("div", { className: "Overlay" },
-            React.createElement("div", { className: "Modal" },
-                React.createElement("div", { className: "Modal-title" }, "Vendor Locked"),
-                React.createElement("div", { className: "Modal-body" }, "Please finalize current vendor entries before moving on."),
-                React.createElement("div", { className: "Modal-actions" },
-                    React.createElement("button", { className: "B B-red", onClick: () => setLockWarn(false) }, "OK"))))),
-        PinModal,
-        React.createElement("style", null, `@media print{.print-show{display:block!important;}.no-print{display:none!important;}}`)));
-}
-
 function MasterEditor({ master, onSave, onClose }) {
     const [items, setItems] = useState(JSON.parse(JSON.stringify(master)));
     const [changes, setChanges] = useState([]);
@@ -2776,16 +2636,6 @@ function App() {
         catch (e) {
             console.error("Count clear error:", e);
         }
-        try {
-            const recentArchives = await sbGet("archives", "select=id,archive_date&order=created_at.desc&limit=20");
-            const byRealDate = [...recentArchives].sort((a, b) => new Date(b.archive_date) - new Date(a.archive_date));
-            if (byRealDate.length > 1) {
-                await sbPatch("archives", "id=eq." + byRealDate[1].id, { pos_sales: null });
-            }
-        }
-        catch (e) {
-            console.error("POS sales clear error:", e);
-        }
         setSealed(mkSealed());
         setOpen(mkOpen());
     };
@@ -2861,7 +2711,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v3.7")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v4.0")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
@@ -2898,8 +2748,7 @@ function App() {
         screen === "received" && React.createElement(ReceivedScreen, { onBack: goHome, setOrders: setOrders }),
         screen === "orderguide" && React.createElement(OrderGuideScreen, { orders: orders, setOrders: setOrders, calcTotal: calcTotal, onBack: goHome, archives: archives }),
         screen === "oghistory" && React.createElement(OGHistoryScreen, { archives: archives, onBack: goHome }),
-        screen === "sold" && React.createElement(SoldScreen, { orders: orders, setOrders: setOrders, onBack: goHome }),
-        screen === "salesupload" && React.createElement(SalesUploadScreen, { onBack: goHome, onSaved: () => setRefreshKey(k => k + 1) }),
+        screen === "salesupload" && React.createElement(SalesUploadScreen, { onBack: goHome, onSaved: () => setRefreshKey(k => k + 1), orders: orders, setOrders: setOrders }),
         screen === "depletion" && React.createElement(DepletionScreen, { archives: archives, onBack: goHome }),
         screen === "counthistory" && React.createElement(CountHistoryScreen, { archives: archives, master: master, onBack: goHome }),
 
