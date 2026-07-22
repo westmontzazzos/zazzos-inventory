@@ -2038,9 +2038,14 @@ function SalesUploadScreen({ onBack, onSaved }) {
     useEffect(() => {
         (async () => {
             try {
-                const rows = await sbGet("archives", "select=id,week_label,archive_date,created_at&order=created_at.desc&limit=10");
-                setArchiveList(rows || []);
-                if (rows && rows.length) setTargetArchiveId(rows[0].id);
+                const rows = await sbGet("archives", "select=id,week_label,archive_date,created_at&order=created_at.desc&limit=20");
+                // Sort by the archive's real calendar date, not by when its DB row was created/touched.
+                // Using created_at here mis-targets sales onto whichever archive was most recently
+                // written to Supabase (e.g. a rebuilt/corrected old week), instead of the actual
+                // most recent week.
+                const byRealDate = [...(rows || [])].sort((a, b) => new Date(b.archive_date) - new Date(a.archive_date));
+                setArchiveList(byRealDate);
+                if (byRealDate.length) setTargetArchiveId(byRealDate[0].id);
             } catch (e) { /* leave list empty, user will see no options */ }
         })();
     }, []);
@@ -2772,9 +2777,10 @@ function App() {
             console.error("Count clear error:", e);
         }
         try {
-            const recentArchives = await sbGet("archives", "select=id&order=created_at.desc&limit=2");
-            if (recentArchives.length > 1) {
-                await sbPatch("archives", "id=eq." + recentArchives[1].id, { pos_sales: null });
+            const recentArchives = await sbGet("archives", "select=id,archive_date&order=created_at.desc&limit=20");
+            const byRealDate = [...recentArchives].sort((a, b) => new Date(b.archive_date) - new Date(a.archive_date));
+            if (byRealDate.length > 1) {
+                await sbPatch("archives", "id=eq." + byRealDate[1].id, { pos_sales: null });
             }
         }
         catch (e) {
@@ -2855,7 +2861,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v3.6")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v3.7")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
