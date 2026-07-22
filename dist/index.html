@@ -830,7 +830,7 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
     const master = getMaster();
     const curLoc = locs[activeIdx];
     const isDecimal = user === "erika";
-    const allDone = completed.length >= locs.length && locs.length > 0;
+    const allDone = new Set(completed).size >= locs.length && locs.length > 0;
     const products = forLoc(master, curLoc, user);
     const filled = products.filter(p => { var _a, _b; return ((_a = counts[curLoc]) === null || _a === void 0 ? void 0 : _a[p.product]) !== "" && ((_b = counts[curLoc]) === null || _b === void 0 ? void 0 : _b[p.product]) !== undefined; }).length;
     const groups = groupCC(products);
@@ -896,7 +896,7 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
         });
         advance();
     };
-    const advance = () => { setCompleted(prev => [...prev, curLoc]); if (activeIdx < locs.length - 1)
+    const advance = () => { setCompleted(prev => prev.includes(curLoc) ? prev : [...prev, curLoc]); if (activeIdx < locs.length - 1)
         setActiveIdx(p => p + 1); setModal(false); };
     return (React.createElement("div", { style: { display: "flex", flexDirection: "column", height: "100vh", overflowY: "hidden", background: "#EFEFEF" } },
         React.createElement("header", { className: "H no-print" },
@@ -1287,7 +1287,7 @@ function ReceivedScreen({ onBack, setOrders }) {
     const { tap, Modal: PinModal } = usePIN(() => setManagerMode(true));
     const curVendor = vendors[activeVendorIdx];
     const vendorProds = sorted(master.filter(i => i.vendor === curVendor));
-    const allDone = completedVendors.length >= vendors.length && vendors.length > 0;
+    const allDone = new Set(completedVendors).size >= vendors.length && vendors.length > 0;
     const filled = vendorProds.filter(p => received[p.product] !== "" && received[p.product] !== undefined).length;
     const groups = groupCC(vendorProds);
     const cols = Math.min(vendors.length, 3);
@@ -1326,7 +1326,7 @@ function ReceivedScreen({ onBack, setOrders }) {
         setOrders(prev => prev.map(r => blanks.some(b => b.product === r.product) ? Object.assign(Object.assign({}, r), { received: "0" }) : r));
         advance();
     };
-    const advance = () => { setCompletedVendors(prev => [...prev, curVendor]); if (activeVendorIdx < vendors.length - 1)
+    const advance = () => { setCompletedVendors(prev => prev.includes(curVendor) ? prev : [...prev, curVendor]); if (activeVendorIdx < vendors.length - 1)
         setActiveVendorIdx(p => p + 1); setModal(false); };
     return (React.createElement("div", { style: { display: "flex", flexDirection: "column", height: "100vh", overflowY: "hidden", background: "#EFEFEF" } },
         React.createElement("header", { className: "H no-print" },
@@ -2170,7 +2170,7 @@ function SoldScreen({ onBack, setOrders }) {
     const { tap, Modal: PinModal } = usePIN(() => setManagerMode(true));
     const curVendor = vendors[activeVendorIdx];
     const vendorProds = sorted(master.filter(i => i.vendor === curVendor));
-    const allDone = completedVendors.length >= vendors.length && vendors.length > 0;
+    const allDone = new Set(completedVendors).size >= vendors.length && vendors.length > 0;
     const filled = vendorProds.filter(p => sold_counts[p.product] !== "" && sold_counts[p.product] !== undefined).length;
     const groups = groupCC(vendorProds);
     const cols = Math.min(vendors.length, 3);
@@ -2198,7 +2198,7 @@ function SoldScreen({ onBack, setOrders }) {
     };
     const hasBlank = () => vendorProds.some(i => received[i.product] === "" || received[i.product] === undefined);
     const tryAdvance = () => hasBlank() ? setModal(true) : advance();
-    const advance = () => { setCompletedVendors(prev => [...prev, curVendor]); if (activeVendorIdx < vendors.length - 1)
+    const advance = () => { setCompletedVendors(prev => prev.includes(curVendor) ? prev : [...prev, curVendor]); if (activeVendorIdx < vendors.length - 1)
         setActiveVendorIdx(p => p + 1); setModal(false); };
     return (React.createElement("div", { style: { display: "flex", flexDirection: "column", height: "100vh", overflowY: "hidden", background: "#EFEFEF" } },
         React.createElement("header", { className: "H no-print" },
@@ -2809,7 +2809,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v3.0")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v3.1")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
