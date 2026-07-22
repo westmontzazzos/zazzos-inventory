@@ -1529,8 +1529,21 @@ function TrendScreen({ archives, calcTotal, onBack }) {
 // ─── DEPLETION ANALYSIS SCREEN ───────────────────────────────────────────────
 function DepletionScreen({ archives, onBack }) {
     const { useState: _useState } = React;
-    const sortedArchives = [...(archives || [])].sort((a, b) => new Date(b.date || b.archive_date) - new Date(a.date || a.archive_date));
+    const sortedArchives = [...(archives || [])].sort((a, b) => new Date(a.date || a.archive_date) - new Date(b.date || b.archive_date));
     const [selectedLabel, setSelectedLabel] = useState(sortedArchives.length ? sortedArchives[0].label : null);
+    const [showKey, setShowKey] = useState(false);
+    const tapCountRef = useRef(0);
+    const tapTimerRef = useRef(null);
+    const handleKeyTap = () => {
+        tapCountRef.current += 1;
+        if (tapTimerRef.current) clearTimeout(tapTimerRef.current);
+        if (tapCountRef.current >= 3) {
+            setShowKey(v => !v);
+            tapCountRef.current = 0;
+        } else {
+            tapTimerRef.current = setTimeout(() => { tapCountRef.current = 0; }, 1200);
+        }
+    };
     const selectedArchive = sortedArchives.find(a => a.label === selectedLabel) || sortedArchives[0] || null;
     const orders = selectedArchive ? selectedArchive.orders || [] : [];
     const posSales = selectedArchive ? selectedArchive.pos_sales || {} : {};
@@ -1559,21 +1572,27 @@ function DepletionScreen({ archives, onBack }) {
         React.createElement("header", { className: "H no-print" },
             React.createElement("div", { className: "H-logo" }, "Zazzo's"),
             React.createElement("div", { className: "H-right" },
+                React.createElement("div", { onClick: handleKeyTap, style: { width: 24, height: 36, cursor: "default" } }),
                 React.createElement("button", { className: "B B-ghost", onClick: () => window.print() }, "🖨 Print"),
                 React.createElement("button", { className: "B B-ghost", onClick: onBack }, "← Home"))),
-        React.createElement("div", { className: "no-print", style: { padding: "10px 16px", background: "#fff", borderBottom: "1px solid #ddd", marginTop: 60, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" } },
+        showKey && React.createElement("div", { className: "no-print", style: { padding: "10px 16px", background: "#1A1A2E", color: "#fff", marginTop: 60, fontSize: 12 } },
+            React.createElement("div", { style: { fontWeight: 700, marginBottom: 6, textTransform: "uppercase", letterSpacing: 1 } }, "Week Key"),
+            sortedArchives.map((a, i) => React.createElement("div", { key: "key-" + i, style: { padding: "2px 0" } },
+                "Week " + (i + 1) + ":  " + (a.label || a.date)))),
+        React.createElement("div", { className: "no-print", style: { padding: "10px 16px", background: "#fff", borderBottom: "1px solid #ddd", marginTop: showKey ? 0 : 60, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" } },
             React.createElement("span", { style: { fontSize: 12, color: "#666", fontWeight: 600, marginRight: 4 } }, "Week:"),
             sortedArchives.length === 0
                 ? React.createElement("span", { style: { fontSize: 12, color: "#999" } }, "No archived weeks yet")
-                : sortedArchives.map((a, i) => React.createElement("button", {
-                    key: a.label + "-" + i,
-                    className: "B " + (a.label === selectedLabel ? "B-primary" : "B-outline"),
-                    style: { fontSize: 11, padding: "6px 10px", height: "auto" },
-                    onClick: () => setSelectedLabel(a.label)
-                }, a.label || a.date))),
+                : sortedArchives.map((a, i) => {
+                    const isActive = a.label === selectedLabel;
+                    return React.createElement("button", {
+                        key: a.label + "-" + i,
+                        className: "B " + (isActive ? "B-primary" : "B-outline"),
+                        style: { fontSize: 11, padding: "6px 10px", height: "auto" },
+                        onClick: () => setSelectedLabel(a.label)
+                    }, isActive ? (a.label || a.date) : ("Week " + (i + 1)));
+                })),
         React.createElement("div", { style: { flex: 1, overflowY: "auto", fontFamily: "'Inter',system-ui,sans-serif" } },
-            selectedArchive && React.createElement("div", { style: { padding: "8px 16px", fontSize: 12, color: "#666" } },
-                (selectedArchive.label || "") + "  ·  archive date: " + (selectedArchive.date || "")),
             React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 12 } },
                 React.createElement("thead", null,
                     React.createElement("tr", { style: { background: "#1A1A2E", color: "#fff" } },
@@ -2836,7 +2855,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v3.5")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v3.6")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
