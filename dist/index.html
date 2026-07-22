@@ -1608,18 +1608,11 @@ function CountHistoryScreen({ archives, master, onBack }) {
     const sortedArchives = [...(archives || [])].sort((a, b) => new Date(a.date || a.archive_date) - new Date(b.date || b.archive_date)).slice(-3);
 
     function getCount(archive, product) {
-        if (archive.orders) {
-            const row = archive.orders.find(o => o.product === product);
-            // If lastWeek is populated, use it (this is the end-of-week count)
-            if (row && row.lastWeek !== undefined && row.lastWeek !== null && row.lastWeek !== "") {
-                return parseFloat(row.lastWeek) || 0;
-            }
-            // If lastWeek is blank but total is populated, use total (older count archive format)
-            if (row && row.total !== undefined && row.total !== null && row.total !== "" && (!row.lastWeek || row.lastWeek === "")) {
-                return parseFloat(row.total) || 0;
-            }
-        }
-        // Fall back to summing sealed/open location counts
+        // Always compute from the real per-location sealed/open counts - these have been
+        // reliable the whole time. The archived orders[].lastWeek field is NOT trustworthy:
+        // it depends on a Supabase upsert that has been silently failing (missing unique
+        // constraint on orders.product), so every archive's lastWeek was frozen at the same
+        // hardcoded seed value instead of reflecting that week's real count.
         const allLocs = [...Object.values(archive.sealed || archive.sealed_counts || {}), ...Object.values(archive.open || archive.open_counts || {})];
         let total = 0, found = false;
         allLocs.forEach(loc => {
@@ -2809,7 +2802,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v3.2")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v3.3")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
