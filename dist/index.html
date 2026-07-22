@@ -551,11 +551,11 @@ html,body{background:#EFEFEF;color:#111111;font-family:'Inter',system-ui,sans-se
 .Login-brand{text-align:center;}
 .Login-logo{font-family:'Libre Baskerville',Georgia,serif;font-size:48px;font-weight:700;color:#C8102E;letter-spacing:0.03em;line-height:1;}
 .Login-tag{margin-top:10px;font-family:'Inter',system-ui,sans-serif;font-size:11px;font-weight:700;color:#777777;letter-spacing:0.2em;text-transform:uppercase;}
-.Login-grid{display:grid;grid-template-columns:200px 200px;grid-auto-rows:160px;gap:20px;justify-content:center;}
-.LCard{width:200px;height:160px;background:#FFFFFF;border:2px solid #1B6B3A;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.07);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;transition:border-color 0.15s,box-shadow 0.15s,transform 0.15s;user-select:none;-webkit-tap-highlight-color:transparent;}
+.Login-grid{display:grid;grid-template-columns:140px 140px;grid-auto-rows:80px;gap:12px;justify-content:center;}
+.LCard{width:140px;height:80px;background:#FFFFFF;border:2px solid #1B6B3A;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.07);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;transition:border-color 0.15s,box-shadow 0.15s,transform 0.15s;user-select:none;-webkit-tap-highlight-color:transparent;}
 .LCard:hover{border-color:#C8102E;box-shadow:0 6px 24px rgba(200,16,46,0.13);transform:translateY(-3px);}
 .LCard:active{transform:translateY(0);}
-.LCard-role{font-family:'Libre Baskerville',Georgia,serif;font-size:17px;font-weight:700;color:#111111;text-align:center;line-height:1.2;}
+.LCard-role{font-family:'Libre Baskerville',Georgia,serif;font-size:13px;font-weight:700;color:#111111;text-align:center;line-height:1.2;}
 .LCard-name{font-family:'Inter',system-ui,sans-serif;font-size:13px;font-weight:600;font-style:italic;color:#C8102E;text-align:center;}
 .Overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:500;padding:20px;}
 .Modal{background:#FFFFFF;border-radius:12px;padding:28px;max-width:420px;width:100%;box-shadow:0 24px 64px rgba(0,0,0,0.22);}
@@ -2809,7 +2809,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v3.1")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v3.2")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
