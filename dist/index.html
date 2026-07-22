@@ -1024,7 +1024,7 @@ function OrderGuideScreen({ orders, setOrders, calcTotal, onBack, archives }) {
     };
 
     // Build flat row list from master
-    const CLASS_ORDER_OG = ["Beer & Seltzer", "Kegs", "Liquor", "Extras", "Wine"];
+    const CLASS_ORDER_OG = ["Beer & Seltzer", "Extras", "Kegs", "Liquor", "Wine"];
     const flatRows = [];
     CLASS_ORDER_OG.forEach(cls => {
         const clsItems = master.filter(i => i.class === cls);
@@ -1605,7 +1605,14 @@ function DepletionScreen({ archives, onBack }) {
                                 // Depletion = Last Week + Received - Current Count (locked business rule)
                                 const dep = lw > 0 ? Math.round((lw + recv - tot) * 100) / 100 : null;
                                 const pos = posSales[o.product] !== undefined ? parseFloat(posSales[o.product]) : null;
-                                const vari = dep !== null && pos !== null ? Math.round((dep - pos) * 100) / 100 : null;
+                                // Keg counts are tracked in fractional kegs, but POS sales for kegs are always
+                                // tracked in pours - comparing them directly without converting units produces
+                                // a meaningless variance. Convert keg depletion into pours before comparing.
+                                const PONY_KEGS = new Set(["Buenaveza Keg (Pony)", "Morretti Keg (Pony)", "Shiner Raspberry Lemonade Keg (Pony)"]);
+                                const isKeg = cls === "Kegs";
+                                const poursPerKeg = PONY_KEGS.has(o.product) ? 62 : 93;
+                                const depForVariance = (isKeg && dep !== null) ? Math.round(dep * poursPerKeg * 100) / 100 : dep;
+                                const vari = depForVariance !== null && pos !== null ? Math.round((pos - depForVariance) * 100) / 100 : null;
                                 const varColor = vari === null ? "#999" : vari > 0 ? "#C8102E" : vari < 0 ? "#C8102E" : "#2a7";
                                 out.push(React.createElement("tr", { key: o.product, style: { background: i % 2 === 0 ? "#fff" : "#F5F5F5", borderBottom: "1px solid #eee" } },
                                     React.createElement("td", { style: { padding: "7px 10px" } }, o.product),
@@ -1619,7 +1626,7 @@ function DepletionScreen({ archives, onBack }) {
 
 // ─── COUNT HISTORY SCREEN ─────────────────────────────────────────────────────
 function CountHistoryScreen({ archives, master, onBack }) {
-    const CLASS_ORDER_CH = ["Beer & Seltzer", "Kegs", "Liquor", "Extras", "Wine"];
+    const CLASS_ORDER_CH = ["Beer & Seltzer", "Extras", "Kegs", "Liquor", "Wine"];
     const sortedArchives = [...(archives || [])].sort((a, b) => new Date(a.date || a.archive_date) - new Date(b.date || b.archive_date)).slice(-3);
 
     function getCount(archive, product) {
@@ -2439,7 +2446,7 @@ function OGHistoryScreen({ archives, onBack }) {
     const L2dataRef = useRef(null);
     const L3ref = useRef(null);
     const L4ref = useRef(null);
-    const CLASS_ORDER_OG = ["Beer & Seltzer", "Kegs", "Liquor", "Extras", "Wine","Liqueur & Extras"];
+    const CLASS_ORDER_OG = ["Beer & Seltzer", "Extras", "Kegs", "Liquor", "Wine"];
     const RH = { data: 32, RC: 26, RK: 22 };
 
     useEffect(() => {
@@ -2829,7 +2836,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v3.4")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v3.5")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
