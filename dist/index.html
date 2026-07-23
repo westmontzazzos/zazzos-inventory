@@ -2524,13 +2524,37 @@ function App() {
     // Load all data from Supabase on mount
     useEffect(() => {
         async function loadData() {
+            let liveMaster = null;
+            try {
+                const masterRows = await sbGet("master", "select=*&order=product.asc");
+                if (Array.isArray(masterRows) && masterRows.length > 0) {
+                    liveMaster = masterRows.map(r => ({ product: r.product, category: r.category, class: r.class, vendor: r.vendor, locations: r.locations, sold_as: r.sold_as }));
+                    setMaster(liveMaster);
+                    window.__MASTER__ = liveMaster;
+                }
+            }
+            catch (e) {
+                console.error("Master load error:", e);
+            }
             try {
                 const orderRows = await sbGet("orders", "select=*");
+                // Build the base row list from the LIVE master (not the hardcoded fallback) so any
+                // product that only exists in the real Master table still gets a row here. Previously
+                // this only patched values onto whatever rows already existed from the hardcoded
+                // fallback list, so a live-only product could never appear - and Close Week's clearing
+                // step (which iterates this same list) would then skip it forever, leaving stale
+                // Received/Sold values sitting in the database indefinitely.
+                const baseList = liveMaster ? mkOrders(liveMaster) : null;
                 if (Array.isArray(orderRows) && orderRows.length > 0) {
-                    setOrders(prev => prev.map(r => {
-                        const row = orderRows.find(x => x.product === r.product);
-                        return row ? Object.assign(Object.assign({}, r), { vendor: row.vendor || r.vendor, unit: row.unit || "", par: row.par != null ? String(row.par) : "", lastWeek: row.last_week != null ? String(row.last_week) : "", received: row.received != null ? String(row.received) : "", sold: row.sold != null ? String(row.sold) : "", order: row.order_qty != null ? String(row.order_qty) : "" }) : r;
-                    }));
+                    setOrders(prev => {
+                        const source = baseList || prev;
+                        return source.map(r => {
+                            const row = orderRows.find(x => x.product === r.product);
+                            return row ? Object.assign(Object.assign({}, r), { vendor: row.vendor || r.vendor, unit: row.unit || "", par: row.par != null ? String(row.par) : "", lastWeek: row.last_week != null ? String(row.last_week) : "", received: row.received != null ? String(row.received) : "", sold: row.sold != null ? String(row.sold) : "", order: row.order_qty != null ? String(row.order_qty) : "" }) : r;
+                        });
+                    });
+                } else if (baseList) {
+                    setOrders(baseList);
                 }
             }
             catch (e) {
@@ -2554,17 +2578,6 @@ function App() {
             }
             catch (e) {
                 console.error("Archives load error:", e);
-            }
-            try {
-                const masterRows = await sbGet("master", "select=*&order=product.asc");
-                if (Array.isArray(masterRows) && masterRows.length > 0) {
-                    const m = masterRows.map(r => ({ product: r.product, category: r.category, class: r.class, vendor: r.vendor, locations: r.locations, sold_as: r.sold_as }));
-                    setMaster(m);
-                    window.__MASTER__ = m;
-                }
-            }
-            catch (e) {
-                console.error("Master load error:", e);
             }
             try {
                 const countRows = await sbGet("counts", "select=*&week_label=eq.current");
@@ -2743,7 +2756,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v5.2")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v5.3")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
