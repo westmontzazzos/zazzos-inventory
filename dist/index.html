@@ -846,16 +846,8 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
         contentRef.current.scrollTo({ top: 0, behavior: "smooth" }); };
     const scrollBot = () => { if (contentRef.current)
         contentRef.current.scrollTo({ top: contentRef.current.scrollHeight, behavior: "smooth" }); };
-    const step = (product, delta) => {
-        var _a;
-        const cur = Number(((_a = counts[curLoc]) === null || _a === void 0 ? void 0 : _a[product]) || 0);
-        const next = Math.max(0, Math.round((cur + delta) * (isDecimal ? 100 : 1)) / (isDecimal ? 100 : 1));
-        setCounts(prev => (Object.assign(Object.assign({}, prev), { [curLoc]: Object.assign(Object.assign({}, prev[curLoc]), { [product]: String(next) }) })));
-    };
     const saveTimers = useRef({});
-    const onChange = (product, val) => {
-        setCounts(prev => (Object.assign(Object.assign({}, prev), { [curLoc]: Object.assign(Object.assign({}, prev[curLoc]), { [product]: val }) })));
-        // Debounce the DB save so it does NOT fire on every keystroke (that was causing the screen to jump)
+    const scheduleSave = (product, val) => {
         if (saveTimers.current[product]) clearTimeout(saveTimers.current[product]);
         saveTimers.current[product] = setTimeout(() => {
             if (val !== "") {
@@ -863,6 +855,19 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
                     .catch(e => console.error("Count save:", e));
             }
         }, 600);
+    };
+    const step = (product, delta) => {
+        var _a;
+        const cur = Number(((_a = counts[curLoc]) === null || _a === void 0 ? void 0 : _a[product]) || 0);
+        const next = Math.max(0, Math.round((cur + delta) * (isDecimal ? 100 : 1)) / (isDecimal ? 100 : 1));
+        const val = String(next);
+        setCounts(prev => (Object.assign(Object.assign({}, prev), { [curLoc]: Object.assign(Object.assign({}, prev[curLoc]), { [product]: val }) })));
+        scheduleSave(product, val);
+    };
+    const onChange = (product, val) => {
+        setCounts(prev => (Object.assign(Object.assign({}, prev), { [curLoc]: Object.assign(Object.assign({}, prev[curLoc]), { [product]: val }) })));
+        // Debounce the DB save so it does NOT fire on every keystroke (that was causing the screen to jump)
+        scheduleSave(product, val);
     };
     // Tap Next: move focus to the next input; only scroll if that next input is near the bottom of the visible area
     const goNext = (product) => {
@@ -1256,12 +1261,21 @@ function ReceivedPrintSheet({ vendors, master, received, blank }) {
             })));
 }
 
-function ReceivedScreen({ onBack, setOrders }) {
+function ReceivedScreen({ onBack, orders, setOrders }) {
     const master = getMaster();
     const vendors = VENDOR_ORDER.filter(v => master.some(i => i.vendor === v));
     const [activeVendorIdx, setActiveVendorIdx] = useState(0);
     const [completedVendors, setCompletedVendors] = useState([]);
-    const [received, setReceived] = useState(() => { const r = {}; master.forEach(i => { r[i.product] = ""; }); return r; });
+    // Load whatever is already saved (orders.received) instead of always starting blank —
+    // previously this ignored existing data every time the screen opened.
+    const [received, setReceived] = useState(() => {
+        const r = {};
+        master.forEach(i => {
+            const existing = orders && orders.find(o => o.product === i.product);
+            r[i.product] = (existing && existing.received !== undefined && existing.received !== null && existing.received !== "") ? String(existing.received) : "";
+        });
+        return r;
+    });
     const [modal, setModal] = useState(false);
     const [lockWarn, setLockWarn] = useState(false);
     const [managerMode, setManagerMode] = useState(false);
@@ -1302,16 +1316,28 @@ function ReceivedScreen({ onBack, setOrders }) {
         contentRef.current.scrollTo({ top: 0, behavior: "smooth" }); };
     const scrollBot = () => { if (contentRef.current)
         contentRef.current.scrollTo({ top: contentRef.current.scrollHeight, behavior: "smooth" }); };
+    // Persist to Supabase directly on every change — previously setOrders only updated
+    // in-memory state with nothing writing the value back to the database at all.
+    const saveTimers = useRef({});
+    const persistReceived = (product, val) => {
+        if (saveTimers.current[product]) clearTimeout(saveTimers.current[product]);
+        saveTimers.current[product] = setTimeout(() => {
+            sbUpsert("orders", { product, received: val === "" ? null : Number(val) }, "product")
+                .catch(e => console.error("Received save:", e));
+        }, 600);
+    };
     const step = (product, delta) => {
         const cur = Number(received[product] || 0);
         const next = Math.max(0, cur + delta);
         const val = String(next);
         setReceived(prev => (Object.assign(Object.assign({}, prev), { [product]: val })));
         setOrders(prev => prev.map(r => r.product === product ? Object.assign(Object.assign({}, r), { received: val }) : r));
+        persistReceived(product, val);
     };
     const updateRec = (product, val) => {
         setReceived(prev => (Object.assign(Object.assign({}, prev), { [product]: val })));
         setOrders(prev => prev.map(r => r.product === product ? Object.assign(Object.assign({}, r), { received: val }) : r));
+        persistReceived(product, val);
     };
     const blankItems = () => vendorProds.filter(i => received[i.product] === "" || received[i.product] === undefined);
     const hasBlank = () => blankItems().length > 0;
@@ -1324,6 +1350,7 @@ function ReceivedScreen({ onBack, setOrders }) {
             return next;
         });
         setOrders(prev => prev.map(r => blanks.some(b => b.product === r.product) ? Object.assign(Object.assign({}, r), { received: "0" }) : r));
+        blanks.forEach(i => persistReceived(i.product, "0"));
         advance();
     };
     const advance = () => { setCompletedVendors(prev => prev.includes(curVendor) ? prev : [...prev, curVendor]); if (activeVendorIdx < vendors.length - 1)
@@ -2711,7 +2738,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v4.0")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v5.0")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
@@ -2745,7 +2772,7 @@ function App() {
                     React.createElement("button", { className:"B B-outline", style:{ flex:1 }, onClick: () => setShowRolloverConfirm(false) }, "Cancel"),
                     React.createElement("button", { className:"B B-red", style:{ flex:1 }, onClick: () => { setShowRolloverConfirm(false); doRollover(); } }, "Confirm")))),
         screen === "count" && (React.createElement(CountScreen, { user: user, locs: user === "selena" ? SELENA_LOCS : ERIKA_LOCS, counts: user === "selena" ? sealed : open, setCounts: user === "selena" ? setSealed : setOpen, onBack: goHome, sealed: sealed, open: open })),
-        screen === "received" && React.createElement(ReceivedScreen, { onBack: goHome, setOrders: setOrders }),
+        screen === "received" && React.createElement(ReceivedScreen, { onBack: goHome, orders: orders, setOrders: setOrders }),
         screen === "orderguide" && React.createElement(OrderGuideScreen, { orders: orders, setOrders: setOrders, calcTotal: calcTotal, onBack: goHome, archives: archives }),
         screen === "oghistory" && React.createElement(OGHistoryScreen, { archives: archives, onBack: goHome }),
         screen === "salesupload" && React.createElement(SalesUploadScreen, { onBack: goHome, onSaved: () => setRefreshKey(k => k + 1), orders: orders, setOrders: setOrders }),
