@@ -1650,7 +1650,12 @@ function DepletionScreen({ archives, onBack }) {
                                 const tot = parseFloat(o.total) || 0;
                                 // Depletion = Last Week + Received - Current Count (locked business rule)
                                 const dep = lw > 0 ? Math.round((lw + recv - tot) * 100) / 100 : null;
-                                const pos = posSales[o.product] !== undefined ? parseFloat(posSales[o.product]) : null;
+                                // Sold now lives on the order row itself (written pre-close from the Speedline
+                                // parser). Older archives (before this fix) only ever got sales via the old
+                                // archive-level pos_sales patch, so fall back to that for those weeks only.
+                                const pos = (o.sold !== undefined && o.sold !== null && o.sold !== "")
+                                    ? parseFloat(o.sold)
+                                    : (posSales[o.product] !== undefined ? parseFloat(posSales[o.product]) : null);
                                 // Keg counts are tracked in fractional kegs, but POS sales for kegs are always
                                 // tracked in pours - comparing them directly without converting units produces
                                 // a meaningless variance. Convert keg depletion into pours before comparing.
@@ -2738,7 +2743,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v5.0")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v5.1")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
