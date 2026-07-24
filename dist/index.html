@@ -1763,14 +1763,24 @@ async function extractPdfText(file) {
     for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const content = await page.getTextContent();
-        const lines = {};
-        content.items.forEach(item => {
-            const y = Math.round(item.transform[5]);
-            if (!lines[y]) lines[y] = [];
-            lines[y].push(item.str);
-        });
-        const sortedY = Object.keys(lines).map(Number).sort((a, b) => b - a);
-        fullText += sortedY.map(y => lines[y].join(" ")).join("\n") + "\n";
+        // Sort all text items top-to-bottom, then left-to-right, and cluster items into
+        // a row if they're within a small Y tolerance of each other. The previous version
+        // grouped by Math.round(y) exactly - but different columns in a table (numbers vs
+        // text) can render at slightly different sub-pixel Y positions, so an exact-integer
+        // group could split one real row into two fragments, neither of which matches the
+        // parser regex on its own - silently dropping whole rows with no error or flag.
+        // Confirmed and fixed on Darien first (it was dropping Modelo, Coors Light, and
+        // other high-volume beer rows).
+        const items = content.items.map(it => ({ str: it.str, x: it.transform[4], y: it.transform[5] }))
+            .sort((a, b) => (b.y - a.y) || (a.x - b.x));
+        const Y_TOLERANCE = 2.5;
+        const rows = [];
+        for (const it of items) {
+            let row = rows.find(r => Math.abs(r.y - it.y) <= Y_TOLERANCE);
+            if (!row) { row = { y: it.y, items: [] }; rows.push(row); }
+            row.items.push(it);
+        }
+        fullText += rows.map(r => r.items.sort((a, b) => a.x - b.x).map(it => it.str).join(" ")).join("\n") + "\n";
     }
     return fullText;
 }
@@ -1963,9 +1973,18 @@ const WINE_PLU_MAP = {
 const WINE_INFERRED = new Set(); // All house-pour brands confirmed as Canyon Road
 const WINE_COCKTAIL_PLUS = new Set(["2876", "2877"]); // Red/White Sangria routed through recipe engine
 const WINE_SUPPRESS = new Set(["3367", "2874", "2879", "2876", "2877"]); // Terrazaz discontinued
+// Lamarca Splitz is a single-serve mini-bottle (187ml), rung up at the register as a
+// "Glass" for convenience, and it's already correctly tagged sold_as: "Unit" in Master -
+// but this parser never checked that tag, and ran it through the standard glass-to-bottle
+// oz ratio anyway (built for a 750ml bottle poured into ~5oz glasses). That math is wrong
+// for a product that's never actually poured from anything - every sale is one whole
+// unit. This exact bug was confirmed and fixed on Darien's app first; this closed roughly
+// 80%+ of what had been an unexplained variance on Lamarca Splitz specifically.
+const WINE_UNIT_SOLD = new Set(["Lamarca Splitz"]);
 function parseWineReport(text) {
     const rows = parseSizesSoldWine(text);
     const ozByItem = {};
+    const unitByItem = {};
     const flags = [];
     const alreadyFlagged = new Set();
     for (const r of rows) {
@@ -1974,11 +1993,13 @@ function parseWineReport(text) {
         const item = WINE_PLU_MAP[r.plu];
         if (!item) { if (!alreadyFlagged.has(r.plu)) { flags.push(`Unmapped Wine PLU ${r.plu} (${r.name}, qty ${r.qty})`); alreadyFlagged.add(r.plu); } continue; }
         if (WINE_INFERRED.has(r.plu) && !alreadyFlagged.has(r.plu)) { flags.push(`PLU ${r.plu} "${r.name}" -> assumed "${item}" (inferred house-pour brand, not confirmed)`); alreadyFlagged.add(r.plu); }
+        if (WINE_UNIT_SOLD.has(item)) { unitByItem[item] = (unitByItem[item] || 0) + r.qty; continue; }
         const oz = r.size === "Bottle" ? r.qty * 25.4 : (r.qty / WINE_GLASSES_PER_BOTTLE) * 25.4;
         ozByItem[item] = (ozByItem[item] || 0) + oz;
     }
     const bottles = {};
     for (const [item, oz] of Object.entries(ozByItem)) bottles[item] = Math.round((oz / 25.4) * 100) / 100;
+    for (const [item, qty] of Object.entries(unitByItem)) bottles[item] = qty;
     return { bottles, flags };
 }
 
@@ -2077,7 +2098,17 @@ function SalesUploadScreen({ onBack, onSaved, orders, setOrders }) {
         for (const file of fileList) {
             const text = await extractPdfText(file);
             const type = detectReportType(text);
-            if (type) found[type] = { file, text, name: file.name };
+            // Previously this line overwrote any earlier file already detected as this
+            // same category - if a report category spans more than one file, only the
+            // last one survived and everything else was silently dropped, with no error.
+            // Confirmed and fixed on Darien first (it was dropping beer sales data).
+            if (type) {
+                if (found[type]) {
+                    found[type] = { file, text: found[type].text + "\n" + text, name: found[type].name + " + " + file.name };
+                } else {
+                    found[type] = { file, text, name: file.name };
+                }
+            }
             else unrecognized.push(file.name);
         }
         setDetected(found);
@@ -2756,7 +2787,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v5.3")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v5.4")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
