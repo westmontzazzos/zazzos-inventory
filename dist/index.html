@@ -1554,9 +1554,15 @@ function TrendScreen({ archives, calcTotal, onBack }) {
                 })))))));
 }
 // ─── DEPLETION ANALYSIS SCREEN ───────────────────────────────────────────────
-function DepletionScreen({ archives, onBack }) {
+function DepletionScreen({ archives, onBack, currentPreview }) {
     const { useState: _useState } = React;
-    const sortedArchives = [...(archives || [])].sort((a, b) => new Date(a.date || a.archive_date) - new Date(b.date || b.archive_date));
+    const closedArchives = [...(archives || [])].sort((a, b) => new Date(a.date || a.archive_date) - new Date(b.date || b.archive_date));
+    // The live, not-yet-closed week is shown first and selected by default - this uses the
+    // exact same Depletion/Variance math as a real close, computed from the current live
+    // counts and orders, but nothing is saved, archived, or cleared. Lets you sanity-check
+    // this week's numbers (e.g. after a parser fix) without needing to actually close the
+    // week just to look at it.
+    const sortedArchives = currentPreview ? [currentPreview, ...closedArchives] : closedArchives;
     const [selectedLabel, setSelectedLabel] = useState(sortedArchives.length ? sortedArchives[0].label : null);
     const [showKey, setShowKey] = useState(false);
     const tapCountRef = useRef(0);
@@ -1605,19 +1611,20 @@ function DepletionScreen({ archives, onBack }) {
         showKey && React.createElement("div", { className: "no-print", style: { padding: "10px 16px", background: "#1A1A2E", color: "#fff", marginTop: 60, fontSize: 12 } },
             React.createElement("div", { style: { fontWeight: 700, marginBottom: 6, textTransform: "uppercase", letterSpacing: 1 } }, "Week Key"),
             sortedArchives.map((a, i) => React.createElement("div", { key: "key-" + i, style: { padding: "2px 0" } },
-                "Week " + (i + 1) + ":  " + (a.label || a.date)))),
+                (currentPreview && a.label === currentPreview.label ? "Current (Preview)" : "Week " + i) + ":  " + (a.label || a.date)))),
         React.createElement("div", { className: "no-print", style: { padding: "10px 16px", background: "#fff", borderBottom: "1px solid #ddd", marginTop: showKey ? 0 : 60, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" } },
             React.createElement("span", { style: { fontSize: 12, color: "#666", fontWeight: 600, marginRight: 4 } }, "Week:"),
             sortedArchives.length === 0
                 ? React.createElement("span", { style: { fontSize: 12, color: "#999" } }, "No archived weeks yet")
                 : sortedArchives.map((a, i) => {
                     const isActive = a.label === selectedLabel;
+                    const isPreview = currentPreview && a.label === currentPreview.label;
                     return React.createElement("button", {
                         key: a.label + "-" + i,
                         className: "B " + (isActive ? "B-primary" : "B-outline"),
                         style: { fontSize: 11, padding: "6px 10px", height: "auto" },
                         onClick: () => setSelectedLabel(a.label)
-                    }, isActive ? (a.label || a.date) : ("Week " + (i + 1)));
+                    }, isActive ? (a.label || a.date) : (isPreview ? "Current (Preview)" : ("Week " + i)));
                 })),
         React.createElement("div", { style: { flex: 1, overflowY: "auto", fontFamily: "'Inter',system-ui,sans-serif" } },
             React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 12 } },
@@ -1840,7 +1847,15 @@ const KEG_PLU_MAP = {
 };
 const VODKADE_PLU_MAP = { "3473": "Vodkade Orange", "3474": "Vodkade Orange", "3475": "Vodkade Red", "3476": "Vodkade Blue" };
 const VODKADE_SF_BUCKET_PLU_MAP = {
-    "3475": "Vodkade S.F Red", "3476": "Vodkade S.F Blue", "3499": "Vodkade S.F Orange",
+    // 3475/3476 removed here - those PLUs mean regular (non-S.F.) Vodkade Red/Blue in
+    // VODKADE_PLU_MAP, and colliding with that meaning here was causing regular Vodkade
+    // Blue/Red bucket sales to get silently miscounted as Vodkade S.F. sales instead.
+    "3499": "Vodkade S.F Orange",
+    // Real, current PLU numbers confirmed directly from an actual Bucket Bottles report
+    // (previously missing from this map entirely, causing every one of these to show up
+    // as "Unrecognized Vodkade SF Bucket PLU" every single week):
+    "3494": "Vodkade S.F Orange", "3495": "Vodkade S.F Red", "3496": "Vodkade S.F Blue",
+    "3497": "Vodkade S.F Lime", // labeled "Green" on the register, but there is no Green flavor - it's Lime
     "2945": "Vodkade S.F Orange", "2954": "Vodkade S.F Orange", "2963": "Vodkade S.F Orange",
     "2972": "Vodkade S.F Orange", "2981": "Vodkade S.F Orange",
     "2947": "Vodkade S.F Red", "2956": "Vodkade S.F Red", "2965": "Vodkade S.F Red",
@@ -1895,6 +1910,15 @@ function parseBeerReport(beerText, bucketText, carryoutText, hnText, vodkadeText
     // Bud Light: bottle + bucket + carryout
     const budCarryout = carryout.find(r => r.name.toLowerCase() === "budlight");
     results.bottles["Bud Light"] = budBtl + budBucket + (budCarryout ? budCarryout.qty * 6 : 0);
+    // Coors Light and Miller Lite also appear in the domestic Bucket Bottles report,
+    // same as Bud Light does, but were never being added anywhere - their bucket
+    // quantities were parsed into `bucket` and then silently never used again, every
+    // single week. Speedline's own report spells it "Millter Lite" (a typo baked into
+    // the register), matching the Master item "Miller Lite".
+    const coorsBucket = bucket.filter(r => r.name === "Coors Light").reduce((s, r) => s + r.qty, 0);
+    if (coorsBucket) results.bottles["Coors Light"] = (results.bottles["Coors Light"] || 0) + coorsBucket;
+    const millerLiteBucket = bucket.filter(r => r.name === "Millter Lite" || r.name === "Miller Lite").reduce((s, r) => s + r.qty, 0);
+    if (millerLiteBucket) results.bottles["Miller Lite"] = (results.bottles["Miller Lite"] || 0) + millerLiteBucket;
     // Other carryout beers (6-pack)
     for (const r of carryout) {
         const item = CARRYOUT_BEER_PLU[r.plu];
@@ -1942,7 +1966,7 @@ const LIQUOR_PLU_MAP = {
     "2739": "Zazzo's Gin", "2662": "Zazzo's Rum", "3456": "Zazzo's Tequila",
     "2720": "Zazzo's Bourbon", "3455": "Zazzo's Straight Bourbon",
     "3315": "Benchmark", "2680": "Bulleit Bourbon", "2688": "Bulleit Rye",
-    "2698": "Glenlivet", "3392": "Horse Soldier", "2721": "Seagram's 7", "2709": "Skrewball",
+    "2698": "Glenlivet", "2696": "Dewar's", "3392": "Horse Soldier", "2721": "Seagram's 7", "2709": "Skrewball",
 };
 function parseLiquorReport(text) {
     const rows = parseSizesSoldLiquor(text);
@@ -2010,6 +2034,7 @@ const SPECIALTY_STRAIGHT_POUR = {
     "E&J Brandy": { ingredient: "E&J", oz: 1.5 },
     "Jack Fire": { ingredient: "Jack Daniels Fire 1L", oz: 1.5 },
     "Jack Honey": { ingredient: "Jack Daniels Honey", oz: 1.5 }, "Kahlua": { ingredient: "Kahlua", oz: 1.5 }, "Sambuca": { ingredient: "Sambuca", oz: 1.5 }, "Sambucca": { ingredient: "Sambuca", oz: 1.5 }, "Kahlúa": { ingredient: "Kahlua", oz: 1.5 },
+    "Rumpleminze": { ingredient: "Rumple Minze", oz: 1.5 },
 };
 const SPECIALTY_NO_RECIPE = new Set(); // All drinks now have recipes or aliases
 async function parseSpecialtyReport(text, recipeRows, soldAsMap) {
@@ -2056,7 +2081,20 @@ function parseVodkadeModifiers(text) {
 // ─── SALES REPORTS UPLOAD SCREEN ─────────────────────────────────────────────
 function detectReportType(text) {
     if (/Category:\s*Beer\b/i.test(text)) return "beer";
-    if (/Category:\s*Bucket Bottles/i.test(text)) return "vodkade_sf_bucket";
+    if (/Category:\s*Bucket Bottles/i.test(text)) {
+        // Speedline uses "Category: Bucket Bottles" for THREE genuinely different real
+        // reports: the regular domestic beer bucket (Bud Light/Coors Light/Miller Lite,
+        // PLUs in the 2945-2987 range, no single-flavor filter header), the real Vodkade
+        // S.F. bucket (single-flavor filtered, PLU 3494/3495/3496/3497), and the regular
+        // (non-S.F.) Vodkade bucket (single-flavor filtered, PLU 3475/3476). Previously
+        // this always returned "vodkade_sf_bucket" regardless, which silently misfiled
+        // domestic beer bucket sales as Vodkade S.F. sales, and regular Vodkade sales as
+        // Vodkade S.F. sales too - both go through the wrong PLU map entirely.
+        const plu = (text.match(/PLU:\s*(\d{4,5})/i) || [])[1];
+        if (plu === "3494" || plu === "3495" || plu === "3496" || plu === "3497") return "vodkade_sf_bucket";
+        if (plu === "3475" || plu === "3476") return "vodkade";
+        return "bucket";
+    }
     if (/Category:\s*Bucket/i.test(text)) return "bucket";
     if (/Category:\s*Carryout/i.test(text)) return "carryout";
     if (/Category:\s*Liquor/i.test(text)) return "liquor";
@@ -2787,7 +2825,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v5.4")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v5.5")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
@@ -2825,7 +2863,25 @@ function App() {
         screen === "orderguide" && React.createElement(OrderGuideScreen, { orders: orders, setOrders: setOrders, calcTotal: calcTotal, onBack: goHome, archives: archives }),
         screen === "oghistory" && React.createElement(OGHistoryScreen, { archives: archives, onBack: goHome }),
         screen === "salesupload" && React.createElement(SalesUploadScreen, { onBack: goHome, onSaved: () => setRefreshKey(k => k + 1), orders: orders, setOrders: setOrders }),
-        screen === "depletion" && React.createElement(DepletionScreen, { archives: archives, onBack: goHome }),
+        screen === "depletion" && React.createElement(DepletionScreen, { archives: archives, onBack: goHome, currentPreview: {
+            label: "Current Week (Preview)", date: new Date().toLocaleDateString(),
+            orders: orders.map(r => {
+                const tot = calcTotal(r.product);
+                const lw = Number(r.lastWeek) || 0;
+                const recv = Number(r.received) || 0;
+                const dep = Math.round((lw + recv - tot) * 100) / 100;
+                const par = Number(r.par) || 0;
+                const variance = Math.round((tot - par) * 100) / 100;
+                return {
+                    product: r.product, category: r.category, class: r.class, vendor: r.vendor || "",
+                    lastWeek: r.lastWeek || "", received: r.received || "", total: tot,
+                    depletion: (lw > 0 || recv > 0) ? dep : "", sold: r.sold || "",
+                    variance: par > 0 ? variance : "", par: r.par || "",
+                    deliveryThisWeek: r.deliveryThisWeek || "", order: r.order || "", freq: r.freq || ""
+                };
+            }),
+            pos_sales: {}
+        } }),
         screen === "counthistory" && React.createElement(CountHistoryScreen, { archives: archives, master: master, onBack: goHome }),
 
         showMaster && (React.createElement(MasterEditor, { master: master, onSave: (updated) => { setMaster(updated); setOrders(mkOrders(updated)); }, onClose: () => setShowMaster(false) })),
