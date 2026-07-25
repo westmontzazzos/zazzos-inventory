@@ -2906,6 +2906,26 @@ function App() {
         setSealed(mkSealed());
         setOpen(mkOpen());
     };
+    const [showClearConfirm, setShowClearConfirm] = useState(false);
+    const doClearCurrentWeek = async () => {
+        // Clear this week's in-progress data only - no archiving, nothing else touched.
+        try {
+            await sbDelete("counts", "week_label=eq.current");
+        }
+        catch (e) {
+            console.error("Clear current week counts error:", e);
+        }
+        try {
+            const clearRows = master.map(m => ({ product: m.product, category: m.category, class: m.class, vendor: m.vendor, received: null }));
+            await sbUpsert("orders", clearRows, "product");
+        }
+        catch (e) {
+            console.error("Clear current week received error:", e);
+        }
+        setSealed(mkSealed());
+        setOpen(mkOpen());
+        setOrders(prev => prev.map(o => (Object.assign(Object.assign({}, o), { received: "" }))));
+    };
     const handleCornerTap = (corner) => {
         setCornerTaps(prev => {
             const next = [...prev, corner];
@@ -2978,7 +2998,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v3.8")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v3.9")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
@@ -3006,7 +3026,24 @@ function App() {
                     React.createElement("div", { className: "LCard-name" }, "Weekly ordering")),
                 React.createElement("div", { className: "LCard", onClick: () => setShowRolloverConfirm(true) },
                     React.createElement("div", { className: "LCard-role" }, "Start New Week"),
-                    React.createElement("div", { className: "LCard-name" }, "Archive & reset counts"))))),
+                    React.createElement("div", { className: "LCard-name" }, "Archive & reset counts")))),
+            React.createElement("div", { style: { display: "flex", justifyContent: "center", marginTop: 10 } },
+                React.createElement("button", {
+                    onClick: () => setShowClearConfirm(true),
+                    title: "Clear this week's data",
+                    style: {
+                        width: 36, height: 36, borderRadius: "50%", border: "1px solid #C8102E",
+                        background: "#fff", color: "#C8102E", fontWeight: 700, fontSize: 14,
+                        cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center"
+                    }
+                }, "C"))),
+        showClearConfirm && React.createElement("div", { style: { position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:24 } },
+            React.createElement("div", { style: { background:"#fff", borderRadius:12, padding:24, width:"100%", maxWidth:360 } },
+                React.createElement("div", { style: { fontFamily:"'Inter',system-ui,sans-serif", fontSize:17, fontWeight:700, marginBottom:12 } }, "Clear this week's data?"),
+                React.createElement("div", { style: { fontSize:14, color:"#444", marginBottom:24, lineHeight:1.5 } }, "This clears Selena's and Erika's counts and Received values for the current week only. Nothing else is touched - no archive is created or affected. This cannot be undone."),
+                React.createElement("div", { style: { display:"flex", gap:12 } },
+                    React.createElement("button", { className:"B B-outline", style:{ flex:1 }, onClick: () => setShowClearConfirm(false) }, "Cancel"),
+                    React.createElement("button", { className:"B B-red", style:{ flex:1 }, onClick: () => { setShowClearConfirm(false); doClearCurrentWeek(); } }, "Confirm")))),
         showRolloverConfirm && React.createElement("div", { style: { position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:24 } },
             React.createElement("div", { style: { background:"#fff", borderRadius:12, padding:24, width:"100%", maxWidth:360 } },
                 React.createElement("div", { style: { fontFamily:"'Inter',system-ui,sans-serif", fontSize:17, fontWeight:700, marginBottom:12 } }, "Start New Week?"),
