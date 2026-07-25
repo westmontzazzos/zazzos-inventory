@@ -1646,7 +1646,10 @@ function DepletionScreen({ archives, onBack }) {
 // ─── COUNT HISTORY SCREEN ─────────────────────────────────────────────────────
 function CountHistoryScreen({ archives, master, sealed, open, onBack }) {
     const CLASS_ORDER_CH = ["Beer & Seltzer", "Extras", "Kegs", "Liquor", "Wine"];
-    const sortedArchives = [...(archives || [])].sort((a, b) => new Date(a.date || a.archive_date) - new Date(b.date || b.archive_date)).slice(-3);
+    const allSortedArchives = [...(archives || [])].sort((a, b) => new Date(a.date || a.archive_date) - new Date(b.date || b.archive_date));
+    const sortedArchives = allSortedArchives.slice(-3);
+    const startGlobalIndex = allSortedArchives.length - sortedArchives.length; // 0-based offset of the first shown week
+    const [revealedDates, setRevealedDates] = React.useState({});
 
     function getCount(archive, product) {
         // Always compute from the real per-location sealed/open counts - these have been
@@ -1732,7 +1735,15 @@ function CountHistoryScreen({ archives, master, sealed, open, onBack }) {
                         React.createElement("thead", null,
                             React.createElement("tr", { style: { background: "#1A1A2E", color: "#fff" } },
                                 React.createElement("th", { style: { padding: "8px 10px", textAlign: "left", minWidth: 140 } }, "Product"),
-                                ...sortedArchives.map((a, i) => React.createElement("th", { key: a.label || i, style: { padding: "8px 6px", textAlign: "center", minWidth: 70 } }, "Week " + (i + 1))),
+                                ...sortedArchives.map((a, i) => {
+                                    const globalWeekNum = startGlobalIndex + i + 1;
+                                    const isRevealed = revealedDates[globalWeekNum];
+                                    return React.createElement("th", {
+                                        key: a.label || i,
+                                        style: { padding: "8px 6px", textAlign: "center", minWidth: 70, cursor: "pointer" },
+                                        onClick: () => setRevealedDates(prev => ({ ...prev, [globalWeekNum]: !prev[globalWeekNum] }))
+                                    }, isRevealed ? (a.label || a.date) : ("Week " + globalWeekNum));
+                                }),
                                 React.createElement("th", { style: { padding: "8px 6px", textAlign: "center", background: "#1B6B3A", minWidth: 70 } }, "Current Week"),
                                 React.createElement("th", { style: { padding: "8px 6px", textAlign: "center", background: "#2a3a6a", minWidth: 60 } }, "Avg"))),
                         React.createElement("tbody", null, ...rows)))));
@@ -1740,7 +1751,10 @@ function CountHistoryScreen({ archives, master, sealed, open, onBack }) {
 
 function ReceivedHistoryScreen({ archives, master, orders, onBack }) {
     const CLASS_ORDER_RH = ["Beer & Seltzer", "Extras", "Kegs", "Liquor", "Wine"];
-    const sortedArchives = [...(archives || [])].sort((a, b) => new Date(a.date || a.archive_date) - new Date(b.date || b.archive_date)).slice(-3);
+    const allSortedArchives = [...(archives || [])].sort((a, b) => new Date(a.date || a.archive_date) - new Date(b.date || b.archive_date));
+    const sortedArchives = allSortedArchives.slice(-3);
+    const startGlobalIndex = allSortedArchives.length - sortedArchives.length;
+    const [revealedDates, setRevealedDates] = React.useState({});
 
     function getReceived(archive, product) {
         const archiveOrders = archive.orders || [];
@@ -1757,6 +1771,12 @@ function ReceivedHistoryScreen({ archives, master, orders, onBack }) {
         return isNaN(v) ? null : v;
     }
 
+    function avg(vals) {
+        const valid = vals.filter(v => v !== null);
+        if (valid.length === 0) return null;
+        return Math.round((valid.reduce((a, b) => a + b, 0) / valid.length) * 100) / 100;
+    }
+
     const masterList = getMaster();
     const grouped = {};
     CLASS_ORDER_RH.forEach(cls => grouped[cls] = {});
@@ -1768,7 +1788,7 @@ function ReceivedHistoryScreen({ archives, master, orders, onBack }) {
         grouped[cls][cat].push(item.product);
     });
 
-    const colSpan = sortedArchives.length + 1; // history weeks + Current Week
+    const colSpan = sortedArchives.length + 2; // history weeks + Current Week + Avg
     const rows = [];
     CLASS_ORDER_RH.forEach(cls => {
         if (!grouped[cls] || Object.keys(grouped[cls]).length === 0) return;
@@ -1786,10 +1806,12 @@ function ReceivedHistoryScreen({ archives, master, orders, onBack }) {
             catProds.sort().forEach((product, i) => {
                 const vals = sortedArchives.map(a => getReceived(a, product));
                 const currentVal = getCurrentReceived(product);
+                const average = avg(vals);
                 rows.push(React.createElement("tr", { key: product, style: { background: i % 2 === 0 ? "#fff" : "#F5F5F5", borderBottom: "1px solid #eee" } },
                     React.createElement("td", { style: { padding: "6px 10px", fontSize: 12 } }, product),
                     ...vals.map((v, vi) => React.createElement("td", { key: vi, style: { padding: "6px 6px", textAlign: "center", fontSize: 12 } }, v !== null ? fmt(v) : "—")),
-                    React.createElement("td", { style: { padding: "6px 6px", textAlign: "center", fontSize: 12, fontWeight: 600, background: "#eaf6ea" } }, currentVal !== null ? fmt(currentVal) : "—")));
+                    React.createElement("td", { style: { padding: "6px 6px", textAlign: "center", fontSize: 12, fontWeight: 600, background: "#eaf6ea" } }, currentVal !== null ? fmt(currentVal) : "—"),
+                    React.createElement("td", { style: { padding: "6px 6px", textAlign: "center", fontSize: 12, fontWeight: 600, background: "#f5f5ff" } }, average !== null ? fmt(average) : "—")));
             });
         });
     });
@@ -1808,8 +1830,17 @@ function ReceivedHistoryScreen({ archives, master, orders, onBack }) {
                         React.createElement("thead", null,
                             React.createElement("tr", { style: { background: "#1A1A2E", color: "#fff" } },
                                 React.createElement("th", { style: { padding: "8px 10px", textAlign: "left", minWidth: 140 } }, "Product"),
-                                ...sortedArchives.map((a, i) => React.createElement("th", { key: a.label || i, style: { padding: "8px 6px", textAlign: "center", minWidth: 70 } }, "Week " + (i + 1))),
-                                React.createElement("th", { style: { padding: "8px 6px", textAlign: "center", background: "#1B6B3A", minWidth: 70 } }, "Current Week"))),
+                                ...sortedArchives.map((a, i) => {
+                                    const globalWeekNum = startGlobalIndex + i + 1;
+                                    const isRevealed = revealedDates[globalWeekNum];
+                                    return React.createElement("th", {
+                                        key: a.label || i,
+                                        style: { padding: "8px 6px", textAlign: "center", minWidth: 70, cursor: "pointer" },
+                                        onClick: () => setRevealedDates(prev => ({ ...prev, [globalWeekNum]: !prev[globalWeekNum] }))
+                                    }, isRevealed ? (a.label || a.date) : ("Week " + globalWeekNum));
+                                }),
+                                React.createElement("th", { style: { padding: "8px 6px", textAlign: "center", background: "#1B6B3A", minWidth: 70 } }, "Current Week"),
+                                React.createElement("th", { style: { padding: "8px 6px", textAlign: "center", background: "#2a3a6a", minWidth: 60 } }, "Avg"))),
                         React.createElement("tbody", null, ...(rows.length ? rows : [React.createElement("tr", { key: "empty" }, React.createElement("td", { colSpan, style: { padding: 24, textAlign: "center", color: "#999" } }, "No received data for any of these weeks yet."))]))))));
 }
 
@@ -2947,7 +2978,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v3.7")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v3.8")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
