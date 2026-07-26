@@ -2699,6 +2699,102 @@ function OGHistoryScreen({ archives, onBack }) {
                         }));
                 }))));
 }
+// Builds the weekly completeness report from whatever sealed/open/orders data is handed to
+// it - works equally for the live in-progress week (Current Preview) or any already-closed
+// archived week (using that week's own stored sealed_counts/open_counts/orders), the same
+// way DepletionScreen's currentPreview pattern already works.
+function computeCompletenessReport(master, sealed, open, orders, weekLabelStr) {
+    const locationGaps = [];
+    (master || []).forEach(item => {
+        if (!item.locations || item.locations.length === 0) return;
+        if (item.class === "Kegs") return;
+        if (item.locations.length === 1 && item.locations[0] === "Inactive") return;
+        const countedLocs = item.locations.filter(loc => {
+            const v = sealed[loc] && sealed[loc][item.product];
+            return v !== undefined && v !== "" && v !== null;
+        });
+        const missing = item.locations.filter(loc => !countedLocs.includes(loc));
+        if (missing.length > 0) {
+            locationGaps.push({ category: item.category || "Other", product: item.product, missing, countedCount: countedLocs.length, totalLocs: item.locations.length });
+        }
+    });
+    const allMappedProducts = new Set([
+        ...Object.values(LIQUOR_PLU_MAP), ...Object.values(WINE_PLU_MAP),
+        ...Object.values(BEER_PLU_MAP), ...Object.values(KEG_PLU_MAP),
+        ...Object.values(VODKADE_PLU_MAP), ...Object.values(VODKADE_SF_BUCKET_PLU_MAP),
+        ...Object.values(CARRYOUT_BEER_PLU), ...Object.values(CARRYOUT_WINE_PLU),
+        ...Object.values(CARRYOUT_OTHER_PLU).map(m => m.item),
+    ]);
+    const pluGaps = [];
+    (master || []).forEach(item => {
+        if (item.locations && item.locations.length === 1 && item.locations[0] === "Inactive") return;
+        if (!allMappedProducts.has(item.product)) {
+            pluGaps.push({ category: item.category || "Other", product: item.product });
+        }
+    });
+    // Beer should only ever be received in 24-count cases - anything received that isn't a
+    // clean multiple of 24 almost certainly means a typo or a partial-case data entry, not
+    // an actual partial-case delivery.
+    const beerCaseIssues = [];
+    (orders || []).forEach(o => {
+        const masterItem = (master || []).find(m => m.product === o.product);
+        if (!masterItem || masterItem.category !== "Beer") return;
+        const r = Number(o.received);
+        if (o.received !== "" && o.received !== undefined && o.received !== null && !isNaN(r) && r > 0 && r % 24 !== 0) {
+            beerCaseIssues.push({ category: masterItem.category, product: o.product, received: r });
+        }
+    });
+    const groupBy = (arr) => arr.reduce((acc, x) => { (acc[x.category] = acc[x.category] || []).push(x); return acc; }, {});
+    return { locationGaps: groupBy(locationGaps), pluGaps: groupBy(pluGaps), beerCaseIssues, generatedAt: new Date().toLocaleString(), weekLabel: weekLabelStr };
+}
+
+function ReportBody({ report }) {
+    if (!report) return null;
+    return React.createElement(React.Fragment, null,
+        React.createElement("div", { style: { fontSize:12, color:"#999", marginBottom:16 } }, report.weekLabel + " - generated " + report.generatedAt),
+        React.createElement("div", { style: { fontSize:13, fontWeight:700, color:"#C8102E", textTransform:"uppercase", marginBottom:8 } }, "Missing Locations"),
+        Object.keys(report.locationGaps).length === 0 ? React.createElement("div", { style: { fontSize:13, color:"#0a7d2c", marginBottom:16 } }, "Every product was counted in all of its assigned locations.") :
+        Object.entries(report.locationGaps).map(([cat, items]) => React.createElement("div", { key: cat, style: { marginBottom:14 } },
+            React.createElement("div", { style: { fontSize:12, fontWeight:700, marginBottom:4 } }, cat),
+            items.map(it => React.createElement("div", { key: it.product, style: { fontSize:12, marginBottom:3, paddingLeft:8 } },
+                React.createElement("strong", null, it.product), " - not counted in: ", it.missing.join(", "),
+                it.countedCount === 0 && React.createElement("span", { style: { color:"#C8102E", fontWeight:700 } }, " (NOT COUNTED AT ALL)"))))),
+        React.createElement("div", { style: { fontSize:13, fontWeight:700, color:"#C8102E", textTransform:"uppercase", marginTop:20, marginBottom:8 } }, "Beer Received Not a Multiple of 24"),
+        (!report.beerCaseIssues || report.beerCaseIssues.length === 0) ? React.createElement("div", { style: { fontSize:13, color:"#0a7d2c", marginBottom:16 } }, "Every beer delivery this week came in clean case counts.") :
+        report.beerCaseIssues.map(it => React.createElement("div", { key: it.product, style: { fontSize:12, marginBottom:3, paddingLeft:8 } },
+            React.createElement("strong", null, it.product), " - received " + it.received + " (should be a multiple of 24)")),
+        React.createElement("div", { style: { fontSize:13, fontWeight:700, color:"#C8102E", textTransform:"uppercase", marginTop:20, marginBottom:8 } }, "Missing PLUs"),
+        Object.keys(report.pluGaps).length === 0 ? React.createElement("div", { style: { fontSize:13, color:"#0a7d2c", marginBottom:16 } }, "Every Master product has a PLU mapped somewhere.") :
+        Object.entries(report.pluGaps).map(([cat, items]) => React.createElement("div", { key: cat, style: { marginBottom:14 } },
+            React.createElement("div", { style: { fontSize:12, fontWeight:700, marginBottom:4 } }, cat),
+            items.map(it => React.createElement("div", { key: it.product, style: { fontSize:12, marginBottom:3, paddingLeft:8 } }, it.product)))));
+}
+// Week-by-week browser for the completeness report, mirroring DepletionScreen's week-list
+// pattern exactly (currentPreview shown first, then closed weeks oldest-to-newest, tap a
+// week to view it). "Current Preview" recomputes live from whatever's been counted so far
+// this week - nothing saved or archived, just a look-ahead before actually closing the week.
+function ReportsScreen({ archives, onBack, currentPreview }) {
+    const closedArchives = [...(archives || [])].sort((a, b) => new Date(a.date || a.archive_date) - new Date(b.date || b.archive_date));
+    const sortedArchives = currentPreview ? [currentPreview, ...closedArchives] : closedArchives;
+    const [selectedLabel, setSelectedLabel] = React.useState(sortedArchives.length ? sortedArchives[0].label : null);
+    const selectedArchive = sortedArchives.find(a => a.label === selectedLabel) || sortedArchives[0] || null;
+    const report = selectedArchive ? computeCompletenessReport(window.__MASTER__ || INITIAL_MASTER, selectedArchive.sealed || {}, selectedArchive.open || {}, selectedArchive.orders || [], selectedArchive.label) : null;
+    return React.createElement("div", { className: "H" },
+        React.createElement("div", { className: "no-print", style: { padding: "16px 16px 0" } },
+            React.createElement("button", { className: "B B-outline", onClick: onBack }, "\u2190 Back"),
+            React.createElement("div", { style: { fontFamily:"'Libre Baskerville',Georgia,serif", fontSize:20, fontWeight:700, margin:"12px 0 8px" } }, "Weekly Count Reports"),
+            React.createElement("div", { style: { display:"flex", flexWrap:"wrap", gap:6, marginBottom:16 } },
+                sortedArchives.length === 0 ? React.createElement("div", { style: { fontSize:13, color:"#999" } }, "No weeks yet.") :
+                sortedArchives.map((a, i) => React.createElement("button", {
+                    key: "wk-" + i,
+                    className: "B " + (a.label === selectedLabel ? "B-red" : "B-outline"),
+                    style: { fontSize:12, padding:"6px 10px" },
+                    onClick: () => setSelectedLabel(a.label)
+                }, a.label)))),
+        React.createElement("div", { style: { padding: "0 16px 40px" } },
+            report ? React.createElement(ReportBody, { report: report }) : React.createElement("div", { style: { fontSize:13, color:"#999" } }, "Select a week above.")),
+        React.createElement("style", null, `@media print{.print-show{display:block!important;}.no-print{display:none!important;}}`));
+}
 function App() {
     const [screen, setScreen] = useState("login");
     const [user, setUser] = useState(null);
@@ -2824,6 +2920,14 @@ function App() {
             t += Number(v); });
         return Math.round(t * 100) / 100;
     }, [sealed, open]);
+    const [lastWeekReport, setLastWeekReport] = useState(null);
+    const [showWeeklyReport, setShowWeeklyReport] = useState(false);
+    // Checks every Master product's assigned locations against what was ACTUALLY counted
+    // this week (sealed/Selena only - Erika's open/partial counts are always just Behind
+    // Bar + Keg Cooler by design, so there's no "coverage gap" concept for her). Also
+    // checks every Master product against every PLU map in the file to catch products that
+    // can never show up in sold/depletion data because nothing points a PLU at them.
+    const buildWeeklyReport = () => computeCompletenessReport(master, sealed, open, orders, weekLabel());
     const doRollover = async () => {
         const fillBlanks = (obj) => { const f = JSON.parse(JSON.stringify(obj)); Object.keys(f).forEach(l => { Object.keys(f[l]).forEach(p => { if (f[l][p] === "" || f[l][p] === undefined || f[l][p] === null) f[l][p] = "0"; }); }); return f; };
         const archiveData = {
@@ -2875,6 +2979,7 @@ function App() {
             alert("Close Week failed: the archive could not be saved, so nothing has been changed. Your current counts and orders are untouched. Please try again, and if this keeps happening, stop and get help before trying further.");
             return;
         }
+        const report = buildWeeklyReport();
         const newOrders = orders.map(r => (Object.assign(Object.assign({}, r), { lastWeek: String(calcTotal(r.product)), received: "", sold: "", order: "" })));
         setOrders(newOrders);
         try {
@@ -2896,6 +3001,8 @@ function App() {
         }
         setSealed(mkSealed());
         setOpen(mkOpen());
+        setLastWeekReport(report);
+        setShowWeeklyReport(true);
     };
     const handleCornerTap = (corner) => {
         setCornerTaps(prev => {
@@ -3009,7 +3116,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v7.1")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v8.1")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
@@ -3035,7 +3142,8 @@ function App() {
                 React.createElement("div", { className: "LCard", onClick: () => setShowRolloverConfirm(true) },
                     React.createElement("div", { className: "LCard-role" }, "Start New Week"),
                     React.createElement("div", { className: "LCard-name" }, "Archive & reset counts"))),
-            React.createElement("div", { onClick: () => { setClearResult(null); setShowClearMenu(true); }, style: { position:"fixed", left:"50%", transform:"translateX(-50%)", bottom:"80px", width:36, height:36, borderRadius:"50%", background:"#FFFFFF", border:"2px solid #1B6B3A", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Inter',system-ui,sans-serif", fontSize:14, fontWeight:700, color:"#1B6B3A", cursor:"pointer", boxShadow:"0 2px 8px rgba(0,0,0,0.12)", zIndex:50 } }, "C"))),
+            React.createElement("div", { onClick: () => { setClearResult(null); setShowClearMenu(true); }, style: { position:"fixed", left:"calc(50% - 24px)", transform:"translateX(-50%)", bottom:"80px", width:36, height:36, borderRadius:"50%", background:"#FFFFFF", border:"2px solid #1B6B3A", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Inter',system-ui,sans-serif", fontSize:14, fontWeight:700, color:"#1B6B3A", cursor:"pointer", boxShadow:"0 2px 8px rgba(0,0,0,0.12)", zIndex:50 } }, "C"),
+            React.createElement("div", { onClick: () => setScreen("reports"), style: { position:"fixed", left:"calc(50% + 24px)", transform:"translateX(-50%)", bottom:"80px", width:36, height:36, borderRadius:"50%", background:"#FFFFFF", border:"2px solid #1B6B3A", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Inter',system-ui,sans-serif", fontSize:14, fontWeight:700, color:"#1B6B3A", cursor:"pointer", boxShadow:"0 2px 8px rgba(0,0,0,0.12)", zIndex:50 } }, "R"))),
         showRolloverConfirm && React.createElement("div", { style: { position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:24 } },
             React.createElement("div", { style: { background:"#fff", borderRadius:12, padding:24, width:"100%", maxWidth:360 } },
                 React.createElement("div", { style: { fontFamily:"'Inter',system-ui,sans-serif", fontSize:17, fontWeight:700, marginBottom:12 } }, "Start New Week?"),
@@ -3055,7 +3163,18 @@ function App() {
                     React.createElement("button", { className:"B B-outline", disabled: clearBusy, onClick: () => doClearWeek("erika") }, "Clear Erika"),
                     React.createElement("button", { className:"B B-outline", disabled: clearBusy, onClick: () => doClearWeek("speedline") }, "Clear Speedline Sales"),
                     React.createElement("button", { className:"B B-outline", style:{ marginTop:8 }, disabled: clearBusy, onClick: () => setShowClearMenu(false) }, clearResult ? "Done" : "Cancel")))),
+        showWeeklyReport && lastWeekReport && React.createElement("div", { style: { position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }, className: "no-print" },
+            React.createElement("div", { style: { background:"#fff", borderRadius:12, padding:24, width:"100%", maxWidth:480, maxHeight:"85vh", overflowY:"auto" } },
+                React.createElement("div", { style: { fontFamily:"'Inter',system-ui,sans-serif", fontSize:17, fontWeight:700, marginBottom:4 } }, "Weekly Count Report"),
+                React.createElement(ReportBody, { report: lastWeekReport }),
+                React.createElement("div", { style: { display:"flex", gap:8, marginTop:20 } },
+                    React.createElement("button", { className:"B B-outline", onClick: () => window.print() }, "\ud83d\uddb6 Print"),
+                    React.createElement("button", { className:"B B-red", onClick: () => setShowWeeklyReport(false) }, "Close")))),
         screen === "count" && (React.createElement(CountScreen, { user: user, locs: user === "selena" ? SELENA_LOCS : ERIKA_LOCS, counts: user === "selena" ? sealed : open, setCounts: user === "selena" ? setSealed : setOpen, onBack: goHome, sealed: sealed, open: open })),
+        screen === "reports" && React.createElement(ReportsScreen, { archives: archives, onBack: goHome, currentPreview: {
+            label: "Current Week (Preview)", date: new Date().toLocaleDateString(),
+            sealed: sealed, open: open, orders: orders,
+        } }),
         screen === "received" && React.createElement(ReceivedScreen, { onBack: goHome, orders: orders, setOrders: setOrders }),
         screen === "orderguide" && React.createElement(OrderGuideScreen, { orders: orders, setOrders: setOrders, calcTotal: calcTotal, onBack: goHome, archives: archives }),
         screen === "oghistory" && React.createElement(OGHistoryScreen, { archives: archives, onBack: goHome }),
