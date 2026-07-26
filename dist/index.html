@@ -1339,6 +1339,37 @@ function ReceivedScreen({ onBack, orders, setOrders }) {
         setOrders(prev => prev.map(r => r.product === product ? Object.assign(Object.assign({}, r), { received: val }) : r));
         persistReceived(product, val);
     };
+    const [caseMode, setCaseMode] = useState({});
+    const [caseInputs, setCaseInputs] = useState({});
+    const BEER_CASE_SIZE = 24;
+    // Beer sold in 24-count cases (category "Beer" specifically - Seltzer items like High
+    // Noon/Vodkade/White Claw are NOT included, and kegs are an entirely separate Master
+    // category "Keg" that was never affected by this). Toggling "Case" lets whoever's
+    // logging deliveries type the number of CASES instead of doing the ×24 math by hand -
+    // the underlying received value saved to Supabase is always the real unit/bottle count,
+    // exactly as every other screen in the app (depletion, order guide, etc.) expects it.
+    const toggleCase = (product) => {
+        setCaseMode(prev => {
+            const turningOn = !prev[product];
+            if (turningOn) {
+                const cur = Number(received[product] || 0);
+                const cases = cur > 0 ? String(Math.round((cur / BEER_CASE_SIZE) * 100) / 100) : "";
+                setCaseInputs(p => Object.assign(Object.assign({}, p), { [product]: cases }));
+            }
+            return Object.assign(Object.assign({}, prev), { [product]: turningOn });
+        });
+    };
+    const updateRecCase = (product, casesStr) => {
+        setCaseInputs(prev => Object.assign(Object.assign({}, prev), { [product]: casesStr }));
+        if (casesStr === "") { updateRec(product, ""); return; }
+        const cases = Number(casesStr);
+        if (!isNaN(cases)) updateRec(product, String(Math.round(cases * BEER_CASE_SIZE)));
+    };
+    const stepCase = (product, delta) => {
+        const curCases = Number(caseInputs[product] || 0);
+        const next = Math.max(0, curCases + delta);
+        updateRecCase(product, String(next));
+    };
     const blankItems = () => vendorProds.filter(i => received[i.product] === "" || received[i.product] === undefined);
     const hasBlank = () => blankItems().length > 0;
     const tryAdvance = () => hasBlank() ? setModal(true) : advance();
@@ -1394,14 +1425,17 @@ function ReceivedScreen({ onBack, orders, setOrders }) {
                         items.map(item => {
                             var _a;
                             const val = (_a = received[item.product]) !== null && _a !== void 0 ? _a : "";
+                            const isBeerCase = item.category === "Beer";
+                            const inCaseMode = isBeerCase && caseMode[item.product];
                             return (React.createElement("div", { className: "ProdRow", key: item.product },
                                 React.createElement("div", { className: "ProdRow-info" },
                                     React.createElement("div", { className: "ProdRow-name" }, item.product),
-                                    React.createElement("div", { className: "ProdRow-meta" }, "units")),
+                                    React.createElement("div", { className: "ProdRow-meta" }, inCaseMode ? ("cases \u00d7 24 = " + (val === "" ? "0" : val) + " units") : "units")),
+                                isBeerCase && React.createElement("button", { className: "B B-outline", style: { fontSize: 11, padding: "4px 8px", marginRight: 6 }, onClick: () => toggleCase(item.product) }, inCaseMode ? "Cases" : "Units"),
                                 React.createElement("div", { className: "Stepper" },
-                                    React.createElement("div", { className: "StepBtn", onClick: () => step(item.product, -1) }, "\u2212"),
-                                    React.createElement("input", { className: "StepInput" + (val !== "" ? " filled" : ""), type: "number", min: "0", step: "1", inputMode: "numeric", placeholder: "0", value: val, onChange: e => updateRec(item.product, e.target.value) }),
-                                    React.createElement("div", { className: "StepBtn", onClick: () => step(item.product, 1) }, "+"))));
+                                    React.createElement("div", { className: "StepBtn", onClick: () => inCaseMode ? stepCase(item.product, -1) : step(item.product, -1) }, "\u2212"),
+                                    React.createElement("input", { className: "StepInput" + (val !== "" ? " filled" : ""), type: "number", min: "0", step: inCaseMode ? "1" : "1", inputMode: "numeric", placeholder: "0", value: inCaseMode ? ((_a = caseInputs[item.product]) !== null && _a !== void 0 ? _a : "") : val, onChange: e => inCaseMode ? updateRecCase(item.product, e.target.value) : updateRec(item.product, e.target.value) }),
+                                    React.createElement("div", { className: "StepBtn", onClick: () => inCaseMode ? stepCase(item.product, 1) : step(item.product, 1) }, "+"))));
                         })))))))))))),
         !allDone && (React.createElement("div", { className: "Footer no-print" },
             activeVendorIdx > 0 ? React.createElement("button", { className: "Footer-btn", onClick: () => setActiveVendorIdx(p => p - 1) }, "\u2190 Back") : React.createElement("div", { className: "Footer-spacer" }),
@@ -2925,6 +2959,46 @@ function App() {
     const masterCancel = () => { setShowMasterPin(false); setMasterPinInput(""); setMasterPinError(false); };
     const goHome = () => { setScreen("login"); setUser(null); };
     const login = (u) => { setUser(u); setScreen("count"); };
+    const [showClearMenu, setShowClearMenu] = useState(false);
+    const [clearBusy, setClearBusy] = useState(false);
+    const [clearResult, setClearResult] = useState(null);
+    // Clears THIS WEEK'S in-progress data only (orders.received/sold, and Selena/Erika's
+    // counts table rows where week_label='current'). Never touches the archives table -
+    // that only ever gets written by Close Week/Start New Week, which this has nothing to
+    // do with. Meant for repeated test runs (parsing sales reports, testing counts, etc.)
+    // without needing to close out a real week each time to reset.
+    const doClearWeek = async (scope) => {
+        setClearBusy(true);
+        setClearResult(null);
+        try {
+            if (scope === "all") {
+                await Promise.all(orders.map(r => sbUpsert("orders", { product: r.product, received: null, sold: null }, "product")));
+                await sbDelete("counts", "week_label=eq.current&user_type=eq.selena");
+                await sbDelete("counts", "week_label=eq.current&user_type=eq.erika");
+                setOrders(prev => prev.map(r => Object.assign(Object.assign({}, r), { received: "", sold: "" })));
+                setSealed(mkSealed());
+                setOpen(mkOpen());
+            } else if (scope === "received") {
+                await Promise.all(orders.map(r => sbUpsert("orders", { product: r.product, received: null }, "product")));
+                setOrders(prev => prev.map(r => Object.assign(Object.assign({}, r), { received: "" })));
+            } else if (scope === "speedline") {
+                await Promise.all(orders.map(r => sbUpsert("orders", { product: r.product, sold: null }, "product")));
+                setOrders(prev => prev.map(r => Object.assign(Object.assign({}, r), { sold: "" })));
+            } else if (scope === "selena") {
+                await sbDelete("counts", "week_label=eq.current&user_type=eq.selena");
+                setSealed(mkSealed());
+            } else if (scope === "erika") {
+                await sbDelete("counts", "week_label=eq.current&user_type=eq.erika");
+                setOpen(mkOpen());
+            }
+            setClearResult("Cleared.");
+        }
+        catch (e) {
+            console.error("Clear week error:", e);
+            setClearResult("Something went wrong - check your connection and try again before assuming it cleared.");
+        }
+        setClearBusy(false);
+    };
     return (React.createElement(React.Fragment, null,
         React.createElement("style", null, CSS),
         loading && (React.createElement("div", { className: "Login" },
@@ -2935,7 +3009,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v6.0")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v7.0")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
@@ -2960,7 +3034,10 @@ function App() {
                     React.createElement("div", { className: "LCard-name" }, "Weekly ordering")),
                 React.createElement("div", { className: "LCard", onClick: () => setShowRolloverConfirm(true) },
                     React.createElement("div", { className: "LCard-role" }, "Start New Week"),
-                    React.createElement("div", { className: "LCard-name" }, "Archive & reset counts"))))),
+                    React.createElement("div", { className: "LCard-name" }, "Archive & reset counts")),
+                React.createElement("div", { className: "LCard", onClick: () => { setClearResult(null); setShowClearMenu(true); } },
+                    React.createElement("div", { className: "LCard-role" }, "Clear This Week's Data"),
+                    React.createElement("div", { className: "LCard-name" }, "For testing - doesn't touch archives"))))),
         showRolloverConfirm && React.createElement("div", { style: { position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:24 } },
             React.createElement("div", { style: { background:"#fff", borderRadius:12, padding:24, width:"100%", maxWidth:360 } },
                 React.createElement("div", { style: { fontFamily:"'Inter',system-ui,sans-serif", fontSize:17, fontWeight:700, marginBottom:12 } }, "Start New Week?"),
@@ -2968,6 +3045,18 @@ function App() {
                 React.createElement("div", { style: { display:"flex", gap:12 } },
                     React.createElement("button", { className:"B B-outline", style:{ flex:1 }, onClick: () => setShowRolloverConfirm(false) }, "Cancel"),
                     React.createElement("button", { className:"B B-red", style:{ flex:1 }, onClick: () => { setShowRolloverConfirm(false); doRollover(); } }, "Confirm")))),
+        showClearMenu && React.createElement("div", { style: { position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:24 } },
+            React.createElement("div", { style: { background:"#fff", borderRadius:12, padding:24, width:"100%", maxWidth:360 } },
+                React.createElement("div", { style: { fontFamily:"'Inter',system-ui,sans-serif", fontSize:17, fontWeight:700, marginBottom:8 } }, "Clear This Week's Data"),
+                React.createElement("div", { style: { fontSize:13, color:"#666", marginBottom:16, lineHeight:1.5 } }, "Only clears the current in-progress week (Received, counts, sold). Never touches archived weeks - safe to use as many times as you need while testing."),
+                clearResult && React.createElement("div", { style: { fontSize:13, marginBottom:16, color: clearResult === "Cleared." ? "#0a7d2c" : "#c0392b", fontWeight:600 } }, clearResult),
+                React.createElement("div", { style: { display:"flex", flexDirection:"column", gap:8 } },
+                    React.createElement("button", { className:"B B-red", disabled: clearBusy, onClick: () => doClearWeek("all") }, "Clear All"),
+                    React.createElement("button", { className:"B B-outline", disabled: clearBusy, onClick: () => doClearWeek("received") }, "Clear Received"),
+                    React.createElement("button", { className:"B B-outline", disabled: clearBusy, onClick: () => doClearWeek("selena") }, "Clear Selena"),
+                    React.createElement("button", { className:"B B-outline", disabled: clearBusy, onClick: () => doClearWeek("erika") }, "Clear Erika"),
+                    React.createElement("button", { className:"B B-outline", disabled: clearBusy, onClick: () => doClearWeek("speedline") }, "Clear Speedline Sales"),
+                    React.createElement("button", { className:"B B-outline", style:{ marginTop:8 }, disabled: clearBusy, onClick: () => setShowClearMenu(false) }, clearResult ? "Done" : "Cancel")))),
         screen === "count" && (React.createElement(CountScreen, { user: user, locs: user === "selena" ? SELENA_LOCS : ERIKA_LOCS, counts: user === "selena" ? sealed : open, setCounts: user === "selena" ? setSealed : setOpen, onBack: goHome, sealed: sealed, open: open })),
         screen === "received" && React.createElement(ReceivedScreen, { onBack: goHome, orders: orders, setOrders: setOrders }),
         screen === "orderguide" && React.createElement(OrderGuideScreen, { orders: orders, setOrders: setOrders, calcTotal: calcTotal, onBack: goHome, archives: archives }),
