@@ -1578,16 +1578,48 @@ function DepletionScreen({ archives, onBack, currentPreview }) {
         }
     };
     const selectedArchive = sortedArchives.find(a => a.label === selectedLabel) || sortedArchives[0] || null;
-    const orders = selectedArchive ? selectedArchive.orders || [] : [];
+    const rawOrders = selectedArchive ? selectedArchive.orders || [] : [];
     const posSales = selectedArchive ? selectedArchive.pos_sales || {} : {};
     const master = getMaster();
     const prodMap = {};
     master.forEach(p => { prodMap[p.product] = p; });
 
+    // Jack Daniels Fire 1L and 750 are counted as two separate physical bottles by
+    // Selena/Erika (no change to how they count - each still enters their own bottle's
+    // number). But Speedline only rings one PLU (2755) for either bottle, and depletion
+    // needs one comparable total. So for depletion/variance purposes only, combine the
+    // two into a single virtual "Jack Daniels Fire" line: convert each bottle's count to
+    // liters (1L bottle x1.0, 750 bottle x0.75) before adding lastWeek/received/total.
+    // Once the 750 is fully depleted its count stays at 0 forever and this collapses to
+    // just the 1L number - no future change needed.
+    function combineFireVariants(orders) {
+        const oneL = orders.find(o => o.product === "Jack Daniels Fire 1L");
+        const sevenFifty = orders.find(o => o.product === "Jack Daniels Fire 750");
+        if (!oneL && !sevenFifty) return orders;
+        const num = (v) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
+        const combined = {
+            product: "Jack Daniels Fire",
+            class: (oneL || sevenFifty).class,
+            category: (oneL || sevenFifty).category,
+            vendor: (oneL || sevenFifty).vendor,
+            lastWeek: (oneL ? num(oneL.lastWeek) * 1.0 : 0) + (sevenFifty ? num(sevenFifty.lastWeek) * 0.75 : 0),
+            received: (oneL ? num(oneL.received) * 1.0 : 0) + (sevenFifty ? num(sevenFifty.received) * 0.75 : 0),
+            total: (oneL ? num(oneL.total) * 1.0 : 0) + (sevenFifty ? num(sevenFifty.total) * 0.75 : 0),
+            // PLU 2755 always attributes sales to the 1L row per the parser mapping - carry
+            // that forward as the combined sold figure rather than summing (avoids double-
+            // counting if a future parser change ever also touched the 750 row directly).
+            sold: oneL && oneL.sold !== undefined && oneL.sold !== "" ? oneL.sold
+                : (sevenFifty && sevenFifty.sold !== undefined && sevenFifty.sold !== "" ? sevenFifty.sold : ""),
+        };
+        return orders.filter(o => o.product !== "Jack Daniels Fire 1L" && o.product !== "Jack Daniels Fire 750").concat([combined]);
+    }
+    const orders = combineFireVariants(rawOrders);
+
     const rows = orders
         .filter(o => o.product && (o.total !== undefined || o.lastWeek !== undefined))
         .sort((a, b) => {
-            const am = prodMap[a.product] || {}; const bm = prodMap[b.product] || {};
+            const am = prodMap[a.product] || (a.product === "Jack Daniels Fire" ? { class: a.class, category: a.category } : {});
+            const bm = prodMap[b.product] || (b.product === "Jack Daniels Fire" ? { class: b.class, category: b.category } : {});
             const ci = classSort(am.class, am.category) - classSort(bm.class, bm.category);
             if (ci !== 0) return ci;
             const ac = am.category || ''; const bc = bm.category || '';
@@ -1641,7 +1673,7 @@ function DepletionScreen({ archives, onBack, currentPreview }) {
                             const out = [];
                             let prevSection = null; let prevCat = null;
                             rows.forEach((o, i) => {
-                                const pm = prodMap[o.product] || {};
+                                const pm = prodMap[o.product] || (o.product === "Jack Daniels Fire" ? { class: o.class, category: o.category } : {});
                                 const cls = pm.class || ""; const cat = pm.category || "";
                                 const section = cls.toUpperCase() || "OTHER";
                                 if (section !== prevSection) {
@@ -1947,8 +1979,16 @@ function parseBeerReport(beerText, bucketText, carryoutText, hnText, vodkadeText
         if (item) results.bottles[item] = (results.bottles[item] || 0) + r.qty;
     }
 
+    // Previously this only added the generic Vodkade PLU 3473 qty as "Vodkade Orange"
+    // when NO vodkade flavor report was uploaded at all. But when a Red/Blue flavor
+    // report WAS uploaded and simply didn't happen to include an Orange line that week
+    // (Orange just wasn't sold that specific flavor, or was reported separately), this
+    // silently dropped the Orange sales entirely instead of falling back. The candidate
+    // qty is now always exposed; runParse decides whether to use it, based on whether
+    // "Vodkade Orange" actually ended up populated after the real flavor report (if any)
+    // was parsed - so it's only used as a true fallback, never double-counted.
     const vkRow = beer.find(r => r.plu === "3473");
-    if (vkRow && !vodkadeText) results.bottles["Vodkade Orange"] = (results.bottles["Vodkade Orange"] || 0) + vkRow.qty;
+    results._vodkadeOrangeFallback = vkRow ? vkRow.qty : 0;
 
     return results;
 }
@@ -1967,6 +2007,38 @@ const LIQUOR_PLU_MAP = {
     "2720": "Zazzo's Bourbon", "3455": "Zazzo's Straight Bourbon",
     "3315": "Benchmark", "2680": "Bulleit Bourbon", "2688": "Bulleit Rye",
     "2698": "Glenlivet", "2696": "Dewar's", "3392": "Horse Soldier", "2721": "Seagram's 7", "2709": "Skrewball",
+    // Added [date] - confirmed against Master via Zazzos_Dine-In_Alcohol_PLUs.xlsx cross-check.
+    // These PLUs previously did not exist anywhere in the parser, so any dine-in sale of
+    // these items was silently dropped from POS "sold" matching - not a formula bug, a
+    // missing map entry. 4 additional items from the same list (Old Forester 1910, Whistle
+    // Piggy Back, Whistle Piggy Rye, Kettle One Citron) are intentionally left out here
+    // pending confirmation of which Master product each maps to.
+    "3428": "Rumhaven", "3393": "Templeton Rye", "3328": "Sazerac Rye", "3430": "Gentleman Jack",
+    "2695": "Crown Royal Peach", "2687": "Elijah Craig", "3161": "Hennessy", "2689": "High West",
+    "2715": "Knob Creek", "2681": "Old Forester", "2728": "Red Breast", "2704": "Redemption",
+    // PLU 3237 "Old Forester 1910" - status unresolved as of this build. Not mapped here.
+    // Still needs Ely's confirmation: same Master item as base "Old Forester," or a
+    // separate bottling that isn't currently tracked in Master at all.
+    "3429": "Row 94", "2684": "Russell's", "2722": "Seagram's VO", "2685": "Wild Turkey",
+    "2740": "Bailey's", "2742": "Chambord", "2743": "Disaronno", "2745": "E&J",
+    "2750": "Grand Marnier", "2752": "Rumchata", "2754": "Rumple Minze", "2757": "Jagermeister",
+    "2758": "Kahlua",
+    // Master has no separate "Citron" or "Rye" variant tracked for these two - mapping
+    // both to the existing base Master product rather than creating an untracked split.
+    "2647": "Kettle One", "2690": "Pinhook",
+    // Confirmed by Ely: "Whistle Piggy Back" = Piggy Back (bourbon); "Whistle Piggy RYE" is
+    // a Speedline register typo for "Whistle Pig Rye" = Whistle Pig (rye).
+    "2731": "Piggy Back", "2726": "Whistle Pig",
+    // Confirmed matches from the 38-item Dine-In review - Speedline spells these
+    // differently than Master, but they're the same tracked product:
+    "3227": "Belvedere", "2682": "Blade and Bow", "2719": "Mitcher's",
+    "2747": "Sambuca", "2666": "Myers's",
+    // Missed in the first 38-item pass - confirmed by Ely, exact Master match:
+    "2756": "Jack Daniels Honey",
+    // PLU 2755 "Jack Fire" - Ely confirmed 1L and 750 are interchangeable/same product,
+    // 750 is a temporary substitute that will be gone once depleted. Mapped to the
+    // permanent item.
+    "2755": "Jack Daniels Fire 1L",
 };
 function parseLiquorReport(text) {
     const rows = parseSizesSoldLiquor(text);
@@ -1992,6 +2064,9 @@ const WINE_PLU_MAP = {
     "3354": "Lamarca Splitz",
     "3371": "Decoy Cabernet", "3398": "Decoy Pinot Noir", "3357": "Santa Margherita Pinot Grigio",
     "3369": "Franciscan Cabernet",
+    // Added [date] - confirmed against Master via Zazzos_Dine-In_Alcohol_PLUs.xlsx cross-check.
+    // Previously not in the parser at all, so dine-in Duckhorn Cabernet sales were silently dropped.
+    "2871": "Duckhorn Cabernet",
     "2876": "__sangria__", "2877": "__sangria__",
 };
 const WINE_INFERRED = new Set(); // All house-pour brands confirmed as Canyon Road
@@ -2165,11 +2240,12 @@ function SalesUploadScreen({ onBack, onSaved, orders, setOrders }) {
             const combinedKegs = {};
             const combinedUnits = {};
 
+            let beerResult = null;
             if (texts.beer) {
-                const r = parseBeerReport(texts.beer, texts.bucket, texts.carryout, texts.highnoon, texts.vodkade);
-                Object.assign(combinedBottles, r.bottles);
-                Object.assign(combinedKegs, r.kegs);
-                allFlags.push(...r.flags);
+                beerResult = parseBeerReport(texts.beer, texts.bucket, texts.carryout, texts.highnoon, texts.vodkade);
+                Object.assign(combinedBottles, beerResult.bottles);
+                Object.assign(combinedKegs, beerResult.kegs);
+                allFlags.push(...beerResult.flags);
             }
             if (texts.liquor) {
                 const r = parseLiquorReport(texts.liquor);
@@ -2193,6 +2269,25 @@ function SalesUploadScreen({ onBack, onSaved, orders, setOrders }) {
                     if (item) combinedBottles[item] = (combinedBottles[item] || 0) + r.qty;
                     else allFlags.push("Unrecognized Vodkade SF Bucket PLU " + r.plu + " qty " + r.qty);
                 }
+            }
+            // Bug fix (found during the Jun17-Jul21 historical re-parse): carryout wine
+            // bottles were parsed into beerResult._carryoutWine but never actually added
+            // to combinedBottles anywhere - every carryout Canyon Road/Josh/Santa
+            // Margherita/Decoy/Franciscan bottle was silently dropped from "sold" every
+            // week. These share the exact same product name as the bar-poured version, so
+            // they ADD on top of whatever the wine report already produced, not overwrite.
+            if (beerResult && beerResult._carryoutWine) {
+                for (const [item, qty] of Object.entries(beerResult._carryoutWine)) {
+                    combinedBottles[item] = (combinedBottles[item] || 0) + qty;
+                }
+            }
+            // Bug fix: previously the Vodkade Orange fallback (generic PLU 3473 from the
+            // beer report) was skipped any time ANY vodkade flavor report was uploaded,
+            // even if that report only covered Red/Blue and never actually captured
+            // Orange - silently dropping Orange sales for that week. Now it only fills in
+            // if Orange is still missing after the real flavor/SF reports were parsed.
+            if (beerResult && beerResult._vodkadeOrangeFallback && !("Vodkade Orange" in combinedBottles)) {
+                combinedBottles["Vodkade Orange"] = beerResult._vodkadeOrangeFallback;
             }
             if (texts.specialty) {
                 const recipeRows = await sbGet("recipe_database", "select=*");
@@ -2840,7 +2935,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v5.6")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v6.0")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
