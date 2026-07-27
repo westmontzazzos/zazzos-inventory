@@ -2998,38 +2998,97 @@ function computeCompletenessReport(master, sealed, open, orders, weekLabelStr) {
 function downloadReportPDF({ title, weekInfo, columns, rows, filename }) {
     const doc = new window.jspdf.jsPDF({ orientation: "portrait", unit: "pt", format: "letter" });
     const pageWidth = doc.internal.pageSize.getWidth();
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(200, 16, 46);
-    doc.setFontSize(14);
-    doc.text("ZAZZO'S LIQUOR INVENTORY", 40, 40);
-    doc.setFontSize(9);
-    doc.setTextColor(51, 51, 51);
-    doc.text(title.toUpperCase(), 40, 55);
-    doc.setFontSize(8);
-    doc.setTextColor(85, 85, 85);
-    doc.setFont("helvetica", "normal");
-    doc.text(weekInfo, pageWidth - 40, 40, { align: "right" });
-    doc.text("Printed: " + new Date().toLocaleDateString(), pageWidth - 40, 52, { align: "right" });
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const marginX = 40;
 
-    const body = [];
+    function drawPageHeader() {
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(200, 16, 46);
+        doc.setFontSize(14);
+        doc.text("ZAZZO'S LIQUOR INVENTORY", marginX, 40);
+        doc.setFontSize(9);
+        doc.setTextColor(51, 51, 51);
+        doc.text(title.toUpperCase(), marginX, 55);
+        doc.setFontSize(8);
+        doc.setTextColor(85, 85, 85);
+        doc.setFont("helvetica", "normal");
+        doc.text(weekInfo, pageWidth - marginX, 40, { align: "right" });
+        doc.text("Printed: " + new Date().toLocaleDateString(), pageWidth - marginX, 52, { align: "right" });
+        doc.setDrawColor(26, 26, 46);
+        doc.setLineWidth(1.2);
+        doc.line(marginX, 62, pageWidth - marginX, 62);
+    }
+
+    // Split into one group per "section" (class) - each section always starts on a brand
+    // new page instead of letting autoTable split it wherever it happens to run out of
+    // room. Category rows stay embedded inside their section's own table as sub-headers -
+    // only a full section change forces a page break.
+    const sections = [];
+    let current = null;
     rows.forEach(r => {
-        if (r.type === "section") body.push([{ content: r.label, colSpan: columns.length, styles: { fillColor: [26, 26, 46], textColor: 255, fontStyle: "bold", fontSize: 9 } }]);
-        else if (r.type === "category") body.push([{ content: r.label, colSpan: columns.length, styles: { fillColor: [240, 232, 232], textColor: [200, 16, 46], fontStyle: "bold", fontSize: 8 } }]);
-        else body.push(r.cells);
+        if (r.type === "section") {
+            current = { label: r.label, body: [] };
+            sections.push(current);
+        } else if (r.type === "category") {
+            if (!current) { current = { label: "", body: [] }; sections.push(current); }
+            current.body.push([{ content: r.label, colSpan: columns.length, styles: { fillColor: [240, 232, 232], textColor: [200, 16, 46], fontStyle: "bold", fontSize: 8, halign: "left" } }]);
+        } else {
+            if (!current) { current = { label: "", body: [] }; sections.push(current); }
+            current.body.push(r.cells);
+        }
     });
 
-    doc.autoTable({
-        startY: 68,
-        head: [columns],
-        body: body,
-        theme: "grid",
-        styles: { fontSize: 8, cellPadding: 3, lineColor: [221, 221, 221], lineWidth: 0.5 },
-        headStyles: { fillColor: [26, 26, 46], textColor: 255, fontStyle: "bold", fontSize: 8 },
-        alternateRowStyles: { fillColor: [247, 247, 247] },
+    sections.forEach((sec, i) => {
+        if (i > 0) doc.addPage();
+        drawPageHeader();
+        let startY = 74;
+        if (sec.label) {
+            doc.setFillColor(26, 26, 46);
+            doc.rect(marginX, startY, pageWidth - marginX * 2, 20, "F");
+            doc.setTextColor(255, 255, 255);
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(10);
+            doc.text(sec.label, marginX + 8, startY + 14);
+            startY += 28;
+        }
+        doc.autoTable({
+            startY,
+            head: [columns],
+            body: sec.body,
+            theme: "grid",
+            styles: { fontSize: 8, cellPadding: 3, lineColor: [221, 221, 221], lineWidth: 0.5, valign: "middle" },
+            headStyles: { fillColor: [26, 26, 46], textColor: 255, fontStyle: "bold", fontSize: 8 },
+            alternateRowStyles: { fillColor: [247, 247, 247] },
+            margin: { left: marginX, right: marginX, top: 40 },
+            // If a single section's table is itself too long for one page, autoTable will
+            // still continue it onto additional pages here - but it'll never START mid-way
+            // through a page the way the old single-table version did, and every continued
+            // page keeps the same header/table style automatically.
+        });
     });
 
-    const finalY = doc.lastAutoTable.finalY + 20;
+    // Determine where the END marker lands FIRST (including a possible extra page if it
+    // wouldn't fit), so the page-numbering pass below covers every page that actually exists.
+    doc.setPage(doc.internal.getNumberOfPages());
     const dataRowCount = rows.filter(r => r.type === "data").length;
+    let finalY = doc.lastAutoTable.finalY + 20;
+    if (finalY + 22 > pageHeight - 30) {
+        doc.addPage();
+        finalY = 60;
+    }
+
+    // Page numbers on every page, added after all content (including any extra marker
+    // page) so nothing is missed.
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let p = 1; p <= pageCount; p++) {
+        doc.setPage(p);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7);
+        doc.setTextColor(150, 150, 150);
+        doc.text(`Page ${p} of ${pageCount}`, pageWidth / 2, pageHeight - 20, { align: "center" });
+    }
+
+    doc.setPage(pageCount);
     doc.setFillColor(0, 0, 0);
     doc.rect(40, finalY, pageWidth - 80, 22, "F");
     doc.setTextColor(0, 255, 0);
@@ -3410,7 +3469,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v9.1")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v9.2")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
