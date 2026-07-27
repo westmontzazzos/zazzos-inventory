@@ -792,24 +792,27 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
     const [managerMode, setManagerMode] = useState(false);
     const [printMode, setPrintMode] = useState("filled");
     const triggerPrint = (isBlank) => {
-        setPrintMode(isBlank ? "blank" : "filled");
-        // The real cause of inconsistent page counts (9/10/11/12 for identical content) was
-        // the "Inter" web font loading asynchronously - if print layout gets computed before
-        // it's ready, the browser falls back to a system font with different letter widths,
-        // reflowing the whole document differently each time. Wait for the browser's own
-        // font-loading-complete signal (not a guessed delay) before printing.
-        const doActualPrint = () => {
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                    window.print();
-                });
+        const master = getMaster();
+        const countsData = user === "selena" ? sealed : open;
+        const rows = [];
+        let totalRows = 0;
+        locs.forEach(loc => {
+            const products = forLoc(master, loc, user).sort((a, b) => a.category.localeCompare(b.category) || a.product.localeCompare(b.product));
+            if (!products.length) return;
+            rows.push({ type: "section", label: loc });
+            products.forEach(item => {
+                const val = (countsData[loc] && countsData[loc][item.product]) || "";
+                rows.push({ type: "data", cells: [item.product, item.category, isBlank ? "" : val] });
+                totalRows++;
             });
-        };
-        if (document.fonts && document.fonts.ready) {
-            document.fonts.ready.then(doActualPrint).catch(doActualPrint);
-        } else {
-            setTimeout(doActualPrint, 600);
-        }
+        });
+        downloadReportPDF({
+            title: user === "selena" ? "Sealed Stock \u2014 All Locations" : "Open Stock \u2014 All Locations",
+            weekInfo: "Date: " + (isBlank ? "" : new Date().toLocaleDateString()) + "   Counter: " + (isBlank ? "" : (user === "selena" ? "Selena" : "Erika")),
+            columns: ["Product", "Category", "Count"],
+            rows: rows,
+            filename: (user === "selena" ? "Sealed_Stock" : "Open_Stock") + (isBlank ? "_Blank" : "") + ".pdf",
+        });
     };
     const contentRef = useRef(null);
     const [showUp, setShowUp] = useState(false);
@@ -895,8 +898,8 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
         React.createElement("header", { className: "H no-print" },
             React.createElement("div", { className: "H-logo", onClick: tap, style: { userSelect: "none" } }, "Zazzo's"),
             React.createElement("div", { className: "H-right" },
-                React.createElement("button", { className: "B B-ghost", onClick: () => triggerPrint(true) }, "\uD83D\uDDA8 Blank"),
-                React.createElement("button", { className: "B B-ghost", onClick: () => triggerPrint(false) }, "\uD83D\uDDA8 Filled"),
+                React.createElement("button", { className: "B B-ghost", onClick: () => triggerPrint(true) }, "\u2b07 Blank"),
+                React.createElement("button", { className: "B B-ghost", onClick: () => triggerPrint(false) }, "\u2b07 Filled"),
                 React.createElement("button", { className: "B B-ghost", onClick: onBack }, "\u2190 Home"))),
         React.createElement("div", { className: "LocBar no-print" },
             managerMode && React.createElement("div", { className: "MgrBanner" }, "Manager Mode \u2014 Triple Tap Logo to Lock"),
@@ -918,8 +921,8 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
                     user === "selena" ? "Sealed Stock" : "Open Stock",
                     "."),
                 React.createElement("div", { className: "Complete-actions" },
-                    React.createElement("button", { className: "B B-outline B-lg", onClick: () => triggerPrint(false) }, "\uD83D\uDDA8 Print Filled"),
-                    React.createElement("button", { className: "B B-outline B-lg", onClick: () => triggerPrint(true) }, "\uD83D\uDDA8 Print Blank"),
+                    React.createElement("button", { className: "B B-outline B-lg", onClick: () => triggerPrint(false) }, "\u2b07 Download Filled"),
+                    React.createElement("button", { className: "B B-outline B-lg", onClick: () => triggerPrint(true) }, "\u2b07 Download Blank"),
                     React.createElement("button", { className: "B B-outline B-lg", onClick: () => { setActiveIdx(0); setCompleted([]); } }, "Start Over"),
                     React.createElement("button", { className: "B B-red B-lg", onClick: onBack }, "\u2190 Home")))) : (React.createElement(React.Fragment, null,
                 React.createElement("div", { className: "SHead", style: { marginBottom: 12 } },
@@ -1384,8 +1387,8 @@ function ReceivedScreen({ onBack, orders, setOrders }) {
         React.createElement("header", { className: "H no-print" },
             React.createElement("div", { className: "H-logo", onClick: tap, style: { userSelect: "none" } }, "Zazzo's"),
             React.createElement("div", { className: "H-right" },
-                React.createElement("button", { className: "B B-ghost", onClick: () => triggerPrint(true) }, "\uD83D\uDDA8 Blank"),
-                React.createElement("button", { className: "B B-ghost", onClick: () => triggerPrint(false) }, "\uD83D\uDDA8 Filled"),
+                React.createElement("button", { className: "B B-ghost", onClick: () => triggerPrint(true) }, "\u2b07 Blank"),
+                React.createElement("button", { className: "B B-ghost", onClick: () => triggerPrint(false) }, "\u2b07 Filled"),
                 React.createElement("button", { className: "B B-ghost", onClick: onBack }, "\u2190 Home"))),
         React.createElement("div", { className: "LocBar no-print" },
             managerMode && React.createElement("div", { className: "MgrBanner" }, "Manager Mode \u2014 Triple Tap Logo to Lock"),
@@ -3469,7 +3472,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v9.2")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v9.3")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
