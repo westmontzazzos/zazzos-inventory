@@ -13,6 +13,8 @@
   <script crossorigin src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
   <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { margin: 0; padding: 0; }
@@ -120,13 +122,6 @@ const INITIAL_MASTER = [
     { product: "High Noon Tea", category: "Seltzer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "Name Needed", sold_as: "Unit" },
     { product: "High Noon Watermelon", category: "Seltzer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "Sch", sold_as: "Unit" },
     { product: "Suncruiser", category: "Seltzer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "Name Needed", sold_as: "Unit" },
-    { product: "Vodkade Blue", category: "Seltzer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "Name Needed", sold_as: "Unit" },
-    { product: "Vodkade Orange", category: "Seltzer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "Name Needed", sold_as: "Unit" },
-    { product: "Vodkade Red", category: "Seltzer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "Name Needed", sold_as: "Unit" },
-    { product: "Vodkade S.F Blue", category: "Seltzer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "Name Needed", sold_as: "Unit" },
-    { product: "Vodkade S.F Lime", category: "Seltzer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "Name Needed", sold_as: "Unit" },
-    { product: "Vodkade S.F Orange", category: "Seltzer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "Name Needed", sold_as: "Unit" },
-    { product: "Vodkade S.F Red", category: "Seltzer", class: "Beer & Seltzer", locations: ["Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"], vendor: "Name Needed", sold_as: "Unit" },
     { product: "Bailey's", category: "Liqueur", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Southern", sold_as: "Partial" },
     { product: "Fireball Apple", category: "Liqueur", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Cello", sold_as: "Partial" },
     { product: "Frangelico", category: "Liqueur", class: "Liquor", locations: ["Office", "Behind Bar"], vendor: "Cello", sold_as: "Partial" },
@@ -418,13 +413,6 @@ const LAST_WEEK_COUNTS = {
   "High Noon Tea": 5.0,
   "High Noon Watermelon": 25.0,
   "Suncruiser": 1.0,
-  "Vodkade Blue": 16.0,
-  "Vodkade Orange": 16.0,
-  "Vodkade Red": 10.0,
-  "Vodkade S.F Blue": 6.0,
-  "Vodkade S.F Lime": 6.0,
-  "Vodkade S.F Orange": 4.0,
-  "Vodkade S.F Red": 4.0,
   "Don Julio": 1.9,
   "Hornitos": 2.45,
   "Milagro": 2.01,
@@ -466,7 +454,7 @@ const LAST_WEEK_COUNTS = {
 };
 const mkOrders = (master) => master.map(i => ({
     product: i.product, category: i.category, class: i.class,
-    vendor: i.vendor, unit: "", par: "", lastWeek: String(({"Bud Light": 198, "Budweiser": 95, "Budweiser Zero": 56, "Cider Boys": 26, "Coors Light": 77, "Corona": 47, "Corona Light": 41, "Daura": 9, "Guinness": 29, "Heineken": 31, "MGD": 38, "Michelob Ultra": 228, "Miller High Life": 22, "Miller Lite": 113, "Modelo": 18, "Stella N/A": 18, "Summer Shandy": 24, "Yuengling Flight": 13, "Angel's Envy": 1.4, "Benchmark": 1, "Blade and Bow": 1.55, "Buffalo Trace": 1.8, "Bulleit Bourbon": 2.55, "Elijah Craig": 1.4, "High West": 0.5, "Horse Soldier": 1.25, "Knob Creek": 3.8, "Maker's Mark": 1.25, "Mitcher's": 0.7, "Old Forester": 0.9, "Piggy Back": 3.15, "Redemption": 0.5, "Row 94": 0.6, "Russell's": 0.9, "Wild Turkey": 1.2, "Jim Beam": 1.95, "Woodford Reserve": 1.55, "E&J": 0.2, "Hennessy": 1.5, "Lamarca Splitz": 72, "Lyric N/A Champagne": 12, "Whycliff Champagne": 7, "Hendricks": 2.4, "Tanqueray": 2.5, "Jameson": 11.66, "Red Breast": 0.95, "Tullamore D.E.W": 2.45, "Ambiegram Keg": 0.9, "Blue Moon Keg": 1.1, "Buenaveza Keg (Pony)": 0.15, "Center Line Keg": 1.15, "Dunkel Keg": 0.1, "Hopular Kid Keg": 0.1, "Labatt Blue Keg": 1.2, "Longsnapper Keg": 0.15, "Miller Lite Keg": 0.45, "Morretti Keg (Pony)": 1.15, "Old Style Keg": 0.75, "Stella Keg": 1.95, "Stone IPA Keg": 1.25, "Yuengling Keg": 1.1, "Zazzo's Point Keg": 1.95, "Shiner Raspberry Lemonade Keg (Pony)": 1, "Aperol": 0.1, "Bailey's": 1.4, "Chambord": 1.45, "Cointreau": 2.2, "Disaronno": 2.8, "Don Q": 0, "Fireball Apple": 1, "Frangelico": 2.55, "Grand Marnier": 1.85, "Jagermeister": 2.14, "Midori": 0.9, "Peachtree": 17.95, "Rumple Minze": 1.2, "Sambuca": 0.2, "Select Aperitif": 1.8, "Tippy Cow": 1.7, "Kahlua": 2.1, "Gallo Dry Vermouth": 1.2, "Gallo Sweet Vermouth": 2.8, "LoFi Dry Vermouth": 1, "Altos Malbec": 16.75, "Canyon Road Cabernet": 52, "Canyon Road Pinot Noir": 3, "Decoy Cabernet": 13, "Decoy Pinot Noir": 27, "Duckhorn Cabernet": 11, "Franciscan Cabernet": 23.75, "Hahn Pinot Noir": 9.25, "Josh Cabernet": 24, "Ruffino Chianti": 21.5, "Unshackled Red Blend": 7.75, "Bacardi": 10.33, "Captain Morgan": 12.7, "Myers's": 3.3, "Rumchata": 3.85, "Rumhaven": 3.01, "Bulleit Rye": 1.8, "Pinhook": 0.8, "Sazerac Rye": 0.85, "Templeton Rye": 0.85, "Whistle Pig": 2.95, "Dewar's": 2.45, "Glenlivet": 2.5, "Black Cherry White Claw": 19, "High Noon Peach": 32, "High Noon Peach Tea": 13, "High Noon Pineapple": 39, "High Noon Tea": 5, "High Noon Watermelon": 21, "Suncruiser": 21, "Vodkade Blue": 15, "Vodkade Orange": 15, "Vodkade Red": 10, "Vodkade S.F Blue": 6, "Vodkade S.F Lime": 6, "Vodkade S.F Orange": 4, "Vodkade S.F Red": 4, "Don Julio": 1.8, "Hornitos": 1.15, "Milagro": 1.45, "Belvedere": 2.15, "Grey Goose": 0.75, "Kettle One": 2.25, "Sobieski Citron": 3.8, "Sobieski Vanilla": 3.03, "Tito's": 6.6, "B&B": 1, "Crown Royal": 1.03, "Crown Royal Apple": 1.6, "Crown Royal Peach": 3, "Gentleman Jack": 1.8, "Jack Daniels": 1.45, "Jack Daniels Fire 1L": 0.25, "Jack Daniels Fire 750": 1, "Jack Daniels Honey": 1.2, "Seagram's 7": 2.95, "Seagram's VO": 2.4, "Skrewball": 1.7, "Southern Comfort": 1.9, "Canyon Road Chard": 29.5, "Canyon Road Moscato": 28.5, "Canyon Road Pinot Grigio": 30.25, "Canyon Road Sauv Blanc": 20.25, "Caposaldo Pinot Grigio": 26.75, "Harken Chard": 20.25, "Santa Margherita Pinot Grigio": 27, "Whitehaven Sauv Blanc": 14.25, "Zazzo's Bourbon": 22.4, "Zazzo's Gin": 18.95, "Zazzo's Rum": 15.85, "Zazzo's Straight Bourbon": 16.9, "Zazzo's Tequila": 11.2, "Zazzo's Vodka": 23.8})[i.product] || ""), received: "", sold: "", order: ""
+    vendor: i.vendor, unit: "", par: "", lastWeek: String(({"Bud Light": 198, "Budweiser": 95, "Budweiser Zero": 56, "Cider Boys": 26, "Coors Light": 77, "Corona": 47, "Corona Light": 41, "Daura": 9, "Guinness": 29, "Heineken": 31, "MGD": 38, "Michelob Ultra": 228, "Miller High Life": 22, "Miller Lite": 113, "Modelo": 18, "Stella N/A": 18, "Summer Shandy": 24, "Yuengling Flight": 13, "Angel's Envy": 1.4, "Benchmark": 1, "Blade and Bow": 1.55, "Buffalo Trace": 1.8, "Bulleit Bourbon": 2.55, "Elijah Craig": 1.4, "High West": 0.5, "Horse Soldier": 1.25, "Knob Creek": 3.8, "Maker's Mark": 1.25, "Mitcher's": 0.7, "Old Forester": 0.9, "Piggy Back": 3.15, "Redemption": 0.5, "Row 94": 0.6, "Russell's": 0.9, "Wild Turkey": 1.2, "Jim Beam": 1.95, "Woodford Reserve": 1.55, "E&J": 0.2, "Hennessy": 1.5, "Lamarca Splitz": 72, "Lyric N/A Champagne": 12, "Whycliff Champagne": 7, "Hendricks": 2.4, "Tanqueray": 2.5, "Jameson": 11.66, "Red Breast": 0.95, "Tullamore D.E.W": 2.45, "Ambiegram Keg": 0.9, "Blue Moon Keg": 1.1, "Buenaveza Keg (Pony)": 0.15, "Center Line Keg": 1.15, "Dunkel Keg": 0.1, "Hopular Kid Keg": 0.1, "Labatt Blue Keg": 1.2, "Longsnapper Keg": 0.15, "Miller Lite Keg": 0.45, "Morretti Keg (Pony)": 1.15, "Old Style Keg": 0.75, "Stella Keg": 1.95, "Stone IPA Keg": 1.25, "Yuengling Keg": 1.1, "Zazzo's Point Keg": 1.95, "Shiner Raspberry Lemonade Keg (Pony)": 1, "Aperol": 0.1, "Bailey's": 1.4, "Chambord": 1.45, "Cointreau": 2.2, "Disaronno": 2.8, "Don Q": 0, "Fireball Apple": 1, "Frangelico": 2.55, "Grand Marnier": 1.85, "Jagermeister": 2.14, "Midori": 0.9, "Peachtree": 17.95, "Rumple Minze": 1.2, "Sambuca": 0.2, "Select Aperitif": 1.8, "Tippy Cow": 1.7, "Kahlua": 2.1, "Gallo Dry Vermouth": 1.2, "Gallo Sweet Vermouth": 2.8, "LoFi Dry Vermouth": 1, "Altos Malbec": 16.75, "Canyon Road Cabernet": 52, "Canyon Road Pinot Noir": 3, "Decoy Cabernet": 13, "Decoy Pinot Noir": 27, "Duckhorn Cabernet": 11, "Franciscan Cabernet": 23.75, "Hahn Pinot Noir": 9.25, "Josh Cabernet": 24, "Ruffino Chianti": 21.5, "Unshackled Red Blend": 7.75, "Bacardi": 10.33, "Captain Morgan": 12.7, "Myers's": 3.3, "Rumchata": 3.85, "Rumhaven": 3.01, "Bulleit Rye": 1.8, "Pinhook": 0.8, "Sazerac Rye": 0.85, "Templeton Rye": 0.85, "Whistle Pig": 2.95, "Dewar's": 2.45, "Glenlivet": 2.5, "Black Cherry White Claw": 19, "High Noon Peach": 32, "High Noon Peach Tea": 13, "High Noon Pineapple": 39, "High Noon Tea": 5, "High Noon Watermelon": 21, "Suncruiser": 21, "Don Julio": 1.8, "Hornitos": 1.15, "Milagro": 1.45, "Belvedere": 2.15, "Grey Goose": 0.75, "Kettle One": 2.25, "Sobieski Citron": 3.8, "Sobieski Vanilla": 3.03, "Tito's": 6.6, "B&B": 1, "Crown Royal": 1.03, "Crown Royal Apple": 1.6, "Crown Royal Peach": 3, "Gentleman Jack": 1.8, "Jack Daniels": 1.45, "Jack Daniels Fire 1L": 0.25, "Jack Daniels Fire 750": 1, "Jack Daniels Honey": 1.2, "Seagram's 7": 2.95, "Seagram's VO": 2.4, "Skrewball": 1.7, "Southern Comfort": 1.9, "Canyon Road Chard": 29.5, "Canyon Road Moscato": 28.5, "Canyon Road Pinot Grigio": 30.25, "Canyon Road Sauv Blanc": 20.25, "Caposaldo Pinot Grigio": 26.75, "Harken Chard": 20.25, "Santa Margherita Pinot Grigio": 27, "Whitehaven Sauv Blanc": 14.25, "Zazzo's Bourbon": 22.4, "Zazzo's Gin": 18.95, "Zazzo's Rum": 15.85, "Zazzo's Straight Bourbon": 16.9, "Zazzo's Tequila": 11.2, "Zazzo's Vodka": 23.8})[i.product] || ""), received: "", sold: "", order: ""
 }));
 // ─── CSS ────────────────────────────────────────────────────────────────────
 const CSS = `
@@ -1712,7 +1700,13 @@ function DepletionScreen({ archives, onBack, currentPreview }) {
             React.createElement("div", { className: "H-logo" }, "Zazzo's"),
             React.createElement("div", { className: "H-right" },
                 React.createElement("div", { onClick: handleKeyTap, style: { width: 24, height: 36, cursor: "default" } }),
-                React.createElement("button", { className: "B B-ghost", onClick: () => window.print() }, "🖨 Print"),
+                React.createElement("button", { className: "B B-ghost", onClick: () => downloadReportPDF({
+                    title: "Depletion Report",
+                    weekInfo: "Week: " + (selectedArchive ? (selectedArchive.label || selectedArchive.date) : "\u2014"),
+                    columns: ["Product", "Depletion", "POS Sales", "Variance"],
+                    rows: computedRows.map(r => r.type === "row" ? { type: "data", cells: [r.product, r.dep !== null ? fmt(r.dep) : "\u2014", r.pos !== null ? fmt(r.pos) : "\u2014", r.vari === null ? "\u2014" : (r.vari > 0 ? "+" + fmt(r.vari) : fmt(r.vari))] } : r),
+                    filename: "Depletion_Report_" + (selectedArchive ? (selectedArchive.label || selectedArchive.date) : "current").replace(/[^a-z0-9]/gi, "_") + ".pdf",
+                }) }, "\u2b07 Download PDF"),
                 React.createElement("button", { className: "B B-ghost", onClick: onBack }, "← Home"))),
         showKey && React.createElement("div", { className: "no-print", style: { padding: "10px 16px", background: "#1A1A2E", color: "#fff", marginTop: 60, fontSize: 12 } },
             React.createElement("div", { style: { fontWeight: 700, marginBottom: 6, textTransform: "uppercase", letterSpacing: 1 } }, "Week Key"),
@@ -1853,17 +1847,20 @@ function CountHistoryScreen({ archives, master, onBack }) {
     const colSpan = sortedArchives.length + (sortedArchives.length > 1 ? 2 : 1);
     const rows = [];
     const printRows = [];
+    const pdfRows = [];
     CLASS_ORDER_CH.forEach(cls => {
         if (!grouped[cls] || Object.keys(grouped[cls]).length === 0) return;
         rows.push(React.createElement("tr", { key: "cls-" + cls },
             React.createElement("td", { colSpan, style: { background: "#C8102E", color: "#fff", fontWeight: 700, fontSize: 11, padding: "5px 10px", textTransform: "uppercase" } }, cls)));
         printRows.push(React.createElement("tr", { key: "pcls-" + cls },
             React.createElement("td", { colSpan, style: { background: "#C8102E", color: "#fff", fontWeight: 700, fontSize: 9, padding: "3px 6px", textTransform: "uppercase" } }, cls)));
+        pdfRows.push({ type: "section", label: cls });
         Object.keys(grouped[cls]).sort().forEach(cat => {
             rows.push(React.createElement("tr", { key: "cat-" + cls + cat },
                 React.createElement("td", { colSpan, style: { background: "#f0e8e8", color: "#C8102E", fontWeight: 600, fontSize: 11, padding: "3px 10px" } }, cat)));
             printRows.push(React.createElement("tr", { key: "pcat-" + cls + cat },
                 React.createElement("td", { colSpan, style: { background: "#f0e8e8", color: "#C8102E", fontWeight: 600, fontSize: 9, padding: "2px 6px" } }, cat)));
+            pdfRows.push({ type: "category", label: cat });
             grouped[cls][cat].sort().forEach((product, i) => {
                 const counts = sortedArchives.map(a => getCount(a, product));
                 const average = avg(counts);
@@ -1875,6 +1872,7 @@ function CountHistoryScreen({ archives, master, onBack }) {
                     React.createElement("td", { style: { padding: "2px 6px", fontSize: 9, border: "1px solid #DDDDDD" } }, product),
                     ...counts.map((c, ci) => React.createElement("td", { key: ci, style: { padding: "2px 6px", textAlign: "center", fontSize: 9, border: "1px solid #DDDDDD" } }, c !== null ? fmt(c) : "—")),
                     sortedArchives.length > 1 && React.createElement("td", { style: { padding: "2px 6px", textAlign: "center", fontSize: 9, fontWeight: 600, background: "#f5f5ff", border: "1px solid #DDDDDD" } }, average !== null ? fmt(average) : "—")));
+                pdfRows.push({ type: "data", cells: [product, ...counts.map(c => c !== null ? fmt(c) : "\u2014"), ...(sortedArchives.length > 1 ? [average !== null ? fmt(average) : "\u2014"] : [])] });
             });
         });
     });
@@ -1883,7 +1881,13 @@ function CountHistoryScreen({ archives, master, onBack }) {
         React.createElement("header", { className: "H no-print" },
             React.createElement("div", { className: "H-logo" }, "Zazzo's"),
             React.createElement("div", { className: "H-right" },
-                React.createElement("button", { className: "B B-ghost", onClick: () => window.print() }, "🖨 Print"),
+                React.createElement("button", { className: "B B-ghost", onClick: () => downloadReportPDF({
+                    title: "Count History",
+                    weekInfo: "Weeks: " + sortedArchives.map(a => a.date || a.archive_date || a.label || "").join(", "),
+                    columns: ["Product", ...sortedArchives.map(a => a.date || a.archive_date || a.label || ""), ...(sortedArchives.length > 1 ? ["Avg"] : [])],
+                    rows: pdfRows,
+                    filename: "Count_History.pdf",
+                }) }, "⬇ Download PDF"),
                 React.createElement("button", { className: "B B-ghost", onClick: onBack }, "← Home"))),
         React.createElement("div", { className: "no-print", style: { flex: 1, overflowY: "auto", fontFamily: "'Inter',system-ui,sans-serif", paddingTop: 60 } },
             sortedArchives.length === 0
@@ -1954,17 +1958,20 @@ function ReceivedHistoryScreen({ archives, master, onBack }) {
     const colSpan = sortedArchives.length + (sortedArchives.length > 1 ? 2 : 1);
     const rows = [];
     const printRows = [];
+    const pdfRows = [];
     CLASS_ORDER_CH.forEach(cls => {
         if (!grouped[cls] || Object.keys(grouped[cls]).length === 0) return;
         rows.push(React.createElement("tr", { key: "cls-" + cls },
             React.createElement("td", { colSpan, style: { background: "#C8102E", color: "#fff", fontWeight: 700, fontSize: 11, padding: "5px 10px", textTransform: "uppercase" } }, cls)));
         printRows.push(React.createElement("tr", { key: "pcls-" + cls },
             React.createElement("td", { colSpan, style: { background: "#C8102E", color: "#fff", fontWeight: 700, fontSize: 9, padding: "3px 6px", textTransform: "uppercase" } }, cls)));
+        pdfRows.push({ type: "section", label: cls });
         Object.keys(grouped[cls]).sort().forEach(cat => {
             rows.push(React.createElement("tr", { key: "cat-" + cls + cat },
                 React.createElement("td", { colSpan, style: { background: "#f0e8e8", color: "#C8102E", fontWeight: 600, fontSize: 11, padding: "3px 10px" } }, cat)));
             printRows.push(React.createElement("tr", { key: "pcat-" + cls + cat },
                 React.createElement("td", { colSpan, style: { background: "#f0e8e8", color: "#C8102E", fontWeight: 600, fontSize: 9, padding: "2px 6px" } }, cat)));
+            pdfRows.push({ type: "category", label: cat });
             grouped[cls][cat].sort().forEach((product, i) => {
                 const counts = sortedArchives.map(a => getReceived(a, product));
                 const average = avg(counts);
@@ -1976,6 +1983,7 @@ function ReceivedHistoryScreen({ archives, master, onBack }) {
                     React.createElement("td", { style: { padding: "2px 6px", fontSize: 9, border: "1px solid #DDDDDD" } }, product),
                     ...counts.map((c, ci) => React.createElement("td", { key: ci, style: { padding: "2px 6px", textAlign: "center", fontSize: 9, border: "1px solid #DDDDDD" } }, c !== null ? fmt(c) : "—")),
                     sortedArchives.length > 1 && React.createElement("td", { style: { padding: "2px 6px", textAlign: "center", fontSize: 9, fontWeight: 600, background: "#f5f5ff", border: "1px solid #DDDDDD" } }, average !== null ? fmt(average) : "—")));
+                pdfRows.push({ type: "data", cells: [product, ...counts.map(c => c !== null ? fmt(c) : "\u2014"), ...(sortedArchives.length > 1 ? [average !== null ? fmt(average) : "\u2014"] : [])] });
             });
         });
     });
@@ -1984,7 +1992,13 @@ function ReceivedHistoryScreen({ archives, master, onBack }) {
         React.createElement("header", { className: "H no-print" },
             React.createElement("div", { className: "H-logo" }, "Zazzo's"),
             React.createElement("div", { className: "H-right" },
-                React.createElement("button", { className: "B B-ghost", onClick: () => window.print() }, "🖨 Print"),
+                React.createElement("button", { className: "B B-ghost", onClick: () => downloadReportPDF({
+                    title: "Received History",
+                    weekInfo: "Weeks: " + sortedArchives.map(a => a.date || a.archive_date || a.label || "").join(", "),
+                    columns: ["Product", ...sortedArchives.map(a => a.date || a.archive_date || a.label || ""), ...(sortedArchives.length > 1 ? ["Avg"] : [])],
+                    rows: pdfRows,
+                    filename: "Received_History.pdf",
+                }) }, "\u2b07 Download PDF"),
                 React.createElement("button", { className: "B B-ghost", onClick: onBack }, "← Home"))),
         React.createElement("div", { className: "no-print", style: { flex: 1, overflowY: "auto", fontFamily: "'Inter',system-ui,sans-serif", paddingTop: 60 } },
             sortedArchives.length === 0
@@ -2086,32 +2100,12 @@ const KEG_PLU_MAP = {
     "2917": "Old Style Keg", "2932": "Stella Keg", "2924": "Stone IPA Keg",
     "3256": "Yuengling Keg", "2916": "Zazzo's Point Keg", "2918": "Miller Lite Keg",
 };
-const VODKADE_PLU_MAP = { "3473": "Vodkade Orange", "3474": "Vodkade Orange", "3475": "Vodkade Red", "3476": "Vodkade Blue" };
-const VODKADE_SF_BUCKET_PLU_MAP = {
-    // 3475/3476 removed here - those PLUs mean regular (non-S.F.) Vodkade Red/Blue in
-    // VODKADE_PLU_MAP, and colliding with that meaning here was causing regular Vodkade
-    // Blue/Red bucket sales to get silently miscounted as Vodkade S.F. sales instead.
-    "3499": "Vodkade S.F Orange",
-    // Real, current PLU numbers confirmed directly from an actual Bucket Bottles report
-    // (previously missing from this map entirely, causing every one of these to show up
-    // as "Unrecognized Vodkade SF Bucket PLU" every single week):
-    "3494": "Vodkade S.F Orange", "3495": "Vodkade S.F Red", "3496": "Vodkade S.F Blue",
-    "3497": "Vodkade S.F Lime", // labeled "Green" on the register, but there is no Green flavor - it's Lime
-    "2945": "Vodkade S.F Orange", "2954": "Vodkade S.F Orange", "2963": "Vodkade S.F Orange",
-    "2972": "Vodkade S.F Orange", "2981": "Vodkade S.F Orange",
-    "2947": "Vodkade S.F Red", "2956": "Vodkade S.F Red", "2965": "Vodkade S.F Red",
-    "2974": "Vodkade S.F Red", "2983": "Vodkade S.F Red",
-    "2951": "Vodkade S.F Blue", "2960": "Vodkade S.F Blue", "2969": "Vodkade S.F Blue",
-    "2978": "Vodkade S.F Blue", "2987": "Vodkade S.F Blue",
-    "3036": "Vodkade S.F Lime", "3040": "Vodkade S.F Lime", "3044": "Vodkade S.F Lime",
-    "3048": "Vodkade S.F Lime", "3052": "Vodkade S.F Lime", "3500": "Vodkade S.F Red", "3501": "Vodkade S.F Blue",
-    "3502": "Vodkade S.F Orange", "3503": "Vodkade S.F Red", "3504": "Vodkade S.F Blue",
-    "3505": "Vodkade S.F Orange", "3506": "Vodkade S.F Red", "3507": "Vodkade S.F Blue",
-    "3508": "Vodkade S.F Orange", "3509": "Vodkade S.F Red", "3510": "Vodkade S.F Blue",
-    "3511": "Vodkade S.F Orange", "3512": "Vodkade S.F Red", "3513": "Vodkade S.F Blue",
-    "3514": "Vodkade S.F Lime", "3515": "Vodkade S.F Lime",
-    "3516": "Vodkade S.F Lime", "3517": "Vodkade S.F Lime", "3518": "Vodkade S.F Lime",
-};
+// Vodkade (regular and S.F.) discontinued - Ely no longer stocks it, removed from Master,
+// live orders, counts, and every archive. These maps are intentionally left empty so any
+// Vodkade PLU that still shows up on a future Speedline report is simply ignored instead of
+// silently recreating a product that's supposed to be gone for good.
+const VODKADE_PLU_MAP = {};
+const VODKADE_SF_BUCKET_PLU_MAP = {};
 
 const CARRYOUT_BEER_PLU = { "1075": "Budweiser", "1076": "Corona" }; // carryout 6-packs
 const CARRYOUT_WINE_PLU = {
@@ -2188,16 +2182,10 @@ function parseBeerReport(beerText, bucketText, carryoutText, hnText, vodkadeText
         if (item) results.bottles[item] = (results.bottles[item] || 0) + r.qty;
     }
 
-    // Previously this only added the generic Vodkade PLU 3473 qty as "Vodkade Orange"
-    // when NO vodkade flavor report was uploaded at all. But when a Red/Blue flavor
-    // report WAS uploaded and simply didn't happen to include an Orange line that week
-    // (Orange just wasn't sold that specific flavor, or was reported separately), this
-    // silently dropped the Orange sales entirely instead of falling back. The candidate
-    // qty is now always exposed; runParse decides whether to use it, based on whether
-    // "Vodkade Orange" actually ended up populated after the real flavor report (if any)
-    // was parsed - so it's only used as a true fallback, never double-counted.
-    const vkRow = beer.find(r => r.plu === "3473");
-    results._vodkadeOrangeFallback = vkRow ? vkRow.qty : 0;
+    // Vodkade discontinued per Ely's instruction - PLU 3473 (generic "Vodkade" line on the
+    // Beer Report) is intentionally left unhandled now, so it's simply ignored rather than
+    // silently recreating a product that's supposed to be gone for good.
+    results._vodkadeOrangeFallback = 0;
 
     return results;
 }
@@ -2836,7 +2824,40 @@ function OGHistoryScreen({ archives, onBack }) {
         React.createElement("div", { className: "no-print", style:{position:'fixed',top:0,left:0,right:0,height:44,background:'#C8102E',borderBottom:'3px solid #1B6B3A',display:'flex',alignItems:'center',padding:'0 16px',justifyContent:'space-between',zIndex:600} },
             React.createElement("span", { style:{color:'#fff',fontSize:14,fontWeight:700,fontFamily:'Georgia,serif'} }, selectedWeek.label || selectedWeek.date),
             React.createElement("div", { style:{display:'flex',gap:8} },
-                React.createElement("button", { className:"B B-ghost", style:{fontSize:11}, onClick:() => window.print() }, "Print"),
+                React.createElement("button", { className:"B B-ghost", style:{fontSize:11}, onClick:() => {
+                    const dataCols = ALL_COLS.filter(c => c.key !== "product");
+                    const pdfRowsOG = rowMeta.map(r => {
+                        if (r.type === "RC") return { type: "section", label: r.label };
+                        if (r.type === "RK") return { type: "category", label: r.label };
+                        const ro = r.row || {};
+                        const tot = Number(ro.total) || 0;
+                        const cells = [r.item.product];
+                        dataCols.forEach(col => {
+                            let val;
+                            if (col.key === "vendor") val = ro.vendor || "--";
+                            else if (col.key === "lw") val = ro.lastWeek || "--";
+                            else if (col.key === "received") val = ro.received || "--";
+                            else if (col.key === "total") val = tot > 0 ? tot : "--";
+                            else if (col.key === "depletion") val = ro.depletion !== "" && ro.depletion !== undefined ? ro.depletion : "--";
+                            else if (col.key === "sold") val = ro.sold || (latestPosSales[ro.product] !== undefined ? String(latestPosSales[ro.product]) : "--");
+                            else if (col.key === "variance") val = ro.variance !== "" && ro.variance !== undefined ? ro.variance : "--";
+                            else if (col.key === "par") val = ro.par || "--";
+                            else if (col.key === "deliveryThisWeek") val = ro.deliveryThisWeek || "--";
+                            else if (col.key === "order") val = ro.order || "--";
+                            else if (col.key === "freq") val = ro.freq || "--";
+                            else val = "--";
+                            cells.push(val);
+                        });
+                        return { type: "data", cells };
+                    });
+                    downloadReportPDF({
+                        title: "Order Guide History",
+                        weekInfo: "Week: " + (selectedWeek.label || selectedWeek.date),
+                        columns: ["Item", ...dataCols.map(c => c.label)],
+                        rows: pdfRowsOG,
+                        filename: "Order_Guide_History_" + (selectedWeek.label || selectedWeek.date).replace(/[^a-z0-9]/gi, "_") + ".pdf",
+                    });
+                } }, "\u2b07 PDF"),
                 React.createElement("button", { className:"B B-ghost", onClick:() => setSelectedWeek(null) }, "\u2190 Back"))),
         React.createElement("div", { className: "no-print", ref:L3ref, style:{position:'fixed',top:76,left:0,right:0,height:30,background:'#C8102E',color:'#fff',fontSize:11,fontWeight:700,textTransform:'uppercase',display:'none',alignItems:'center',padding:'0 10px',zIndex:500,pointerEvents:'none'} }),
         React.createElement("div", { className: "no-print", ref:L4ref, style:{position:'fixed',top:106,left:0,right:0,height:26,background:'#FDECEA',color:'#C8102E',fontSize:11,fontWeight:700,textTransform:'uppercase',display:'none',alignItems:'center',padding:'0 10px',zIndex:500,pointerEvents:'none'} }),
@@ -2968,6 +2989,56 @@ function computeCompletenessReport(master, sealed, open, orders, weekLabelStr) {
     return { locationGaps: groupBy(locationGaps), pluGaps: groupBy(pluGaps), beerCaseIssues, generatedAt: new Date().toLocaleString(), weekLabel: weekLabelStr };
 }
 
+// Generates and downloads a real PDF file directly - does not use window.print() or the
+// browser's print dialog at all, since that path has proven unreliable for long tables
+// (especially on mobile Safari, which silently truncates large print jobs). jsPDF builds
+// the entire document in memory first, so there's no live-DOM/scroll-container reflow step
+// that can go wrong - the page count is whatever the content actually needs, and the file
+// either has everything in it or the generation throws an error you'd actually see.
+function downloadReportPDF({ title, weekInfo, columns, rows, filename }) {
+    const doc = new window.jspdf.jsPDF({ orientation: "portrait", unit: "pt", format: "letter" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(200, 16, 46);
+    doc.setFontSize(14);
+    doc.text("ZAZZO'S LIQUOR INVENTORY", 40, 40);
+    doc.setFontSize(9);
+    doc.setTextColor(51, 51, 51);
+    doc.text(title.toUpperCase(), 40, 55);
+    doc.setFontSize(8);
+    doc.setTextColor(85, 85, 85);
+    doc.setFont("helvetica", "normal");
+    doc.text(weekInfo, pageWidth - 40, 40, { align: "right" });
+    doc.text("Printed: " + new Date().toLocaleDateString(), pageWidth - 40, 52, { align: "right" });
+
+    const body = [];
+    rows.forEach(r => {
+        if (r.type === "section") body.push([{ content: r.label, colSpan: columns.length, styles: { fillColor: [26, 26, 46], textColor: 255, fontStyle: "bold", fontSize: 9 } }]);
+        else if (r.type === "category") body.push([{ content: r.label, colSpan: columns.length, styles: { fillColor: [240, 232, 232], textColor: [200, 16, 46], fontStyle: "bold", fontSize: 8 } }]);
+        else body.push(r.cells);
+    });
+
+    doc.autoTable({
+        startY: 68,
+        head: [columns],
+        body: body,
+        theme: "grid",
+        styles: { fontSize: 8, cellPadding: 3, lineColor: [221, 221, 221], lineWidth: 0.5 },
+        headStyles: { fillColor: [26, 26, 46], textColor: 255, fontStyle: "bold", fontSize: 8 },
+        alternateRowStyles: { fillColor: [247, 247, 247] },
+    });
+
+    const finalY = doc.lastAutoTable.finalY + 20;
+    const dataRowCount = rows.filter(r => r.type === "data").length;
+    doc.setFillColor(0, 0, 0);
+    doc.rect(40, finalY, pageWidth - 80, 22, "F");
+    doc.setTextColor(0, 255, 0);
+    doc.setFont("courier", "bold");
+    doc.setFontSize(10);
+    doc.text(`=== END OF ${title.toUpperCase()} \u2014 ${dataRowCount} ROWS ===`, pageWidth / 2, finalY + 15, { align: "center" });
+
+    doc.save(filename);
+}
 function ReportBody({ report }) {
     if (!report) return null;
     return React.createElement(React.Fragment, null,
@@ -3339,7 +3410,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v8.4")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v9.1")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
