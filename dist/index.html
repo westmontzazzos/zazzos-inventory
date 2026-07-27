@@ -1673,6 +1673,40 @@ function DepletionScreen({ archives, onBack, currentPreview }) {
         return Math.round((parseFloat(dep) - parseFloat(pos)) * 100) / 100;
     }
 
+    // Compute the row data once as plain values (not JSX) so both the on-screen table and
+    // the separate always-fully-rendered print sheet can use the exact same numbers without
+    // duplicating the depletion/variance math in two places.
+    const PONY_KEGS = new Set(["Buenaveza Keg (Pony)", "Morretti Keg (Pony)", "Shiner Raspberry Lemonade Keg (Pony)"]);
+    const computedRows = [];
+    {
+        let prevSection = null; let prevCat = null;
+        rows.forEach((o) => {
+            const pm = prodMap[o.product] || (o.product === "Jack Daniels Fire" ? { class: o.class, category: o.category } : {});
+            const cls = pm.class || ""; const cat = pm.category || "";
+            const section = cls.toUpperCase() || "OTHER";
+            if (section !== prevSection) {
+                computedRows.push({ type: "section", label: section });
+                prevSection = section; prevCat = null;
+            }
+            if (cat && cat !== prevCat) {
+                computedRows.push({ type: "category", label: cat.toUpperCase() });
+                prevCat = cat;
+            }
+            const lw = parseFloat(o.lastWeek) || 0;
+            const recv = parseFloat(o.received) || 0;
+            const tot = parseFloat(o.total) || 0;
+            const dep = lw > 0 ? Math.round((lw + recv - tot) * 100) / 100 : null;
+            const pos = (o.sold !== undefined && o.sold !== null && o.sold !== "")
+                ? parseFloat(o.sold)
+                : (posSales[o.product] !== undefined ? parseFloat(posSales[o.product]) : null);
+            const isKeg = cls === "Kegs";
+            const poursPerKeg = PONY_KEGS.has(o.product) ? 62 : 93;
+            const depForVariance = (isKeg && dep !== null) ? Math.round(dep * poursPerKeg * 100) / 100 : dep;
+            const vari = depForVariance !== null && pos !== null ? Math.round((pos - depForVariance) * 100) / 100 : null;
+            computedRows.push({ type: "row", product: o.product, dep, pos, vari });
+        });
+    }
+
     return React.createElement("div", { style: { display: "flex", flexDirection: "column", height: "100vh", background: "#EFEFEF" } },
         React.createElement("header", { className: "H no-print" },
             React.createElement("div", { className: "H-logo" }, "Zazzo's"),
@@ -1698,15 +1732,7 @@ function DepletionScreen({ archives, onBack, currentPreview }) {
                         onClick: () => setSelectedLabel(a.label)
                     }, isActive ? (a.label || a.date) : (isPreview ? "Current (Preview)" : ("Week " + i)));
                 })),
-        React.createElement("div", { style: { flex: 1, overflowY: "auto", fontFamily: "'Inter',system-ui,sans-serif" } },
-            React.createElement("div", { className: "print-show", style: { display: "none" } },
-                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "2px solid #1A1A2E", paddingBottom: 3, marginBottom: 6 } },
-                    React.createElement("div", null,
-                        React.createElement("div", { style: { fontSize: 13, fontWeight: "700", color: "#C8102E", textTransform: "uppercase", letterSpacing: "0.05em" } }, "ZAZZO'S LIQUOR INVENTORY"),
-                        React.createElement("div", { style: { fontSize: 8, fontWeight: "700", textTransform: "uppercase", color: "#333", marginTop: 1, letterSpacing: "0.06em" } }, "DEPLETION REPORT")),
-                    React.createElement("div", { style: { textAlign: "right", fontSize: 8, color: "#555", lineHeight: 1.6 } },
-                        React.createElement("div", null, "Week: " + (selectedArchive ? (selectedArchive.label || selectedArchive.date) : "\u2014")),
-                        React.createElement("div", null, "Printed: " + new Date().toLocaleDateString())))),
+        React.createElement("div", { className: "no-print", style: { flex: 1, overflowY: "auto", fontFamily: "'Inter',system-ui,sans-serif" } },
             React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 12 } },
                 React.createElement("thead", null,
                     React.createElement("tr", { style: { background: "#1A1A2E", color: "#fff" } },
@@ -1715,55 +1741,77 @@ function DepletionScreen({ archives, onBack, currentPreview }) {
                         React.createElement("th", { style: { padding: "8px 6px", textAlign: "center" } }, "POS Sales"),
                         React.createElement("th", { style: { padding: "8px 6px", textAlign: "center" } }, "Variance"))),
                 React.createElement("tbody", null,
-                    rows.length === 0
+                    computedRows.length === 0
                         ? React.createElement("tr", null, React.createElement("td", { colSpan: 4, style: { padding: 24, textAlign: "center", color: "#999" } }, "No data for this week."))
-                        : (() => {
-                            const out = [];
-                            let prevSection = null; let prevCat = null;
-                            rows.forEach((o, i) => {
-                                const pm = prodMap[o.product] || (o.product === "Jack Daniels Fire" ? { class: o.class, category: o.category } : {});
-                                const cls = pm.class || ""; const cat = pm.category || "";
-                                const section = cls.toUpperCase() || "OTHER";
-                                if (section !== prevSection) {
-                                    out.push(React.createElement("tr", { key: "s-"+section }, React.createElement("td", { colSpan: 4, style: { background: "#1A1A2E", color: "#fff", fontWeight: 700, padding: "6px 10px", fontSize: 11, letterSpacing: 1 } }, section)));
-                                    prevSection = section; prevCat = null;
-                                }
-                                if (cat && cat !== prevCat) {
-                                    out.push(React.createElement("tr", { key: "c-"+cls+cat }, React.createElement("td", { colSpan: 4, style: { background: "#C8102E", color: "#fff", fontWeight: 600, padding: "4px 10px", fontSize: 10 } }, cat.toUpperCase())));
-                                    prevCat = cat;
-                                }
-                                const lw = parseFloat(o.lastWeek) || 0;
-                                const recv = parseFloat(o.received) || 0;
-                                const tot = parseFloat(o.total) || 0;
-                                // Depletion = Last Week + Received - Current Count (locked business rule)
-                                const dep = lw > 0 ? Math.round((lw + recv - tot) * 100) / 100 : null;
-                                // Sold now lives on the order row itself (written pre-close from the Speedline
-                                // parser). Older archives (before this fix) only ever got sales via the old
-                                // archive-level pos_sales patch, so fall back to that for those weeks only.
-                                const pos = (o.sold !== undefined && o.sold !== null && o.sold !== "")
-                                    ? parseFloat(o.sold)
-                                    : (posSales[o.product] !== undefined ? parseFloat(posSales[o.product]) : null);
-                                // Keg counts are tracked in fractional kegs, but POS sales for kegs are always
-                                // tracked in pours - comparing them directly without converting units produces
-                                // a meaningless variance. Convert keg depletion into pours before comparing.
-                                const PONY_KEGS = new Set(["Buenaveza Keg (Pony)", "Morretti Keg (Pony)", "Shiner Raspberry Lemonade Keg (Pony)"]);
-                                const isKeg = cls === "Kegs";
-                                const poursPerKeg = PONY_KEGS.has(o.product) ? 62 : 93;
-                                const depForVariance = (isKeg && dep !== null) ? Math.round(dep * poursPerKeg * 100) / 100 : dep;
-                                const vari = depForVariance !== null && pos !== null ? Math.round((pos - depForVariance) * 100) / 100 : null;
-                                const varColor = vari === null ? "#999" : vari > 0 ? "#C8102E" : vari < 0 ? "#C8102E" : "#2a7";
-                                out.push(React.createElement("tr", { key: o.product, style: { background: i % 2 === 0 ? "#fff" : "#F5F5F5", borderBottom: "1px solid #eee" } },
-                                    React.createElement("td", { style: { padding: "7px 10px" } }, o.product),
-                                    React.createElement("td", { style: { padding: "7px 6px", textAlign: "center" } }, dep !== null ? fmt(dep) : "—"),
-                                    React.createElement("td", { style: { padding: "7px 6px", textAlign: "center" } }, pos !== null ? fmt(pos) : "—"),
-                                    React.createElement("td", { style: { padding: "7px 6px", textAlign: "center", color: varColor, fontWeight: 600 } }, vari === null ? "—" : vari > 0 ? "+"+fmt(vari) : fmt(vari))));
-                            });
-                            return out;
-                        })()))),
-            React.createElement("div", { className: "print-show", style: { display: "none", marginTop: 20, padding: "10px", background: "#000", color: "#0f0", fontFamily: "monospace", fontSize: 12, fontWeight: "bold", textAlign: "center" } }, "=== END OF DEPLETION REPORT \u2014 " + rows.length + " ROWS ==="));
+                        : computedRows.map((r, i) => {
+                            if (r.type === "section") return React.createElement("tr", { key: "s-" + i }, React.createElement("td", { colSpan: 4, style: { background: "#1A1A2E", color: "#fff", fontWeight: 700, padding: "6px 10px", fontSize: 11, letterSpacing: 1 } }, r.label));
+                            if (r.type === "category") return React.createElement("tr", { key: "c-" + i }, React.createElement("td", { colSpan: 4, style: { background: "#C8102E", color: "#fff", fontWeight: 600, padding: "4px 10px", fontSize: 10 } }, r.label));
+                            const varColor = r.vari === null ? "#999" : r.vari > 0 ? "#C8102E" : r.vari < 0 ? "#C8102E" : "#2a7";
+                            return React.createElement("tr", { key: "r-" + i, style: { background: i % 2 === 0 ? "#fff" : "#F5F5F5", borderBottom: "1px solid #eee" } },
+                                React.createElement("td", { style: { padding: "7px 10px" } }, r.product),
+                                React.createElement("td", { style: { padding: "7px 6px", textAlign: "center" } }, r.dep !== null ? fmt(r.dep) : "—"),
+                                React.createElement("td", { style: { padding: "7px 6px", textAlign: "center" } }, r.pos !== null ? fmt(r.pos) : "—"),
+                                React.createElement("td", { style: { padding: "7px 6px", textAlign: "center", color: varColor, fontWeight: 600 } }, r.vari === null ? "—" : r.vari > 0 ? "+" + fmt(r.vari) : fmt(r.vari)));
+                        })))),
+        React.createElement(DepletionPrintSheet, { computedRows: computedRows, weekLabel: selectedArchive ? (selectedArchive.label || selectedArchive.date) : "\u2014" }));
+}
+function DepletionPrintSheet({ computedRows, weekLabel }) {
+    return React.createElement("div", { style: { display: "none" }, className: "print-show print-sheet-wrapper" },
+        React.createElement("div", { style: { fontFamily: "'Inter',system-ui,sans-serif", fontSize: 9 } },
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "2px solid #1A1A2E", paddingBottom: 3, marginBottom: 6 } },
+                React.createElement("div", null,
+                    React.createElement("div", { style: { fontSize: 13, fontWeight: "700", color: "#C8102E", textTransform: "uppercase", letterSpacing: "0.05em" } }, "ZAZZO'S LIQUOR INVENTORY"),
+                    React.createElement("div", { style: { fontSize: 8, fontWeight: "700", textTransform: "uppercase", color: "#333", marginTop: 1, letterSpacing: "0.06em" } }, "DEPLETION REPORT")),
+                React.createElement("div", { style: { textAlign: "right", fontSize: 8, color: "#555", lineHeight: 1.6 } },
+                    React.createElement("div", null, "Week: " + weekLabel),
+                    React.createElement("div", null, "Printed: " + new Date().toLocaleDateString()))),
+            computedRows.length === 0
+                ? React.createElement("div", { style: { padding: 12, color: "#999" } }, "No data for this week.")
+                : React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 9, tableLayout: "fixed" } },
+                    React.createElement("thead", null,
+                        React.createElement("tr", { style: { background: "#1A1A2E" } },
+                            React.createElement("th", { style: { padding: "3px 6px", textAlign: "left", color: "#fff", fontWeight: 700, fontSize: 8, textTransform: "uppercase" } }, "Product"),
+                            React.createElement("th", { style: { padding: "3px 6px", textAlign: "center", color: "#fff", fontWeight: 700, fontSize: 8, textTransform: "uppercase" } }, "Depletion"),
+                            React.createElement("th", { style: { padding: "3px 6px", textAlign: "center", color: "#fff", fontWeight: 700, fontSize: 8, textTransform: "uppercase" } }, "POS Sales"),
+                            React.createElement("th", { style: { padding: "3px 6px", textAlign: "center", color: "#fff", fontWeight: 700, fontSize: 8, textTransform: "uppercase" } }, "Variance"))),
+                    React.createElement("tbody", null, computedRows.map((r, i) => {
+                        if (r.type === "section") return React.createElement("tr", { key: "ps-" + i }, React.createElement("td", { colSpan: 4, style: { background: "#1A1A2E", color: "#fff", fontWeight: 700, padding: "3px 6px", fontSize: 9 } }, r.label));
+                        if (r.type === "category") return React.createElement("tr", { key: "pc-" + i }, React.createElement("td", { colSpan: 4, style: { background: "#C8102E", color: "#fff", fontWeight: 600, padding: "2px 6px", fontSize: 8 } }, r.label));
+                        const varColor = r.vari === null ? "#666" : r.vari > 0 ? "#C8102E" : r.vari < 0 ? "#C8102E" : "#227722";
+                        return React.createElement("tr", { key: "pr-" + i },
+                            React.createElement("td", { style: { padding: "2px 6px", border: "1px solid #DDDDDD" } }, r.product),
+                            React.createElement("td", { style: { padding: "2px 6px", textAlign: "center", border: "1px solid #DDDDDD" } }, r.dep !== null ? fmt(r.dep) : "—"),
+                            React.createElement("td", { style: { padding: "2px 6px", textAlign: "center", border: "1px solid #DDDDDD" } }, r.pos !== null ? fmt(r.pos) : "—"),
+                            React.createElement("td", { style: { padding: "2px 6px", textAlign: "center", border: "1px solid #DDDDDD", color: varColor, fontWeight: 700 } }, r.vari === null ? "—" : r.vari > 0 ? "+" + fmt(r.vari) : fmt(r.vari)));
+                    }))),
+            React.createElement("div", { style: { marginTop: 20, padding: "10px", background: "#000", color: "#0f0", fontFamily: "monospace", fontSize: 12, fontWeight: "bold", textAlign: "center", pageBreakInside: "avoid", breakInside: "avoid" } },
+                `=== END OF DEPLETION REPORT — ${computedRows.filter(r => r.type === "row").length} ROWS ===`)));
 }
 
 // ─── COUNT HISTORY SCREEN ─────────────────────────────────────────────────────
+function CountHistoryPrintSheet({ sortedArchives, rows, colSpan }) {
+    const FONT = "'Inter',system-ui,sans-serif";
+    return React.createElement("div", { style: { display: "none" }, className: "print-show print-sheet-wrapper" },
+        React.createElement("div", { style: { fontFamily: FONT, fontSize: 9 } },
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "2px solid #1A1A2E", paddingBottom: 3, marginBottom: 6 } },
+                React.createElement("div", null,
+                    React.createElement("div", { style: { fontSize: 13, fontWeight: "700", color: "#C8102E", textTransform: "uppercase", letterSpacing: "0.05em" } }, "ZAZZO'S LIQUOR INVENTORY"),
+                    React.createElement("div", { style: { fontSize: 8, fontWeight: "700", textTransform: "uppercase", color: "#333", marginTop: 1, letterSpacing: "0.06em" } }, "COUNT HISTORY")),
+                React.createElement("div", { style: { textAlign: "right", fontSize: 8, color: "#555", lineHeight: 1.6 } },
+                    React.createElement("div", null, "Weeks: " + sortedArchives.map(a => a.date || a.archive_date || a.label || "").join(", ")),
+                    React.createElement("div", null, "Printed: " + new Date().toLocaleDateString()))),
+            sortedArchives.length === 0
+                ? React.createElement("div", { style: { padding: 12, color: "#999" } }, "No archived weeks yet.")
+                : React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 9, tableLayout: "fixed" } },
+                    React.createElement("thead", null,
+                        React.createElement("tr", { style: { background: "#1A1A2E" } },
+                            React.createElement("th", { style: { padding: "3px 6px", textAlign: "left", color: "#fff", fontWeight: 700, fontSize: 8, textTransform: "uppercase" } }, "Product"),
+                            ...sortedArchives.map(a => React.createElement("th", { key: a.id || a.label, style: { padding: "3px 6px", textAlign: "center", color: "#fff", fontWeight: 700, fontSize: 8, textTransform: "uppercase" } }, a.date || a.archive_date || a.label || "")),
+                            sortedArchives.length > 1 && React.createElement("th", { style: { padding: "3px 6px", textAlign: "center", background: "#2a3a6a", color: "#fff", fontWeight: 700, fontSize: 8, textTransform: "uppercase" } }, "Avg"))),
+                    React.createElement("tbody", null, ...rows)),
+            React.createElement("div", { style: { marginTop: 20, padding: "10px", background: "#000", color: "#0f0", fontFamily: "monospace", fontSize: 12, fontWeight: "bold", textAlign: "center", pageBreakInside: "avoid", breakInside: "avoid" } },
+                `=== END OF COUNT HISTORY — ${rows.length} ROWS ===`)));
+}
 function CountHistoryScreen({ archives, master, onBack }) {
     const CLASS_ORDER_CH = ["Beer & Seltzer", "Extras", "Kegs", "Liquor", "Wine"];
     const sortedArchives = [...(archives || [])].sort((a, b) => new Date(a.date || a.archive_date) - new Date(b.date || b.archive_date)).slice(-3);
@@ -1804,13 +1852,18 @@ function CountHistoryScreen({ archives, master, onBack }) {
 
     const colSpan = sortedArchives.length + (sortedArchives.length > 1 ? 2 : 1);
     const rows = [];
+    const printRows = [];
     CLASS_ORDER_CH.forEach(cls => {
         if (!grouped[cls] || Object.keys(grouped[cls]).length === 0) return;
         rows.push(React.createElement("tr", { key: "cls-" + cls },
             React.createElement("td", { colSpan, style: { background: "#C8102E", color: "#fff", fontWeight: 700, fontSize: 11, padding: "5px 10px", textTransform: "uppercase" } }, cls)));
+        printRows.push(React.createElement("tr", { key: "pcls-" + cls },
+            React.createElement("td", { colSpan, style: { background: "#C8102E", color: "#fff", fontWeight: 700, fontSize: 9, padding: "3px 6px", textTransform: "uppercase" } }, cls)));
         Object.keys(grouped[cls]).sort().forEach(cat => {
             rows.push(React.createElement("tr", { key: "cat-" + cls + cat },
                 React.createElement("td", { colSpan, style: { background: "#f0e8e8", color: "#C8102E", fontWeight: 600, fontSize: 11, padding: "3px 10px" } }, cat)));
+            printRows.push(React.createElement("tr", { key: "pcat-" + cls + cat },
+                React.createElement("td", { colSpan, style: { background: "#f0e8e8", color: "#C8102E", fontWeight: 600, fontSize: 9, padding: "2px 6px" } }, cat)));
             grouped[cls][cat].sort().forEach((product, i) => {
                 const counts = sortedArchives.map(a => getCount(a, product));
                 const average = avg(counts);
@@ -1818,6 +1871,10 @@ function CountHistoryScreen({ archives, master, onBack }) {
                     React.createElement("td", { style: { padding: "6px 10px", fontSize: 12 } }, product),
                     ...counts.map((c, ci) => React.createElement("td", { key: ci, style: { padding: "6px 6px", textAlign: "center", fontSize: 12 } }, c !== null ? fmt(c) : "—")),
                     sortedArchives.length > 1 && React.createElement("td", { style: { padding: "6px 6px", textAlign: "center", fontSize: 12, fontWeight: 600, background: "#f5f5ff" } }, average !== null ? fmt(average) : "—")));
+                printRows.push(React.createElement("tr", { key: "p-" + product },
+                    React.createElement("td", { style: { padding: "2px 6px", fontSize: 9, border: "1px solid #DDDDDD" } }, product),
+                    ...counts.map((c, ci) => React.createElement("td", { key: ci, style: { padding: "2px 6px", textAlign: "center", fontSize: 9, border: "1px solid #DDDDDD" } }, c !== null ? fmt(c) : "—")),
+                    sortedArchives.length > 1 && React.createElement("td", { style: { padding: "2px 6px", textAlign: "center", fontSize: 9, fontWeight: 600, background: "#f5f5ff", border: "1px solid #DDDDDD" } }, average !== null ? fmt(average) : "—")));
             });
         });
     });
@@ -1828,15 +1885,7 @@ function CountHistoryScreen({ archives, master, onBack }) {
             React.createElement("div", { className: "H-right" },
                 React.createElement("button", { className: "B B-ghost", onClick: () => window.print() }, "🖨 Print"),
                 React.createElement("button", { className: "B B-ghost", onClick: onBack }, "← Home"))),
-        React.createElement("div", { style: { flex: 1, overflowY: "auto", fontFamily: "'Inter',system-ui,sans-serif", paddingTop: 60 } },
-            React.createElement("div", { className: "print-show", style: { display: "none" } },
-                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "2px solid #1A1A2E", paddingBottom: 3, marginBottom: 6 } },
-                    React.createElement("div", null,
-                        React.createElement("div", { style: { fontSize: 13, fontWeight: "700", color: "#C8102E", textTransform: "uppercase", letterSpacing: "0.05em" } }, "ZAZZO'S LIQUOR INVENTORY"),
-                        React.createElement("div", { style: { fontSize: 8, fontWeight: "700", textTransform: "uppercase", color: "#333", marginTop: 1, letterSpacing: "0.06em" } }, "COUNT HISTORY")),
-                    React.createElement("div", { style: { textAlign: "right", fontSize: 8, color: "#555", lineHeight: 1.6 } },
-                        React.createElement("div", null, "Weeks: " + sortedArchives.map(a => a.date || a.archive_date || a.label || "").join(", ")),
-                        React.createElement("div", null, "Printed: " + new Date().toLocaleDateString())))),
+        React.createElement("div", { className: "no-print", style: { flex: 1, overflowY: "auto", fontFamily: "'Inter',system-ui,sans-serif", paddingTop: 60 } },
             sortedArchives.length === 0
                 ? React.createElement("div", { style: { padding: 24, textAlign: "center", color: "#999" } }, "No archived weeks yet.")
                 : React.createElement("div", { style: { overflowX: "auto" } },
@@ -1846,9 +1895,111 @@ function CountHistoryScreen({ archives, master, onBack }) {
                                 React.createElement("th", { style: { padding: "8px 10px", textAlign: "left", minWidth: 140 } }, "Product"),
                                 ...sortedArchives.map(a => React.createElement("th", { key: a.id || a.label, style: { padding: "8px 6px", textAlign: "center", minWidth: 70 } }, a.date || a.archive_date || a.label || "")),
                                 sortedArchives.length > 1 && React.createElement("th", { style: { padding: "8px 6px", textAlign: "center", background: "#2a3a6a", minWidth: 60 } }, "Avg"))),
-                        React.createElement("tbody", null, ...rows))),
-            React.createElement("div", { className: "print-show", style: { display: "none", marginTop: 20, padding: "10px", background: "#000", color: "#0f0", fontFamily: "monospace", fontSize: 12, fontWeight: "bold", textAlign: "center" } }, "=== END OF COUNT HISTORY \u2014 " + rows.length + " ROWS ===")));
+                        React.createElement("tbody", null, ...rows)))),
+        React.createElement(CountHistoryPrintSheet, { sortedArchives: sortedArchives, rows: printRows, colSpan: colSpan }));
 }
+
+// ─── RECEIVED HISTORY SCREEN ──────────────────────────────────────────────────
+function ReceivedHistoryPrintSheet({ sortedArchives, rows, colSpan }) {
+    const FONT = "'Inter',system-ui,sans-serif";
+    return React.createElement("div", { style: { display: "none" }, className: "print-show print-sheet-wrapper" },
+        React.createElement("div", { style: { fontFamily: FONT, fontSize: 9 } },
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "2px solid #1A1A2E", paddingBottom: 3, marginBottom: 6 } },
+                React.createElement("div", null,
+                    React.createElement("div", { style: { fontSize: 13, fontWeight: "700", color: "#C8102E", textTransform: "uppercase", letterSpacing: "0.05em" } }, "ZAZZO'S LIQUOR INVENTORY"),
+                    React.createElement("div", { style: { fontSize: 8, fontWeight: "700", textTransform: "uppercase", color: "#333", marginTop: 1, letterSpacing: "0.06em" } }, "RECEIVED HISTORY")),
+                React.createElement("div", { style: { textAlign: "right", fontSize: 8, color: "#555", lineHeight: 1.6 } },
+                    React.createElement("div", null, "Weeks: " + sortedArchives.map(a => a.date || a.archive_date || a.label || "").join(", ")),
+                    React.createElement("div", null, "Printed: " + new Date().toLocaleDateString()))),
+            sortedArchives.length === 0
+                ? React.createElement("div", { style: { padding: 12, color: "#999" } }, "No archived weeks yet.")
+                : React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 9, tableLayout: "fixed" } },
+                    React.createElement("thead", null,
+                        React.createElement("tr", { style: { background: "#1A1A2E" } },
+                            React.createElement("th", { style: { padding: "3px 6px", textAlign: "left", color: "#fff", fontWeight: 700, fontSize: 8, textTransform: "uppercase" } }, "Product"),
+                            ...sortedArchives.map(a => React.createElement("th", { key: a.id || a.label, style: { padding: "3px 6px", textAlign: "center", color: "#fff", fontWeight: 700, fontSize: 8, textTransform: "uppercase" } }, a.date || a.archive_date || a.label || "")),
+                            sortedArchives.length > 1 && React.createElement("th", { style: { padding: "3px 6px", textAlign: "center", background: "#2a3a6a", color: "#fff", fontWeight: 700, fontSize: 8, textTransform: "uppercase" } }, "Avg"))),
+                    React.createElement("tbody", null, rows)),
+            React.createElement("div", { style: { marginTop: 20, padding: "10px", background: "#000", color: "#0f0", fontFamily: "monospace", fontSize: 12, fontWeight: "bold", textAlign: "center", pageBreakInside: "avoid", breakInside: "avoid" } },
+                `=== END OF RECEIVED HISTORY — ${rows.length} ROWS ===`)));
+}
+function ReceivedHistoryScreen({ archives, master, onBack }) {
+    const CLASS_ORDER_CH = ["Beer & Seltzer", "Extras", "Kegs", "Liquor", "Wine"];
+    const sortedArchives = [...(archives || [])].sort((a, b) => new Date(a.date || a.archive_date) - new Date(b.date || b.archive_date)).slice(-3);
+
+    function getReceived(archive, product) {
+        const row = (archive.orders || []).find(o => o.product === product);
+        if (!row || row.received === undefined || row.received === null || row.received === "") return null;
+        const n = parseFloat(row.received);
+        return isNaN(n) ? null : Math.round(n * 100) / 100;
+    }
+
+    function avg(vals) {
+        const valid = vals.filter(v => v !== null);
+        if (valid.length === 0) return null;
+        return Math.round((valid.reduce((a, b) => a + b, 0) / valid.length) * 100) / 100;
+    }
+
+    const masterList = getMaster();
+    const grouped = {};
+    CLASS_ORDER_CH.forEach(cls => grouped[cls] = {});
+    masterList.forEach(item => {
+        const cls = item.class || "Extras";
+        const cat = item.category || "Other";
+        if (!grouped[cls]) grouped[cls] = {};
+        if (!grouped[cls][cat]) grouped[cls][cat] = [];
+        grouped[cls][cat].push(item.product);
+    });
+
+    const colSpan = sortedArchives.length + (sortedArchives.length > 1 ? 2 : 1);
+    const rows = [];
+    const printRows = [];
+    CLASS_ORDER_CH.forEach(cls => {
+        if (!grouped[cls] || Object.keys(grouped[cls]).length === 0) return;
+        rows.push(React.createElement("tr", { key: "cls-" + cls },
+            React.createElement("td", { colSpan, style: { background: "#C8102E", color: "#fff", fontWeight: 700, fontSize: 11, padding: "5px 10px", textTransform: "uppercase" } }, cls)));
+        printRows.push(React.createElement("tr", { key: "pcls-" + cls },
+            React.createElement("td", { colSpan, style: { background: "#C8102E", color: "#fff", fontWeight: 700, fontSize: 9, padding: "3px 6px", textTransform: "uppercase" } }, cls)));
+        Object.keys(grouped[cls]).sort().forEach(cat => {
+            rows.push(React.createElement("tr", { key: "cat-" + cls + cat },
+                React.createElement("td", { colSpan, style: { background: "#f0e8e8", color: "#C8102E", fontWeight: 600, fontSize: 11, padding: "3px 10px" } }, cat)));
+            printRows.push(React.createElement("tr", { key: "pcat-" + cls + cat },
+                React.createElement("td", { colSpan, style: { background: "#f0e8e8", color: "#C8102E", fontWeight: 600, fontSize: 9, padding: "2px 6px" } }, cat)));
+            grouped[cls][cat].sort().forEach((product, i) => {
+                const counts = sortedArchives.map(a => getReceived(a, product));
+                const average = avg(counts);
+                rows.push(React.createElement("tr", { key: product, style: { background: i % 2 === 0 ? "#fff" : "#F5F5F5", borderBottom: "1px solid #eee" } },
+                    React.createElement("td", { style: { padding: "6px 10px", fontSize: 12 } }, product),
+                    ...counts.map((c, ci) => React.createElement("td", { key: ci, style: { padding: "6px 6px", textAlign: "center", fontSize: 12 } }, c !== null ? fmt(c) : "—")),
+                    sortedArchives.length > 1 && React.createElement("td", { style: { padding: "6px 6px", textAlign: "center", fontSize: 12, fontWeight: 600, background: "#f5f5ff" } }, average !== null ? fmt(average) : "—")));
+                printRows.push(React.createElement("tr", { key: "p-" + product },
+                    React.createElement("td", { style: { padding: "2px 6px", fontSize: 9, border: "1px solid #DDDDDD" } }, product),
+                    ...counts.map((c, ci) => React.createElement("td", { key: ci, style: { padding: "2px 6px", textAlign: "center", fontSize: 9, border: "1px solid #DDDDDD" } }, c !== null ? fmt(c) : "—")),
+                    sortedArchives.length > 1 && React.createElement("td", { style: { padding: "2px 6px", textAlign: "center", fontSize: 9, fontWeight: 600, background: "#f5f5ff", border: "1px solid #DDDDDD" } }, average !== null ? fmt(average) : "—")));
+            });
+        });
+    });
+
+    return React.createElement("div", { style: { display: "flex", flexDirection: "column", height: "100vh", background: "#EFEFEF" } },
+        React.createElement("header", { className: "H no-print" },
+            React.createElement("div", { className: "H-logo" }, "Zazzo's"),
+            React.createElement("div", { className: "H-right" },
+                React.createElement("button", { className: "B B-ghost", onClick: () => window.print() }, "🖨 Print"),
+                React.createElement("button", { className: "B B-ghost", onClick: onBack }, "← Home"))),
+        React.createElement("div", { className: "no-print", style: { flex: 1, overflowY: "auto", fontFamily: "'Inter',system-ui,sans-serif", paddingTop: 60 } },
+            sortedArchives.length === 0
+                ? React.createElement("div", { style: { padding: 24, textAlign: "center", color: "#999" } }, "No archived weeks yet.")
+                : React.createElement("div", { style: { overflowX: "auto" } },
+                    React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 400 } },
+                        React.createElement("thead", null,
+                            React.createElement("tr", { style: { background: "#1A1A2E", color: "#fff" } },
+                                React.createElement("th", { style: { padding: "8px 10px", textAlign: "left", minWidth: 140 } }, "Product"),
+                                ...sortedArchives.map(a => React.createElement("th", { key: a.id || a.label, style: { padding: "8px 6px", textAlign: "center", minWidth: 70 } }, a.date || a.archive_date || a.label || "")),
+                                sortedArchives.length > 1 && React.createElement("th", { style: { padding: "8px 6px", textAlign: "center", background: "#2a3a6a", minWidth: 60 } }, "Avg"))),
+                        React.createElement("tbody", null, ...rows)))),
+        React.createElement(ReceivedHistoryPrintSheet, { sortedArchives: sortedArchives, rows: printRows, colSpan: colSpan }));
+}
+
 
 // ─── SALES REPORT PARSING ENGINE ──────────────────────────────────────────────
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
@@ -2578,6 +2729,7 @@ function MasterGuardModal({ show, input, error, onKey, onCancel }) {
 
 function OGHistoryScreen({ archives, onBack }) {
     const master = getMaster();
+    const latestPosSales = (archives && archives.length > 0 && archives[0].pos_sales) ? archives[0].pos_sales : {};
     const [selectedWeek, setSelectedWeek] = useState(null);
     const [isLandscape, setIsLandscape] = useState(window.innerWidth > window.innerHeight);
     const scrollerRef = useRef(null);
@@ -2681,22 +2833,14 @@ function OGHistoryScreen({ archives, onBack }) {
 
     return React.createElement("div", { style:{position:'fixed',inset:0,background:'#fff',zIndex:100} },
         React.createElement("style", null, ogCSS),
-        React.createElement("div", { className:"ogh-np", style:{position:'fixed',top:0,left:0,right:0,height:44,background:'#C8102E',borderBottom:'3px solid #1B6B3A',display:'flex',alignItems:'center',padding:'0 16px',justifyContent:'space-between',zIndex:600} },
+        React.createElement("div", { className: "no-print", style:{position:'fixed',top:0,left:0,right:0,height:44,background:'#C8102E',borderBottom:'3px solid #1B6B3A',display:'flex',alignItems:'center',padding:'0 16px',justifyContent:'space-between',zIndex:600} },
             React.createElement("span", { style:{color:'#fff',fontSize:14,fontWeight:700,fontFamily:'Georgia,serif'} }, selectedWeek.label || selectedWeek.date),
             React.createElement("div", { style:{display:'flex',gap:8} },
                 React.createElement("button", { className:"B B-ghost", style:{fontSize:11}, onClick:() => window.print() }, "Print"),
                 React.createElement("button", { className:"B B-ghost", onClick:() => setSelectedWeek(null) }, "\u2190 Back"))),
-        React.createElement("div", { className: "print-show", style: { display: "none" } },
-            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "2px solid #1A1A2E", paddingBottom: 3, marginBottom: 6 } },
-                React.createElement("div", null,
-                    React.createElement("div", { style: { fontSize: 13, fontWeight: "700", color: "#C8102E", textTransform: "uppercase", letterSpacing: "0.05em" } }, "ZAZZO'S LIQUOR INVENTORY"),
-                    React.createElement("div", { style: { fontSize: 8, fontWeight: "700", textTransform: "uppercase", color: "#333", marginTop: 1, letterSpacing: "0.06em" } }, "ORDER GUIDE HISTORY")),
-                React.createElement("div", { style: { textAlign: "right", fontSize: 8, color: "#555", lineHeight: 1.6 } },
-                    React.createElement("div", null, "Week: " + (selectedWeek.label || selectedWeek.date)),
-                    React.createElement("div", null, "Printed: " + new Date().toLocaleDateString())))),
-        React.createElement("div", { ref:L3ref, className:"ogh-L3" }),
-        React.createElement("div", { ref:L4ref, className:"ogh-L4" }),
-        React.createElement("div", { ref:scrollerRef, className:"ogh-wrap" },
+        React.createElement("div", { className: "no-print", ref:L3ref, style:{position:'fixed',top:76,left:0,right:0,height:30,background:'#C8102E',color:'#fff',fontSize:11,fontWeight:700,textTransform:'uppercase',display:'none',alignItems:'center',padding:'0 10px',zIndex:500,pointerEvents:'none'} }),
+        React.createElement("div", { className: "no-print", ref:L4ref, style:{position:'fixed',top:106,left:0,right:0,height:26,background:'#FDECEA',color:'#C8102E',fontSize:11,fontWeight:700,textTransform:'uppercase',display:'none',alignItems:'center',padding:'0 10px',zIndex:500,pointerEvents:'none'} }),
+        React.createElement("div", { className: "no-print", ref:scrollerRef, style:{overflowX:'auto',overflowY:'scroll',WebkitOverflowScrolling:'auto',position:'fixed',top:44,left:0,right:0,bottom:0} },
             React.createElement("div", { style:{minWidth:tableWidth,width:'100%',display:'flex',flexDirection:'column'} },
                 React.createElement("div", { style:{display:'flex',position:'sticky',top:0,zIndex:20,minWidth:tableWidth} },
                     ALL_COLS.map((col,ci) => React.createElement("div", { key:col.key, className:"ogh-hc"+(ci===0?" ogh-hcp":""), style:{width:col.w,borderBottom:'2px solid #999'} }, col.label))),
@@ -2729,8 +2873,51 @@ function OGHistoryScreen({ archives, onBack }) {
                             else val='--';
                             return React.createElement("div", {key:col.key,className:cls,style:{...cs,justifyContent:'center'}}, val);
                         }));
+                })),
+        React.createElement(OGHistoryPrintSheet, { rowMeta: rowMeta, allCols: ALL_COLS, selectedWeek: selectedWeek, latestPosSales: latestPosSales })));
+}
+function OGHistoryPrintSheet({ rowMeta, allCols, selectedWeek, latestPosSales }) {
+    const dataCols = allCols.filter(c => c.key !== "product");
+    return React.createElement("div", { style: { display: "none" }, className: "print-show print-sheet-wrapper" },
+        React.createElement("div", { style: { fontFamily: "'Inter',system-ui,sans-serif", fontSize: 8 } },
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "2px solid #1A1A2E", paddingBottom: 3, marginBottom: 6 } },
+                React.createElement("div", null,
+                    React.createElement("div", { style: { fontSize: 13, fontWeight: "700", color: "#C8102E", textTransform: "uppercase", letterSpacing: "0.05em" } }, "ZAZZO'S LIQUOR INVENTORY"),
+                    React.createElement("div", { style: { fontSize: 8, fontWeight: "700", textTransform: "uppercase", color: "#333", marginTop: 1, letterSpacing: "0.06em" } }, "ORDER GUIDE HISTORY")),
+                React.createElement("div", { style: { textAlign: "right", fontSize: 8, color: "#555", lineHeight: 1.6 } },
+                    React.createElement("div", null, "Week: " + (selectedWeek.label || selectedWeek.date)),
+                    React.createElement("div", null, "Printed: " + new Date().toLocaleDateString()))),
+            React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 7, tableLayout: "fixed" } },
+                React.createElement("thead", null,
+                    React.createElement("tr", { style: { background: "#1A1A2E" } },
+                        React.createElement("th", { style: { padding: "2px 4px", textAlign: "left", color: "#fff", fontWeight: 700, fontSize: 7, textTransform: "uppercase" } }, "Item"),
+                        ...dataCols.map(col => React.createElement("th", { key: col.key, style: { padding: "2px 4px", textAlign: "center", color: "#fff", fontWeight: 700, fontSize: 7, textTransform: "uppercase" } }, col.label)))),
+                React.createElement("tbody", null, rowMeta.map((r, i) => {
+                    if (r.type === "RC") return React.createElement("tr", { key: "prc-" + i }, React.createElement("td", { colSpan: dataCols.length + 1, style: { background: "#C8102E", color: "#fff", fontWeight: 700, padding: "3px 4px", fontSize: 8, textTransform: "uppercase" } }, r.label));
+                    if (r.type === "RK") return React.createElement("tr", { key: "prk-" + i }, React.createElement("td", { colSpan: dataCols.length + 1, style: { background: "#FDECEA", color: "#C8102E", fontWeight: 700, padding: "2px 4px", fontSize: 7, textTransform: "uppercase" } }, r.label));
+                    const ro = r.row || {};
+                    const tot = Number(ro.total) || 0;
+                    return React.createElement("tr", { key: "pr-" + i },
+                        React.createElement("td", { style: { padding: "1px 4px", border: "1px solid #DDDDDD" } }, r.item.product),
+                        ...dataCols.map(col => {
+                            let val;
+                            if (col.key === "vendor") val = ro.vendor || "--";
+                            else if (col.key === "lw") val = ro.lastWeek || "--";
+                            else if (col.key === "received") val = ro.received || "--";
+                            else if (col.key === "total") val = tot > 0 ? tot : "--";
+                            else if (col.key === "depletion") val = ro.depletion !== "" && ro.depletion !== undefined ? ro.depletion : "--";
+                            else if (col.key === "sold") val = ro.sold || (latestPosSales[ro.product] !== undefined ? String(latestPosSales[ro.product]) : "--");
+                            else if (col.key === "variance") val = ro.variance !== "" && ro.variance !== undefined ? ro.variance : "--";
+                            else if (col.key === "par") val = ro.par || "--";
+                            else if (col.key === "deliveryThisWeek") val = ro.deliveryThisWeek || "--";
+                            else if (col.key === "order") val = ro.order || "--";
+                            else if (col.key === "freq") val = ro.freq || "--";
+                            else val = "--";
+                            return React.createElement("td", { key: col.key, style: { padding: "1px 4px", textAlign: "center", border: "1px solid #DDDDDD" } }, val);
+                        }));
                 }))),
-        React.createElement("div", { className: "print-show", style: { display: "none", marginTop: 20, padding: "10px", background: "#000", color: "#0f0", fontFamily: "monospace", fontSize: 12, fontWeight: "bold", textAlign: "center" } }, "=== END OF ORDER GUIDE HISTORY \u2014 " + (selectedWeek.label || selectedWeek.date) + " ==="));
+            React.createElement("div", { style: { marginTop: 20, padding: "10px", background: "#000", color: "#0f0", fontFamily: "monospace", fontSize: 12, fontWeight: "bold", textAlign: "center", pageBreakInside: "avoid", breakInside: "avoid" } },
+                `=== END OF ORDER GUIDE HISTORY \u2014 ${selectedWeek.label || selectedWeek.date} \u2014 ${rowMeta.filter(r => r.type === "data").length} ROWS ===`)));
 }
 // Builds the weekly completeness report from whatever sealed/open/orders data is handed to
 // it - works equally for the live in-progress week (Current Preview) or any already-closed
@@ -3152,7 +3339,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v8.3")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v8.4")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
@@ -3172,14 +3359,17 @@ function App() {
                 React.createElement("div", { className: "LCard", onClick: () => setScreen("counthistory") },
                     React.createElement("div", { className: "LCard-role" }, "Count History"),
                     React.createElement("div", { className: "LCard-name" }, "Weekly averages")),
+                React.createElement("div", { className: "LCard", onClick: () => setScreen("receivedhistory") },
+                    React.createElement("div", { className: "LCard-role" }, "Received History"),
+                    React.createElement("div", { className: "LCard-name" }, "Weekly averages")),
                 React.createElement("div", { className: "LCard", onClick: () => setScreen("orderguide") },
                     React.createElement("div", { className: "LCard-role" }, "Order Guide"),
                     React.createElement("div", { className: "LCard-name" }, "Weekly ordering")),
                 React.createElement("div", { className: "LCard", onClick: () => setShowRolloverConfirm(true) },
                     React.createElement("div", { className: "LCard-role" }, "Start New Week"),
                     React.createElement("div", { className: "LCard-name" }, "Archive & reset counts"))),
-            React.createElement("div", { onClick: () => { setClearResult(null); setShowClearMenu(true); }, style: { position:"fixed", left:"calc(50% - 24px)", transform:"translateX(-50%)", bottom:"80px", width:36, height:36, borderRadius:"50%", background:"#FFFFFF", border:"2px solid #1B6B3A", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Inter',system-ui,sans-serif", fontSize:14, fontWeight:700, color:"#1B6B3A", cursor:"pointer", boxShadow:"0 2px 8px rgba(0,0,0,0.12)", zIndex:50 } }, "C"),
-            React.createElement("div", { onClick: () => setScreen("reports"), style: { position:"fixed", left:"calc(50% + 24px)", transform:"translateX(-50%)", bottom:"80px", width:36, height:36, borderRadius:"50%", background:"#FFFFFF", border:"2px solid #1B6B3A", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Inter',system-ui,sans-serif", fontSize:14, fontWeight:700, color:"#1B6B3A", cursor:"pointer", boxShadow:"0 2px 8px rgba(0,0,0,0.12)", zIndex:50 } }, "R"))),
+            React.createElement("div", { onClick: () => { setClearResult(null); setShowClearMenu(true); }, style: { position:"fixed", left:"calc(50% - 24px)", transform:"translateX(-50%)", bottom:"40px", width:36, height:36, borderRadius:"50%", background:"#FFFFFF", border:"2px solid #1B6B3A", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Inter',system-ui,sans-serif", fontSize:14, fontWeight:700, color:"#1B6B3A", cursor:"pointer", boxShadow:"0 2px 8px rgba(0,0,0,0.12)", zIndex:50 } }, "C"),
+            React.createElement("div", { onClick: () => setScreen("reports"), style: { position:"fixed", left:"calc(50% + 24px)", transform:"translateX(-50%)", bottom:"40px", width:36, height:36, borderRadius:"50%", background:"#FFFFFF", border:"2px solid #1B6B3A", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Inter',system-ui,sans-serif", fontSize:14, fontWeight:700, color:"#1B6B3A", cursor:"pointer", boxShadow:"0 2px 8px rgba(0,0,0,0.12)", zIndex:50 } }, "R"))),
         showRolloverConfirm && React.createElement("div", { style: { position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:24 } },
             React.createElement("div", { style: { background:"#fff", borderRadius:12, padding:24, width:"100%", maxWidth:360 } },
                 React.createElement("div", { style: { fontFamily:"'Inter',system-ui,sans-serif", fontSize:17, fontWeight:700, marginBottom:12 } }, "Start New Week?"),
@@ -3236,6 +3426,7 @@ function App() {
             pos_sales: {}
         } }),
         screen === "counthistory" && React.createElement(CountHistoryScreen, { archives: archives, master: master, onBack: goHome }),
+        screen === "receivedhistory" && React.createElement(ReceivedHistoryScreen, { archives: archives, master: master, onBack: goHome }),
 
         showMaster && (React.createElement(MasterEditor, { master: master, onSave: (updated) => { setMaster(updated); setOrders(mkOrders(updated)); }, onClose: () => setShowMaster(false) })),
         React.createElement(MasterGuardModal, { show: showMasterPin, input: masterPinInput, error: masterPinError, onKey: masterPressKey, onCancel: masterCancel })));
