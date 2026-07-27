@@ -1278,19 +1278,23 @@ function ReceivedScreen({ onBack, orders, setOrders }) {
     const [managerMode, setManagerMode] = useState(false);
     const [printMode, setPrintMode] = useState("filled");
     const triggerPrint = (isBlank) => {
-        setPrintMode(isBlank ? "blank" : "filled");
-        const doActualPrint = () => {
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                    window.print();
-                });
+        const rows = [];
+        vendors.forEach(vendor => {
+            const vProds = master.filter(i => i.vendor === vendor).sort((a, b) => a.category.localeCompare(b.category) || a.product.localeCompare(b.product));
+            if (!vProds.length) return;
+            rows.push({ type: "section", label: vendor });
+            vProds.forEach(item => {
+                const val = isBlank ? "" : (received[item.product] || "");
+                rows.push({ type: "data", cells: [item.product, item.category, val] });
             });
-        };
-        if (document.fonts && document.fonts.ready) {
-            document.fonts.ready.then(doActualPrint).catch(doActualPrint);
-        } else {
-            setTimeout(doActualPrint, 600);
-        }
+        });
+        downloadReportPDF({
+            title: "Received Items",
+            weekInfo: "Date: " + (isBlank ? "" : new Date().toLocaleDateString()),
+            columns: ["Product", "Category", "Qty Received"],
+            rows: rows,
+            filename: "Received_Items" + (isBlank ? "_Blank" : "") + ".pdf",
+        });
     };
     const contentRef = useRef(null);
     const [showUp, setShowUp] = useState(false);
@@ -3472,7 +3476,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v9.3")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v9.4")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
