@@ -1733,6 +1733,12 @@ function DepletionScreen({ archives, onBack, currentPreview }) {
                         onClick: () => setSelectedLabel(a.label)
                     }, isActive ? (a.label || a.date) : (isPreview ? "Current (Preview)" : ("Week " + i)));
                 })),
+        (() => {
+            const isLive = currentPreview && selectedArchive && selectedArchive.label === currentPreview.label;
+            return React.createElement("div", { className: "no-print", style: { padding: "6px 16px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "center",
+                background: isLive ? "#FFF3E0" : "#E8F5E9", color: isLive ? "#8a5a00" : "#1b6b3a" } },
+                isLive ? "\u26a0 LIVE \u2014 STILL IN PROGRESS, NOT YET CLOSED" : "\ud83d\udd12 ARCHIVED \u2014 READ ONLY, CANNOT BE CHANGED BY THE PARSER");
+        })(),
         React.createElement("div", { className: "no-print", style: { flex: 1, overflowY: "auto", fontFamily: "'Inter',system-ui,sans-serif" } },
             React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 12 } },
                 React.createElement("thead", null,
@@ -3476,7 +3482,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v9.4")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v9.5")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
