@@ -10,6 +10,15 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Zazzo's Inventory">
   <title>Zazzo's Liquor Inventory</title>
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Zazzo's">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#C8102E">
   <script crossorigin src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
   <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -297,7 +306,10 @@ function weekLabel() {
     return `Week of ${prevMonday.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
 }
 function getUnit(item, loc) {
-    return (item.category === "Beer" && loc === "Keg Cooler") ? "cases" : "units";
+    // Beer is counted in bottles everywhere, no exceptions - Keg Cooler used to be labeled
+    // "cases" here, which meant whoever counted there may have been entering a case number
+    // while the system silently treated it as a raw bottle count with no conversion applied.
+    return "units";
 }
 const mkSealed = () => { const c = {}; SELENA_LOCS.forEach(l => { c[l] = {}; }); return c; };
 const mkOpen = () => { const c = {}; ERIKA_LOCS.forEach(l => { c[l] = {}; }); return c; };
@@ -1340,37 +1352,8 @@ function ReceivedScreen({ onBack, orders, setOrders }) {
         setOrders(prev => prev.map(r => r.product === product ? Object.assign(Object.assign({}, r), { received: val }) : r));
         persistReceived(product, val);
     };
-    const [caseMode, setCaseMode] = useState({});
-    const [caseInputs, setCaseInputs] = useState({});
-    const BEER_CASE_SIZE = 24;
-    // Beer sold in 24-count cases (category "Beer" specifically - Seltzer items like High
-    // Noon/Vodkade/White Claw are NOT included, and kegs are an entirely separate Master
-    // category "Keg" that was never affected by this). Toggling "Case" lets whoever's
-    // logging deliveries type the number of CASES instead of doing the ×24 math by hand -
-    // the underlying received value saved to Supabase is always the real unit/bottle count,
-    // exactly as every other screen in the app (depletion, order guide, etc.) expects it.
-    const toggleCase = (product) => {
-        setCaseMode(prev => {
-            const turningOn = !prev[product];
-            if (turningOn) {
-                const cur = Number(received[product] || 0);
-                const cases = cur > 0 ? String(Math.round((cur / BEER_CASE_SIZE) * 100) / 100) : "";
-                setCaseInputs(p => Object.assign(Object.assign({}, p), { [product]: cases }));
-            }
-            return Object.assign(Object.assign({}, prev), { [product]: turningOn });
-        });
-    };
-    const updateRecCase = (product, casesStr) => {
-        setCaseInputs(prev => Object.assign(Object.assign({}, prev), { [product]: casesStr }));
-        if (casesStr === "") { updateRec(product, ""); return; }
-        const cases = Number(casesStr);
-        if (!isNaN(cases)) updateRec(product, String(Math.round(cases * BEER_CASE_SIZE)));
-    };
-    const stepCase = (product, delta) => {
-        const curCases = Number(caseInputs[product] || 0);
-        const next = Math.max(0, curCases + delta);
-        updateRecCase(product, String(next));
-    };
+    // Case-entry toggle removed - per updated policy, everything is counted and received in
+    // single bottles/cans only, no exceptions, no case conversions of any kind.
     const blankItems = () => vendorProds.filter(i => received[i.product] === "" || received[i.product] === undefined);
     const hasBlank = () => blankItems().length > 0;
     const tryAdvance = () => hasBlank() ? setModal(true) : advance();
@@ -1426,17 +1409,14 @@ function ReceivedScreen({ onBack, orders, setOrders }) {
                         items.map(item => {
                             var _a;
                             const val = (_a = received[item.product]) !== null && _a !== void 0 ? _a : "";
-                            const isBeerCase = item.category === "Beer";
-                            const inCaseMode = isBeerCase && caseMode[item.product];
                             return (React.createElement("div", { className: "ProdRow", key: item.product },
                                 React.createElement("div", { className: "ProdRow-info" },
                                     React.createElement("div", { className: "ProdRow-name" }, item.product),
-                                    React.createElement("div", { className: "ProdRow-meta" }, inCaseMode ? ("cases \u00d7 24 = " + (val === "" ? "0" : val) + " units") : "units")),
-                                isBeerCase && React.createElement("button", { className: "B B-outline", style: { fontSize: 11, padding: "4px 8px", marginRight: 6 }, onClick: () => toggleCase(item.product) }, inCaseMode ? "Cases" : "Units"),
+                                    React.createElement("div", { className: "ProdRow-meta" }, "units")),
                                 React.createElement("div", { className: "Stepper" },
-                                    React.createElement("div", { className: "StepBtn", onClick: () => inCaseMode ? stepCase(item.product, -1) : step(item.product, -1) }, "\u2212"),
-                                    React.createElement("input", { className: "StepInput" + (val !== "" ? " filled" : ""), type: "number", min: "0", step: inCaseMode ? "1" : "1", inputMode: "numeric", placeholder: "0", value: inCaseMode ? ((_a = caseInputs[item.product]) !== null && _a !== void 0 ? _a : "") : val, onChange: e => inCaseMode ? updateRecCase(item.product, e.target.value) : updateRec(item.product, e.target.value) }),
-                                    React.createElement("div", { className: "StepBtn", onClick: () => inCaseMode ? stepCase(item.product, 1) : step(item.product, 1) }, "+"))));
+                                    React.createElement("div", { className: "StepBtn", onClick: () => step(item.product, -1) }, "\u2212"),
+                                    React.createElement("input", { className: "StepInput" + (val !== "" ? " filled" : ""), type: "number", min: "0", step: "1", inputMode: "numeric", placeholder: "0", value: val, onChange: e => updateRec(item.product, e.target.value) }),
+                                    React.createElement("div", { className: "StepBtn", onClick: () => step(item.product, 1) }, "+"))));
                         })))))))))))),
         !allDone && (React.createElement("div", { className: "Footer no-print" },
             activeVendorIdx > 0 ? React.createElement("button", { className: "Footer-btn", onClick: () => setActiveVendorIdx(p => p - 1) }, "\u2190 Back") : React.createElement("div", { className: "Footer-spacer" }),
@@ -2986,20 +2966,10 @@ function computeCompletenessReport(master, sealed, open, orders, weekLabelStr) {
             pluGaps.push({ category: item.category || "Other", product: item.product });
         }
     });
-    // Beer should only ever be received in 24-count cases - anything received that isn't a
-    // clean multiple of 24 almost certainly means a typo or a partial-case data entry, not
-    // an actual partial-case delivery.
-    const beerCaseIssues = [];
-    (orders || []).forEach(o => {
-        const masterItem = (master || []).find(m => m.product === o.product);
-        if (!masterItem || masterItem.category !== "Beer") return;
-        const r = Number(o.received);
-        if (o.received !== "" && o.received !== undefined && o.received !== null && !isNaN(r) && r > 0 && r % 24 !== 0) {
-            beerCaseIssues.push({ category: masterItem.category, product: o.product, received: r });
-        }
-    });
+    // Case-based receiving check removed - everything is received in single bottles/cans
+    // now, no case conversions of any kind, so a "multiple of 24" check no longer applies.
     const groupBy = (arr) => arr.reduce((acc, x) => { (acc[x.category] = acc[x.category] || []).push(x); return acc; }, {});
-    return { locationGaps: groupBy(locationGaps), pluGaps: groupBy(pluGaps), beerCaseIssues, generatedAt: new Date().toLocaleString(), weekLabel: weekLabelStr };
+    return { locationGaps: groupBy(locationGaps), pluGaps: groupBy(pluGaps), generatedAt: new Date().toLocaleString(), weekLabel: weekLabelStr };
 }
 
 // Generates and downloads a real PDF file directly - does not use window.print() or the
@@ -3122,10 +3092,6 @@ function ReportBody({ report }) {
             items.map(it => React.createElement("div", { key: it.product, style: { fontSize:12, marginBottom:3, paddingLeft:8 } },
                 React.createElement("strong", null, it.product), " - not counted in: ", it.missing.join(", "),
                 it.countedCount === 0 && React.createElement("span", { style: { color:"#C8102E", fontWeight:700 } }, " (NOT COUNTED AT ALL)"))))),
-        React.createElement("div", { style: { fontSize:13, fontWeight:700, color:"#C8102E", textTransform:"uppercase", marginTop:20, marginBottom:8 } }, "Beer Received Not a Multiple of 24"),
-        (!report.beerCaseIssues || report.beerCaseIssues.length === 0) ? React.createElement("div", { style: { fontSize:13, color:"#0a7d2c", marginBottom:16 } }, "Every beer delivery this week came in clean case counts.") :
-        report.beerCaseIssues.map(it => React.createElement("div", { key: it.product, style: { fontSize:12, marginBottom:3, paddingLeft:8 } },
-            React.createElement("strong", null, it.product), " - received " + it.received + " (should be a multiple of 24)")),
         React.createElement("div", { style: { fontSize:13, fontWeight:700, color:"#C8102E", textTransform:"uppercase", marginTop:20, marginBottom:8 } }, "Missing PLUs"),
         Object.keys(report.pluGaps).length === 0 ? React.createElement("div", { style: { fontSize:13, color:"#0a7d2c", marginBottom:16 } }, "Every Master product has a PLU mapped somewhere.") :
         Object.entries(report.pluGaps).map(([cat, items]) => React.createElement("div", { key: cat, style: { marginBottom:14 } },
@@ -3482,7 +3448,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v9.5")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v9.6")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
