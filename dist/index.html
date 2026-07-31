@@ -851,10 +851,19 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
         contentRef.current.scrollTo({ top: contentRef.current.scrollHeight, behavior: "smooth" }); };
     const saveTimers = useRef({});
     const scheduleSave = (product, val) => {
-        if (saveTimers.current[product]) clearTimeout(saveTimers.current[product]);
-        saveTimers.current[product] = setTimeout(() => {
+        // Keyed by location+product together, not product alone - previously, counting the
+        // SAME product across two different locations in quick succession (e.g. Harken Chard
+        // at Pepsi Cooler, then Harken Chard at Closet) would cancel the still-pending save
+        // for the first location the instant the second one was typed, silently dropping it
+        // and never writing it to the database - even though it appeared to save fine on
+        // screen. This was very likely the real cause behind products appearing to have
+        // "missing locations" in past weeks' counts.
+        const key = curLoc + "::" + product;
+        if (saveTimers.current[key]) clearTimeout(saveTimers.current[key]);
+        const loc = curLoc;
+        saveTimers.current[key] = setTimeout(() => {
             if (val !== "") {
-                sbUpsert("counts", { week_label: "current", user_type: user, location: curLoc, product, count_value: Number(val) }, "week_label,user_type,location,product")
+                sbUpsert("counts", { week_label: "current", user_type: user, location: loc, product, count_value: Number(val) }, "week_label,user_type,location,product")
                     .catch(e => console.error("Count save:", e));
             }
         }, 600);
@@ -3476,7 +3485,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v9.8")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v9.9")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
