@@ -1579,6 +1579,7 @@ function DepletionScreen({ archives, onBack, currentPreview }) {
     // week just to look at it.
     const sortedArchives = currentPreview ? [currentPreview, ...closedArchives] : closedArchives;
     const [selectedLabel, setSelectedLabel] = useState(sortedArchives.length ? sortedArchives[0].label : null);
+    const [showMathFor, setShowMathFor] = useState(null);
     const [showKey, setShowKey] = useState(false);
     const tapCountRef = useRef(0);
     const tapTimerRef = useRef(null);
@@ -1678,7 +1679,7 @@ function DepletionScreen({ archives, onBack, currentPreview }) {
             const poursPerKeg = PONY_KEGS.has(o.product) ? 62 : 93;
             const depForVariance = (isKeg && dep !== null) ? Math.round(dep * poursPerKeg * 100) / 100 : dep;
             const vari = depForVariance !== null && pos !== null ? Math.round((pos - depForVariance) * 100) / 100 : null;
-            computedRows.push({ type: "row", product: o.product, dep, pos, vari });
+            computedRows.push({ type: "row", product: o.product, lw, recv, tot, dep, pos, vari });
         });
     }
 
@@ -1694,6 +1695,19 @@ function DepletionScreen({ archives, onBack, currentPreview }) {
                     rows: computedRows.map(r => r.type === "row" ? { type: "data", cells: [r.product, r.dep !== null ? fmt(r.dep) : "\u2014", r.pos !== null ? fmt(r.pos) : "\u2014", r.vari === null ? "\u2014" : (r.vari > 0 ? "+" + fmt(r.vari) : fmt(r.vari))] } : r),
                     filename: "Depletion_Report_" + (selectedArchive ? (selectedArchive.label || selectedArchive.date) : "current").replace(/[^a-z0-9]/gi, "_") + ".pdf",
                 }) }, "\u2b07 Download PDF"),
+                React.createElement("button", { className: "B B-ghost", onClick: () => downloadReportPDF({
+                    title: "Depletion Report - Math Breakdown",
+                    weekInfo: "Week: " + (selectedArchive ? (selectedArchive.label || selectedArchive.date) : "\u2014"),
+                    columns: ["Product", "Last Week", "Received", "Current Count", "Depletion", "POS Sales", "Variance"],
+                    rows: computedRows.map(r => r.type === "row" ? { type: "data", cells: [
+                        r.product,
+                        fmt(r.lw), fmt(r.recv), fmt(r.tot),
+                        r.dep !== null ? fmt(r.dep) : "\u2014",
+                        r.pos !== null ? fmt(r.pos) : "\u2014",
+                        r.vari === null ? "\u2014" : (r.vari > 0 ? "+" + fmt(r.vari) : fmt(r.vari)),
+                    ] } : r),
+                    filename: "Depletion_Math_Breakdown_" + (selectedArchive ? (selectedArchive.label || selectedArchive.date) : "current").replace(/[^a-z0-9]/gi, "_") + ".pdf",
+                }) }, "\u2b07 Show Math"),
                 React.createElement("button", { className: "B B-ghost", onClick: onBack }, "← Home"))),
         showKey && React.createElement("div", { className: "no-print", style: { padding: "10px 16px", background: "#1A1A2E", color: "#fff", marginTop: 60, fontSize: 12 } },
             React.createElement("div", { style: { fontWeight: 700, marginBottom: 6, textTransform: "uppercase", letterSpacing: 1 } }, "Week Key"),
@@ -1736,11 +1750,24 @@ function DepletionScreen({ archives, onBack, currentPreview }) {
                             const varColor = r.vari === null ? "#999" : r.vari > 0 ? "#C8102E" : r.vari < 0 ? "#C8102E" : "#2a7";
                             return React.createElement("tr", { key: "r-" + i, style: { background: i % 2 === 0 ? "#fff" : "#F5F5F5", borderBottom: "1px solid #eee" } },
                                 React.createElement("td", { style: { padding: "7px 10px" } }, r.product),
-                                React.createElement("td", { style: { padding: "7px 6px", textAlign: "center" } }, r.dep !== null ? fmt(r.dep) : "—"),
+                                React.createElement("td", { style: { padding: "7px 6px", textAlign: "center", textDecoration: "underline dotted", cursor: "pointer" }, onClick: () => setShowMathFor(r) }, r.dep !== null ? fmt(r.dep) : "—"),
                                 React.createElement("td", { style: { padding: "7px 6px", textAlign: "center" } }, r.pos !== null ? fmt(r.pos) : "—"),
                                 React.createElement("td", { style: { padding: "7px 6px", textAlign: "center", color: varColor, fontWeight: 600 } }, r.vari === null ? "—" : r.vari > 0 ? "+" + fmt(r.vari) : fmt(r.vari)));
                         })))),
-        React.createElement(DepletionPrintSheet, { computedRows: computedRows, weekLabel: selectedArchive ? (selectedArchive.label || selectedArchive.date) : "\u2014" }));
+        React.createElement(DepletionPrintSheet, { computedRows: computedRows, weekLabel: selectedArchive ? (selectedArchive.label || selectedArchive.date) : "\u2014" }),
+        showMathFor && React.createElement("div", { className: "no-print", style: { position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }, onClick: () => setShowMathFor(null) },
+            React.createElement("div", { style: { background:"#fff", borderRadius:12, padding:24, width:"100%", maxWidth:360 }, onClick: e => e.stopPropagation() },
+                React.createElement("div", { style: { fontFamily:"'Inter',system-ui,sans-serif", fontSize:16, fontWeight:700, marginBottom:12 } }, showMathFor.product),
+                React.createElement("div", { style: { fontSize:14, lineHeight:1.9, fontFamily:"monospace" } },
+                    React.createElement("div", null, "Last Week: " + fmt(showMathFor.lw)),
+                    React.createElement("div", null, "+ Received: " + fmt(showMathFor.recv)),
+                    React.createElement("div", null, "\u2212 Current Count: " + fmt(showMathFor.tot)),
+                    React.createElement("div", { style: { borderTop:"2px solid #1A1A2E", marginTop:6, paddingTop:6, fontWeight:700 } }, "= Depletion: " + (showMathFor.dep !== null ? fmt(showMathFor.dep) : "\u2014")),
+                    React.createElement("div", { style: { marginTop:14, paddingTop:10, borderTop:"1px solid #ddd", fontSize:13, color:"#555" } },
+                        "POS Sales: " + (showMathFor.pos !== null ? fmt(showMathFor.pos) : "\u2014")),
+                    React.createElement("div", { style: { fontSize:13, color: showMathFor.vari > 0 || showMathFor.vari < 0 ? "#C8102E" : "#227722" } },
+                        "Variance: " + (showMathFor.vari === null ? "\u2014" : (showMathFor.vari > 0 ? "+" + fmt(showMathFor.vari) : fmt(showMathFor.vari))))),
+                React.createElement("button", { className:"B B-red", style:{marginTop:16, width:"100%"}, onClick: () => setShowMathFor(null) }, "Close"))));
 }
 function DepletionPrintSheet({ computedRows, weekLabel }) {
     return React.createElement("div", { style: { display: "none" }, className: "print-show print-sheet-wrapper" },
@@ -3448,7 +3475,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v9.6")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v9.7")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
