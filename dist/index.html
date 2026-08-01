@@ -1663,6 +1663,9 @@ function DepletionScreen({ archives, onBack, currentPreview }) {
     // duplicating the depletion/variance math in two places.
     const PONY_KEGS = new Set(["Buenaveza Keg (Pony)", "Morretti Keg (Pony)", "Shiner Raspberry Lemonade Keg (Pony)"]);
     const computedRows = [];
+    const locBreakdowns = {};
+    const selArchSealed = (selectedArchive && selectedArchive.sealed) || {};
+    const selArchOpen = (selectedArchive && selectedArchive.open) || {};
     {
         let prevSection = null; let prevCat = null;
         rows.forEach((o) => {
@@ -1688,7 +1691,20 @@ function DepletionScreen({ archives, onBack, currentPreview }) {
             const poursPerKeg = PONY_KEGS.has(o.product) ? 62 : 93;
             const depForVariance = (isKeg && dep !== null) ? Math.round(dep * poursPerKeg * 100) / 100 : dep;
             const vari = depForVariance !== null && pos !== null ? Math.round((pos - depForVariance) * 100) / 100 : null;
-            computedRows.push({ type: "row", product: o.product, lw, recv, tot, dep, pos, vari });
+            // Pull exactly which location(s) contributed to this product's Current Count -
+            // this is the actual "show your work" piece: not just the total, but where each
+            // number in that total physically came from.
+            const locs = {};
+            Object.keys(selArchSealed).forEach(loc => {
+                const v = selArchSealed[loc] && selArchSealed[loc][o.product];
+                if (v !== undefined && v !== null && v !== "") locs[loc] = v;
+            });
+            Object.keys(selArchOpen).forEach(loc => {
+                const v = selArchOpen[loc] && selArchOpen[loc][o.product];
+                if (v !== undefined && v !== null && v !== "") locs[loc + " (Open)"] = v;
+            });
+            locBreakdowns[o.product] = locs;
+            computedRows.push({ type: "row", product: o.product, lw, recv, tot, dep, pos, vari, locs });
         });
     }
 
@@ -1706,19 +1722,27 @@ function DepletionScreen({ archives, onBack, currentPreview }) {
                 rows: computedRows.map(r => r.type === "row" ? { type: "data", cells: [r.product, r.dep !== null ? fmt(r.dep) : "\u2014", r.pos !== null ? fmt(r.pos) : "\u2014", r.vari === null ? "\u2014" : (r.vari > 0 ? "+" + fmt(r.vari) : fmt(r.vari))] } : r),
                 filename: "Depletion_Report_" + (selectedArchive ? (selectedArchive.label || selectedArchive.date) : "current").replace(/[^a-z0-9]/gi, "_") + ".pdf",
             }) }, "\u2b07 Download PDF"),
-            React.createElement("button", { className: "B B-outline", style: { fontSize: 12 }, onClick: () => downloadReportPDF({
-                title: "Depletion Report - Math Breakdown",
-                weekInfo: "Week: " + (selectedArchive ? (selectedArchive.label || selectedArchive.date) : "\u2014"),
-                columns: ["Product", "Last Week", "Received", "Current Count", "Depletion", "POS Sales", "Variance"],
-                rows: computedRows.map(r => r.type === "row" ? { type: "data", cells: [
-                    r.product,
-                    fmt(r.lw), fmt(r.recv), fmt(r.tot),
-                    r.dep !== null ? fmt(r.dep) : "\u2014",
-                    r.pos !== null ? fmt(r.pos) : "\u2014",
-                    r.vari === null ? "\u2014" : (r.vari > 0 ? "+" + fmt(r.vari) : fmt(r.vari)),
-                ] } : r),
-                filename: "Depletion_Math_Breakdown_" + (selectedArchive ? (selectedArchive.label || selectedArchive.date) : "current").replace(/[^a-z0-9]/gi, "_") + ".pdf",
-            }) }, "\u2b07 Show Math")),
+            React.createElement("button", { className: "B B-outline", style: { fontSize: 12 }, onClick: () => {
+                const locSet = [];
+                computedRows.forEach(r => { if (r.type === "row" && r.locs) Object.keys(r.locs).forEach(l => { if (!locSet.includes(l)) locSet.push(l); }); });
+                const preferredOrder = ["Office","Pepsi Cooler","Display","Closet","Window/Party Room","Keg Cooler","Coffin Cooler","Behind Bar","Outside Cooler","Behind Bar (Open)","Keg Cooler (Open)"];
+                const locCols = preferredOrder.filter(l => locSet.includes(l)).concat(locSet.filter(l => !preferredOrder.includes(l)));
+                downloadReportPDF({
+                    title: "Depletion Report - Full Math Trace",
+                    weekInfo: "Week: " + (selectedArchive ? (selectedArchive.label || selectedArchive.date) : "\u2014"),
+                    columns: ["Product", "Last Week", "Received", ...locCols, "Current Count", "Depletion", "POS Sales", "Variance"],
+                    rows: computedRows.map(r => r.type === "row" ? { type: "data", cells: [
+                        r.product,
+                        fmt(r.lw), fmt(r.recv),
+                        ...locCols.map(l => (r.locs && r.locs[l] !== undefined) ? fmt(r.locs[l]) : "\u2014"),
+                        fmt(r.tot),
+                        r.dep !== null ? fmt(r.dep) : "\u2014",
+                        r.pos !== null ? fmt(r.pos) : "\u2014",
+                        r.vari === null ? "\u2014" : (r.vari > 0 ? "+" + fmt(r.vari) : fmt(r.vari)),
+                    ] } : r),
+                    filename: "Depletion_Full_Math_Trace_" + (selectedArchive ? (selectedArchive.label || selectedArchive.date) : "current").replace(/[^a-z0-9]/gi, "_") + ".pdf",
+                });
+            } }, "\u2b07 Show Math")),
         showKey && React.createElement("div", { className: "no-print", style: { padding: "10px 16px", background: "#1A1A2E", color: "#fff", fontSize: 12 } },
             React.createElement("div", { style: { fontWeight: 700, marginBottom: 6, textTransform: "uppercase", letterSpacing: 1 } }, "Week Key"),
             sortedArchives.map((a, i) => React.createElement("div", { key: "key-" + i, style: { padding: "2px 0" } },
@@ -1772,6 +1796,8 @@ function DepletionScreen({ archives, onBack, currentPreview }) {
                     React.createElement("div", null, "Last Week: " + fmt(showMathFor.lw)),
                     React.createElement("div", null, "+ Received: " + fmt(showMathFor.recv)),
                     React.createElement("div", null, "\u2212 Current Count: " + fmt(showMathFor.tot)),
+                    showMathFor.locs && Object.keys(showMathFor.locs).length > 0 && React.createElement("div", { style: { fontSize:12, color:"#555", paddingLeft:14, marginTop:2, marginBottom:2 } },
+                        Object.entries(showMathFor.locs).map(([loc, v]) => React.createElement("div", { key: loc }, "   " + loc + ": " + v))),
                     React.createElement("div", { style: { borderTop:"2px solid #1A1A2E", marginTop:6, paddingTop:6, fontWeight:700 } }, "= Depletion: " + (showMathFor.dep !== null ? fmt(showMathFor.dep) : "\u2014")),
                     React.createElement("div", { style: { marginTop:14, paddingTop:10, borderTop:"1px solid #ddd", fontSize:13, color:"#555" } },
                         "POS Sales: " + (showMathFor.pos !== null ? fmt(showMathFor.pos) : "\u2014")),
@@ -3485,7 +3511,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v9.9")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v10.0")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
@@ -3561,15 +3587,24 @@ function App() {
                 const dep = Math.round((lw + recv - tot) * 100) / 100;
                 const par = Number(r.par) || 0;
                 const variance = Math.round((tot - par) * 100) / 100;
+                // Fix: previously showed a full depletion number the instant Last Week carried
+                // over from the prior week's close - even on day one of a brand new week with
+                // nothing counted yet, since calcTotal defaults to 0 for "nothing entered" the
+                // same as it would for "counted, genuinely zero." That made every product look
+                // like it had already been 100% depleted before anyone touched anything. Now
+                // depletion only shows once this specific product has actually been counted
+                // somewhere this week.
+                const countedAnywhere = SELENA_LOCS.some(l => { var _a; return ((_a = sealed[l]) === null || _a === void 0 ? void 0 : _a[r.product]) !== undefined && sealed[l][r.product] !== ""; })
+                    || ERIKA_LOCS.some(l => { var _a; return ((_a = open[l]) === null || _a === void 0 ? void 0 : _a[r.product]) !== undefined && open[l][r.product] !== ""; });
                 return {
                     product: r.product, category: r.category, class: r.class, vendor: r.vendor || "",
                     lastWeek: r.lastWeek || "", received: r.received || "", total: tot,
-                    depletion: (lw > 0 || recv > 0) ? dep : "", sold: r.sold || "",
+                    depletion: (countedAnywhere && (lw > 0 || recv > 0)) ? dep : "", sold: r.sold || "",
                     variance: par > 0 ? variance : "", par: r.par || "",
                     deliveryThisWeek: r.deliveryThisWeek || "", order: r.order || "", freq: r.freq || ""
                 };
             }),
-            pos_sales: {}
+            pos_sales: {}, sealed: sealed, open: open
         } }),
         screen === "counthistory" && React.createElement(CountHistoryScreen, { archives: archives, master: master, onBack: goHome }),
         screen === "receivedhistory" && React.createElement(ReceivedHistoryScreen, { archives: archives, master: master, onBack: goHome }),
