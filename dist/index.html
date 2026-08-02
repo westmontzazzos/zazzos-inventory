@@ -2293,6 +2293,28 @@ function parseBeerReport(beerText, bucketText, carryoutText, hnText, vodkadeText
         const mapping = CARRYOUT_OTHER_PLU[r.plu];
         if (mapping) results.bottles[mapping.item] = (results.bottles[mapping.item] || 0) + r.qty * mapping.mult;
     }
+    // Failsafe: any carryout PLU not matched by any of the three maps above gets checked
+    // against Master by name. If the raw report name looks like it's really one of your
+    // tracked products, that's a loud red flag instead of a silent drop - this is exactly
+    // the gap that let Whitehaven Sauv Blanc's carryout sales vanish unnoticed for who
+    // knows how long: the PLU just was never added to CARRYOUT_WINE_PLU, and nothing ever
+    // said so.
+    {
+        const masterList = getMaster();
+        const matchedPlus = new Set([...Object.keys(CARRYOUT_BEER_PLU), ...Object.keys(CARRYOUT_WINE_PLU), ...Object.keys(CARRYOUT_OTHER_PLU)]);
+        for (const r of carryout) {
+            if (matchedPlus.has(r.plu)) continue;
+            const rawName = (r.name || "").toLowerCase().trim();
+            if (!rawName) continue;
+            const match = masterList.find(m => {
+                const mn = m.product.toLowerCase();
+                return mn === rawName || mn.includes(rawName) || rawName.includes(mn.split(" ")[0]);
+            });
+            if (match) {
+                results.flags.push(`CARRYOUT PLU ${r.plu} ("${r.name}", qty ${r.qty}) is NOT mapped anywhere for carryout tracking, but looks like it's really "${match.product}" - this sale is being silently dropped from sold totals. Add PLU ${r.plu} to the carryout map for "${match.product}".`);
+            }
+        }
+    }
 
     const hnTotal = highnoon.reduce((s, r) => s + r.qty, 0);
     const hnGeneric = beer.find(r => r.plu === "2910");
@@ -3576,7 +3598,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v10.1")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v10.2")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
