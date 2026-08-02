@@ -1864,7 +1864,26 @@ function CountHistoryPrintSheet({ sortedArchives, rows, colSpan }) {
 }
 function CountHistoryScreen({ archives, master, onBack }) {
     const CLASS_ORDER_CH = ["Beer & Seltzer", "Extras", "Kegs", "Liquor", "Wine"];
-    const sortedArchives = [...(archives || [])].sort((a, b) => new Date(a.date || a.archive_date) - new Date(b.date || b.archive_date)).slice(-3);
+    const allArchivesSorted = [...(archives || [])].sort((a, b) => new Date(a.date || a.archive_date) - new Date(b.date || b.archive_date));
+    const weekNumberOf = (archive) => allArchivesSorted.findIndex(a => a === archive) + 1;
+    const sortedArchives = allArchivesSorted.slice(-3);
+    const [showDates, setShowDates] = useState(false);
+    const [showMathFor, setShowMathFor] = useState(null);
+
+    function getLocBreakdown(archive, product) {
+        const sealed = archive.sealed || archive.sealed_counts || {};
+        const openc = archive.open || archive.open_counts || {};
+        const locs = {};
+        Object.keys(sealed).forEach(loc => {
+            const v = sealed[loc] && sealed[loc][product];
+            if (v !== undefined && v !== null && v !== "") locs[loc] = v;
+        });
+        Object.keys(openc).forEach(loc => {
+            const v = openc[loc] && openc[loc][product];
+            if (v !== undefined && v !== null && v !== "") locs[loc + " (Open)"] = v;
+        });
+        return locs;
+    }
 
     function getCount(archive, product) {
         // Always compute from the real per-location sealed/open counts - these have been
@@ -1922,7 +1941,7 @@ function CountHistoryScreen({ archives, master, onBack }) {
                 const average = avg(counts);
                 rows.push(React.createElement("tr", { key: product, style: { background: i % 2 === 0 ? "#fff" : "#F5F5F5", borderBottom: "1px solid #eee" } },
                     React.createElement("td", { style: { padding: "6px 10px", fontSize: 12 } }, product),
-                    ...counts.map((c, ci) => React.createElement("td", { key: ci, style: { padding: "6px 6px", textAlign: "center", fontSize: 12 } }, c !== null ? fmt(c) : "—")),
+                    ...counts.map((c, ci) => React.createElement("td", { key: ci, style: { padding: "6px 6px", textAlign: "center", fontSize: 12, textDecoration: c !== null ? "underline dotted" : "none", cursor: c !== null ? "pointer" : "default" }, onClick: () => { if (c !== null) setShowMathFor({ product, week: weekNumberOf(sortedArchives[ci]), archiveLabel: sortedArchives[ci].label || sortedArchives[ci].date, count: c, locs: getLocBreakdown(sortedArchives[ci], product) }); } }, c !== null ? fmt(c) : "—")),
                     sortedArchives.length > 1 && React.createElement("td", { style: { padding: "6px 6px", textAlign: "center", fontSize: 12, fontWeight: 600, background: "#f5f5ff" } }, average !== null ? fmt(average) : "—")));
                 printRows.push(React.createElement("tr", { key: "p-" + product },
                     React.createElement("td", { style: { padding: "2px 6px", fontSize: 9, border: "1px solid #DDDDDD" } }, product),
@@ -1937,15 +1956,50 @@ function CountHistoryScreen({ archives, master, onBack }) {
         React.createElement("header", { className: "H no-print" },
             React.createElement("div", { className: "H-logo" }, "Zazzo's"),
             React.createElement("div", { className: "H-right" },
-                React.createElement("button", { className: "B B-ghost", onClick: () => downloadReportPDF({
-                    title: "Count History",
-                    weekInfo: "Weeks: " + sortedArchives.map(a => a.date || a.archive_date || a.label || "").join(", "),
-                    columns: ["Product", ...sortedArchives.map(a => a.date || a.archive_date || a.label || ""), ...(sortedArchives.length > 1 ? ["Avg"] : [])],
-                    rows: pdfRows,
-                    filename: "Count_History.pdf",
-                }) }, "⬇ Download PDF"),
                 React.createElement("button", { className: "B B-ghost", onClick: onBack }, "← Home"))),
-        React.createElement("div", { className: "no-print", style: { flex: 1, overflowY: "auto", fontFamily: "'Inter',system-ui,sans-serif", paddingTop: 60 } },
+        React.createElement("div", { className: "no-print", style: { display: "flex", gap: 8, padding: "8px 16px", background: "#fff", borderBottom: "1px solid #ddd", marginTop: 60, flexWrap: "wrap" } },
+            React.createElement("button", { className: "B B-outline", style: { fontSize: 12 }, onClick: () => downloadReportPDF({
+                title: "Count History",
+                weekInfo: "Weeks: " + sortedArchives.map(a => "Week " + weekNumberOf(a)).join(", "),
+                columns: ["Product", ...sortedArchives.map(a => "Week " + weekNumberOf(a)), ...(sortedArchives.length > 1 ? ["Avg"] : [])],
+                rows: pdfRows,
+                filename: "Count_History.pdf",
+            }) }, "\u2b07 Download PDF"),
+            sortedArchives.map(a => React.createElement("button", { key: "math-" + a.label, className: "B B-outline", style: { fontSize: 12 }, onClick: () => {
+                const locSet = [];
+                const pdfMathRows = [];
+                CLASS_ORDER_CH.forEach(cls => {
+                    if (!grouped[cls] || Object.keys(grouped[cls]).length === 0) return;
+                    pdfMathRows.push({ type: "section", label: cls });
+                    Object.keys(grouped[cls]).sort().forEach(cat => {
+                        pdfMathRows.push({ type: "category", label: cat });
+                        grouped[cls][cat].sort().forEach(product => {
+                            const locs = getLocBreakdown(a, product);
+                            Object.keys(locs).forEach(l => { if (!locSet.includes(l)) locSet.push(l); });
+                        });
+                    });
+                });
+                const preferredOrder = ["Office","Pepsi Cooler","Display","Closet","Window/Party Room","Keg Cooler","Coffin Cooler","Behind Bar","Outside Cooler","Behind Bar (Open)","Keg Cooler (Open)"];
+                const locCols = preferredOrder.filter(l => locSet.includes(l)).concat(locSet.filter(l => !preferredOrder.includes(l)));
+                CLASS_ORDER_CH.forEach(cls => {
+                    if (!grouped[cls] || Object.keys(grouped[cls]).length === 0) return;
+                    Object.keys(grouped[cls]).sort().forEach(cat => {
+                        grouped[cls][cat].sort().forEach(product => {
+                            const locs = getLocBreakdown(a, product);
+                            const total = getCount(a, product);
+                            pdfMathRows.push({ type: "data", cells: [product, ...locCols.map(l => locs[l] !== undefined ? fmt(locs[l]) : "\u2014"), total !== null ? fmt(total) : "\u2014"] });
+                        });
+                    });
+                });
+                downloadReportPDF({
+                    title: "Count History - Full Math Trace",
+                    weekInfo: "Week " + weekNumberOf(a) + " (" + (a.label || a.date) + ")",
+                    columns: ["Product", ...locCols, "Total"],
+                    rows: pdfMathRows,
+                    filename: "Count_History_Math_Week" + weekNumberOf(a) + ".pdf",
+                });
+            } }, "\u2b07 Show Math: Week " + weekNumberOf(a)))),
+        React.createElement("div", { className: "no-print", style: { flex: 1, overflowY: "auto", fontFamily: "'Inter',system-ui,sans-serif" } },
             sortedArchives.length === 0
                 ? React.createElement("div", { style: { padding: 24, textAlign: "center", color: "#999" } }, "No archived weeks yet.")
                 : React.createElement("div", { style: { overflowX: "auto" } },
@@ -1953,9 +2007,19 @@ function CountHistoryScreen({ archives, master, onBack }) {
                         React.createElement("thead", null,
                             React.createElement("tr", { style: { background: "#1A1A2E", color: "#fff" } },
                                 React.createElement("th", { style: { padding: "8px 10px", textAlign: "left", minWidth: 140 } }, "Product"),
-                                ...sortedArchives.map(a => React.createElement("th", { key: a.id || a.label, style: { padding: "8px 6px", textAlign: "center", minWidth: 70 } }, a.date || a.archive_date || a.label || "")),
+                                ...sortedArchives.map(a => React.createElement("th", { key: a.id || a.label, style: { padding: "8px 6px", textAlign: "center", minWidth: 70, cursor: "pointer" }, onClick: () => setShowDates(v => !v) }, showDates ? (a.date || a.archive_date || a.label || "") : ("Week " + weekNumberOf(a)))),
                                 sortedArchives.length > 1 && React.createElement("th", { style: { padding: "8px 6px", textAlign: "center", background: "#2a3a6a", minWidth: 60 } }, "Avg"))),
                         React.createElement("tbody", null, ...rows)))),
+        showMathFor && React.createElement("div", { className: "no-print", style: { position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }, onClick: () => setShowMathFor(null) },
+            React.createElement("div", { style: { background:"#fff", borderRadius:12, padding:24, width:"100%", maxWidth:360 }, onClick: e => e.stopPropagation() },
+                React.createElement("div", { style: { fontFamily:"'Inter',system-ui,sans-serif", fontSize:16, fontWeight:700, marginBottom:4 } }, showMathFor.product),
+                React.createElement("div", { style: { fontSize:12, color:"#999", marginBottom:12 } }, "Week " + showMathFor.week + " (" + showMathFor.archiveLabel + ")"),
+                React.createElement("div", { style: { fontSize:14, lineHeight:1.9, fontFamily:"monospace" } },
+                    Object.keys(showMathFor.locs).length === 0
+                        ? React.createElement("div", { style: { color:"#999" } }, "No location breakdown found.")
+                        : Object.entries(showMathFor.locs).map(([loc, v]) => React.createElement("div", { key: loc }, loc + ": " + v)),
+                    React.createElement("div", { style: { borderTop:"2px solid #1A1A2E", marginTop:6, paddingTop:6, fontWeight:700 } }, "= Total: " + fmt(showMathFor.count))),
+                React.createElement("button", { className:"B B-red", style:{marginTop:16, width:"100%"}, onClick: () => setShowMathFor(null) }, "Close"))),
         React.createElement(CountHistoryPrintSheet, { sortedArchives: sortedArchives, rows: printRows, colSpan: colSpan }));
 }
 
@@ -2170,6 +2234,7 @@ const CARRYOUT_WINE_PLU = {
     "1091": "Canyon Road Sauv Blanc", "3401": "Decoy Cabernet",
     "3399": "Franciscan Cabernet", "369369": "Josh Cabernet",
     "258258": "Santa Margherita Pinot Grigio", "3398": "Decoy Pinot Noir",
+    "3403": "Whitehaven Sauv Blanc",
 }; // carryout wine bottles (×1)
 const CARRYOUT_OTHER_PLU = {
     "3196": { item: "Black Cherry White Claw", mult: 8 },
@@ -3511,7 +3576,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v10.0")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v10.1")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
