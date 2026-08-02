@@ -2227,7 +2227,17 @@ const KEG_PLU_MAP = {
 const VODKADE_PLU_MAP = {};
 const VODKADE_SF_BUCKET_PLU_MAP = {};
 
-const CARRYOUT_BEER_PLU = { "1075": "Budweiser", "1076": "Corona" }; // carryout 6-packs
+const CARRYOUT_BEER_PLU = {
+    "1075": "Budweiser", "1076": "Corona",
+    // Added from the full Speedline PLU export - these were all real, active carryout PLUs
+    // for products that already exist in Master, but had never been mapped at all, meaning
+    // every carryout sale of these was silently missing from sold totals (same class of bug
+    // as the Whitehaven wine gap).
+    "1078": "Heineken", "1077": "Corona Light", "1319": "Guinness", "1083": "Cider Boys",
+    "3137": "Modelo", "1084": "Michelob Ultra", "1080": "Miller High Life", "1073": "Coors Light",
+    "1072": "MGD", "1070": "Miller Lite", "3195": "Daura", "3197": "Summer Shandy",
+    "3198": "Budweiser Zero",
+}; // carryout 6-packs
 const CARRYOUT_WINE_PLU = {
     "1088": "Canyon Road Cabernet", "1133": "Canyon Road Chard",
     "1090": "Canyon Road Pinot Grigio", "1087": "Canyon Road Pinot Noir",
@@ -2235,10 +2245,24 @@ const CARRYOUT_WINE_PLU = {
     "3399": "Franciscan Cabernet", "369369": "Josh Cabernet",
     "258258": "Santa Margherita Pinot Grigio", "3398": "Decoy Pinot Noir",
     "3403": "Whitehaven Sauv Blanc",
+    // Added from the full Speedline PLU export - same class of gap as Whitehaven, these
+    // wines had real active carryout PLUs that were never mapped at all.
+    "159159": "Decoy Pinot Noir", "1130": "Whycliff Champagne", "1092": "Canyon Road Moscato",
+    "123123": "Ruffino Chianti", "3254": "Unshackled Red Blend", "3402": "Hahn Pinot Noir",
+    "3404": "Harken Chard", "3405": "Lamarca Splitz", "3407": "Caposaldo Pinot Grigio",
 }; // carryout wine bottles (×1)
 const CARRYOUT_OTHER_PLU = {
     "3196": { item: "Black Cherry White Claw", mult: 8 },
     "231334687": { item: "Zazzo's Vodka", mult: 1 },
+    // Added from the full Speedline PLU export - Zazzo's private-label spirits had zero
+    // carryout tracking at all (liquor carryout = 1 bottle per sale, same convention as
+    // Zazzo's Vodka above). Suncruiser follows the same 6-pack convention as other seltzers.
+    "3438": { item: "Suncruiser", mult: 6 },
+    "23144762": { item: "Zazzo's Gin", mult: 1 },
+    "23155763": { item: "Zazzo's Rum", mult: 1 },
+    "23166783": { item: "Zazzo's Bourbon", mult: 1 },
+    "3453": { item: "Zazzo's Tequila", mult: 1 },
+    "3454": { item: "Zazzo's Straight Bourbon", mult: 1 },
 };
 function parseBeerReport(beerText, bucketText, carryoutText, hnText, vodkadeText) {
     const beer = parseSalesByItemLines(beerText);
@@ -3598,7 +3622,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v10.2")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v10.3")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
