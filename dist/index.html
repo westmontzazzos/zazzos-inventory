@@ -24,6 +24,7 @@
   <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { margin: 0; padding: 0; }
@@ -2135,6 +2136,84 @@ function ReceivedHistoryScreen({ archives, master, onBack }) {
         React.createElement(ReceivedHistoryPrintSheet, { sortedArchives: sortedArchives, rows: printRows, colSpan: colSpan }));
 }
 
+// ─── MANUAL VS SPEEDLINE SCREEN ───────────────────────────────────────────────
+function ManualVsSpeedlineScreen({ orders, onBack }) {
+    const [manualCounts, setManualCounts] = useState({});
+    const [uploadMsg, setUploadMsg] = useState(null);
+    const fileRef = useRef(null);
+
+    async function handleManualUpload(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        try {
+            const buf = await file.arrayBuffer();
+            const wb = XLSX.read(buf, { type: "array" });
+            const sheetName = wb.SheetNames.find(n => n.trim().toLowerCase() === "order guide") || wb.SheetNames[0];
+            const sheet = wb.Sheets[sheetName];
+            const data = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+            // Same layout as the Excel workbook's Order Guide tab:
+            // Product Name | Type | Ven | Order | Total | Last Week | Received | Sold | Difference | Par | Order
+            // "Sold" is column index 7 (0-based).
+            const newCounts = {};
+            let matched = 0, skipped = 0;
+            for (let i = 1; i < data.length; i++) {
+                const row = data[i];
+                if (!row || !row[0]) continue;
+                const name = String(row[0]).trim();
+                const sold = row[7];
+                if (typeof sold === "number") { newCounts[name] = sold; matched++; }
+                else skipped++;
+            }
+            setManualCounts(newCounts); // full replace, not merge - fresh snapshot each upload
+            setUploadMsg(`Loaded "${sheetName}" \u2014 ${matched} products with a Sold value, ${skipped} blank/skipped. Replaced all previous Manual values.`);
+        } catch (err) {
+            setUploadMsg("Couldn't read that file - make sure it's the Order Guide .xlsx with a Sold column. (" + err.message + ")");
+        }
+        if (fileRef.current) fileRef.current.value = "";
+    }
+
+    const master = getMaster();
+    const sorted = [...master].sort((a, b) => a.product.localeCompare(b.product));
+    const rows = sorted.map(p => {
+        const o = orders.find(x => x.product === p.product);
+        const parser = (o && o.sold !== undefined && o.sold !== null && o.sold !== "") ? parseFloat(o.sold) : 0;
+        const manual = manualCounts[p.product] !== undefined ? manualCounts[p.product] : null;
+        const diff = manual === null ? null : Math.round((parser - manual) * 100) / 100;
+        return { product: p.product, category: p.category, manual, parser, diff };
+    });
+
+    return React.createElement("div", { style: { display: "flex", flexDirection: "column", height: "100vh", background: "#EFEFEF" } },
+        React.createElement("header", { className: "H no-print" },
+            React.createElement("div", { className: "H-logo" }, "Zazzo's"),
+            React.createElement("div", { className: "H-right" },
+                React.createElement("button", { className: "B B-ghost", onClick: onBack }, "← Home"))),
+        React.createElement("div", { className: "no-print", style: { display: "flex", gap: 8, padding: "8px 16px", background: "#fff", borderBottom: "1px solid #ddd", marginTop: 60, flexWrap: "wrap", alignItems: "center" } },
+            React.createElement("button", { className: "B B-outline", style: { fontSize: 12 }, onClick: () => fileRef.current && fileRef.current.click() }, "\u2b06 Upload Manual Counts"),
+            React.createElement("input", { type: "file", accept: ".xlsx", ref: fileRef, onChange: handleManualUpload, style: { display: "none" } }),
+            React.createElement("button", { className: "B B-outline", style: { fontSize: 12 }, onClick: () => downloadReportPDF({
+                title: "Manual vs Speedline",
+                weekInfo: "Printed: " + new Date().toLocaleDateString(),
+                columns: ["Product", "Manual", "Speedline", "Diff"],
+                rows: rows.map(r => ({ type: "data", cells: [r.product, r.manual !== null ? fmt(r.manual) : "\u2014", r.parser ? fmt(r.parser) : "\u2014", r.diff === null ? "\u2014" : fmt(r.diff)] })),
+                filename: "Manual_vs_Speedline.pdf",
+            }) }, "\u2b07 Download PDF"),
+            uploadMsg && React.createElement("span", { style: { fontSize: 12, color: "#555" } }, uploadMsg)),
+        React.createElement("div", { className: "no-print", style: { flex: 1, overflowY: "auto", fontFamily: "'Inter',system-ui,sans-serif" } },
+            React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 12 } },
+                React.createElement("thead", null,
+                    React.createElement("tr", { style: { background: "#1A1A2E", color: "#fff" } },
+                        React.createElement("th", { style: { padding: "8px 10px", textAlign: "left" } }, "Product"),
+                        React.createElement("th", { style: { padding: "8px 6px", textAlign: "center" } }, "Manual"),
+                        React.createElement("th", { style: { padding: "8px 6px", textAlign: "center" } }, "Speedline"),
+                        React.createElement("th", { style: { padding: "8px 6px", textAlign: "center" } }, "Diff"))),
+                React.createElement("tbody", null,
+                    rows.map((r, i) => React.createElement("tr", { key: r.product, style: { background: i % 2 === 0 ? "#fff" : "#F5F5F5", borderBottom: "1px solid #eee" } },
+                        React.createElement("td", { style: { padding: "7px 10px" } }, r.product),
+                        React.createElement("td", { style: { padding: "7px 6px", textAlign: "center" } }, r.manual !== null ? fmt(r.manual) : "—"),
+                        React.createElement("td", { style: { padding: "7px 6px", textAlign: "center" } }, r.parser ? fmt(r.parser) : "—"),
+                        React.createElement("td", { style: { padding: "7px 6px", textAlign: "center", fontWeight: r.diff === null ? 400 : 600, color: r.diff === null ? "#999" : (Math.abs(r.diff) > 0.01 ? "#C8102E" : "#1B6B3A") } }, r.diff === null ? "—" : fmt(r.diff))))))));
+}
+
 
 // ─── SALES REPORT PARSING ENGINE ──────────────────────────────────────────────
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
@@ -3635,7 +3714,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v10.5")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v10.6")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
@@ -3663,7 +3742,10 @@ function App() {
                     React.createElement("div", { className: "LCard-name" }, "Weekly ordering")),
                 React.createElement("div", { className: "LCard", onClick: () => setShowRolloverConfirm(true) },
                     React.createElement("div", { className: "LCard-role" }, "Start New Week"),
-                    React.createElement("div", { className: "LCard-name" }, "Archive & reset counts"))),
+                    React.createElement("div", { className: "LCard-name" }, "Archive & reset counts")),
+                React.createElement("div", { className: "LCard", onClick: () => setScreen("manualvsspeedline") },
+                    React.createElement("div", { className: "LCard-role" }, "Manual vs Speedline"),
+                    React.createElement("div", { className: "LCard-name" }, "Compare hand count to POS"))),
             React.createElement("div", { onClick: () => { setClearResult(null); setShowClearMenu(true); }, style: { position:"fixed", left:"calc(50% - 24px)", transform:"translateX(-50%)", bottom:"40px", width:36, height:36, borderRadius:"50%", background:"#FFFFFF", border:"2px solid #1B6B3A", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Inter',system-ui,sans-serif", fontSize:14, fontWeight:700, color:"#1B6B3A", cursor:"pointer", boxShadow:"0 2px 8px rgba(0,0,0,0.12)", zIndex:50 } }, "C"),
             React.createElement("div", { onClick: () => setScreen("reports"), style: { position:"fixed", left:"calc(50% + 24px)", transform:"translateX(-50%)", bottom:"40px", width:36, height:36, borderRadius:"50%", background:"#FFFFFF", border:"2px solid #1B6B3A", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Inter',system-ui,sans-serif", fontSize:14, fontWeight:700, color:"#1B6B3A", cursor:"pointer", boxShadow:"0 2px 8px rgba(0,0,0,0.12)", zIndex:50 } }, "R"))),
         showRolloverConfirm && React.createElement("div", { style: { position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:24 } },
@@ -3732,6 +3814,7 @@ function App() {
         } }),
         screen === "counthistory" && React.createElement(CountHistoryScreen, { archives: archives, master: master, onBack: goHome }),
         screen === "receivedhistory" && React.createElement(ReceivedHistoryScreen, { archives: archives, master: master, onBack: goHome }),
+        screen === "manualvsspeedline" && React.createElement(ManualVsSpeedlineScreen, { orders: orders, onBack: goHome }),
 
         showMaster && (React.createElement(MasterEditor, { master: master, onSave: (updated) => { setMaster(updated); setOrders(mkOrders(updated)); }, onClose: () => setShowMaster(false) })),
         React.createElement(MasterGuardModal, { show: showMasterPin, input: masterPinInput, error: masterPinError, onKey: masterPressKey, onCancel: masterCancel })));
