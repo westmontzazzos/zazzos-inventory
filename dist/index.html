@@ -272,10 +272,41 @@ function sorted(arr) {
         return a.product.localeCompare(b.product);
     });
 }
+// Custom shelf-walking order for Erika's Behind Bar open-stock screen, dictated directly by
+// Ely to match the physical order items sit on the shelf, so counting is faster. Anything not
+// in this list falls into a separate "Questionable Items" section at the end instead of being
+// silently sorted in - those need their shelf position confirmed before they can be added here.
+const BEHIND_BAR_ERIKA_ORDER = [
+    "Tullamore D.E.W","Dewar's","Glenlivet","Disaronno","Crown Royal Peach","Crown Royal Apple",
+    "Crown Royal","Buffalo Trace","Woodford Reserve","Gentleman Jack","Bulleit Rye","Bulleit Bourbon",
+    "Knob Creek","Maker's Mark","Skrewball","Grand Marnier","Frangelico","Chambord","Cointreau","Tanqueray",
+    "Hendricks","Aperol","Select Aperitif","Rumhaven","Sobieski Citron","Belvedere","Grey Goose","Kettle One",
+    "Tito's","Milagro","Hornitos","Don Julio","Sobieski Vanilla","Zazzo's Vodka","Zazzo's Gin","Zazzo's Rum",
+    "Zazzo's Tequila","Zazzo's Bourbon","Myers's","Captain Morgan","Bacardi","Jameson","Southern Comfort",
+    "Seagram's VO","Seagram's 7","Jim Beam","Jack Daniels","Peachtree","Rumple Minze","Sambuca",
+    "Jack Daniels Honey","Jagermeister","Templeton Rye","Redemption","Whistle Pig","Piggy Back","Sazerac Rye",
+    "High West","Old Forester","Mitcher's","Pinhook","E&J","Hennessy","Elijah Craig","Horse Soldier",
+    "Wild Turkey","Blade and Bow","Red Breast","Benchmark","Row 94","Russell's","Bailey's","Kahlua",
+    "Rumchata","Tippy Cow",
+];
 function forLoc(master, loc, user) {
     var items = master.filter(i => i.locations.includes(loc));
     if (user === "erika") {
         items = items.filter(i => i.sold_as === "Partial");
+    }
+    if (user === "erika" && loc === "Behind Bar") {
+        // Custom shelf order first (in the exact sequence given), then anything not yet
+        // placed in that order, alphabetically, as a separate "questionable" group.
+        const ordered = [];
+        const questionable = [];
+        items.forEach(i => {
+            const idx = BEHIND_BAR_ERIKA_ORDER.indexOf(i.product);
+            if (idx === -1) questionable.push(i);
+            else ordered.push({ item: i, idx });
+        });
+        ordered.sort((a, b) => a.idx - b.idx);
+        questionable.sort((a, b) => a.product.localeCompare(b.product));
+        return ordered.map(o => o.item).concat(questionable);
     }
     return sorted(items);
 }
@@ -290,6 +321,20 @@ function groupCC(products) {
             out[cls][cat] = inCls.filter(p => p.category === cat).sort((a, b) => a.product.localeCompare(b.product));
         });
     });
+    return out;
+}
+// Same idea as groupCC, but keeps the exact order products were already given in - used for
+// Erika's Behind Bar screen, where the order is a deliberate shelf-walking sequence, not
+// alphabetical. Outputs the exact same shape groupCC does (class -> category -> array of
+// products) so the existing rendering code needs no changes - it just gets two sections
+// instead of the normal class/category breakdown: the real shelf order, and anything whose
+// shelf position hasn't been confirmed yet.
+function groupCCShelfOrder(products) {
+    const ordered = products.filter(p => BEHIND_BAR_ERIKA_ORDER.includes(p.product));
+    const questionable = products.filter(p => !BEHIND_BAR_ERIKA_ORDER.includes(p.product));
+    const out = {};
+    if (ordered.length) out["Shelf Order"] = { "In walking order": ordered };
+    if (questionable.length) out["\u26a0 Questionable"] = { "Confirm shelf location before counting": questionable };
     return out;
 }
 function weekLabel() {
@@ -811,7 +856,8 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
         const rows = [];
         let totalRows = 0;
         locs.forEach(loc => {
-            const products = forLoc(master, loc, user).sort((a, b) => a.category.localeCompare(b.category) || a.product.localeCompare(b.product));
+            const rawProducts = forLoc(master, loc, user);
+            const products = (user === "erika" && loc === "Behind Bar") ? rawProducts : rawProducts.sort((a, b) => a.category.localeCompare(b.category) || a.product.localeCompare(b.product));
             if (!products.length) return;
             rows.push({ type: "section", label: loc });
             products.forEach(item => {
@@ -838,7 +884,7 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
     const allDone = new Set(completed).size >= locs.length && locs.length > 0;
     const products = forLoc(master, curLoc, user);
     const filled = products.filter(p => { var _a, _b; return ((_a = counts[curLoc]) === null || _a === void 0 ? void 0 : _a[p.product]) !== "" && ((_b = counts[curLoc]) === null || _b === void 0 ? void 0 : _b[p.product]) !== undefined; }).length;
-    const groups = groupCC(products);
+    const groups = (user === "erika" && curLoc === "Behind Bar") ? groupCCShelfOrder(products) : groupCC(products);
     const cols = Math.min(locs.length, 3);
     const handleScroll = () => {
         const el = contentRef.current;
@@ -3714,7 +3760,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v10.6")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v10.7")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
