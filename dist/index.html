@@ -2428,15 +2428,33 @@ function parseBeerReport(beerText, bucketText, carryoutText, hnText, vodkadeText
     // Bud Light: bottle + bucket + carryout
     const budCarryout = carryout.find(r => r.name.toLowerCase() === "budlight");
     results.bottles["Bud Light"] = budBtl + budBucket + (budCarryout ? budCarryout.qty * 6 : 0);
-    // Coors Light and Miller Lite also appear in the domestic Bucket Bottles report,
-    // same as Bud Light does, but were never being added anywhere - their bucket
-    // quantities were parsed into `bucket` and then silently never used again, every
-    // single week. Speedline's own report spells it "Millter Lite" (a typo baked into
-    // the register), matching the Master item "Miller Lite".
-    const coorsBucket = bucket.filter(r => r.name === "Coors Light").reduce((s, r) => s + r.qty, 0);
-    if (coorsBucket) results.bottles["Coors Light"] = (results.bottles["Coors Light"] || 0) + coorsBucket;
-    const millerLiteBucket = bucket.filter(r => r.name === "Millter Lite" || r.name === "Miller Lite").reduce((s, r) => s + r.qty, 0);
-    if (millerLiteBucket) results.bottles["Miller Lite"] = (results.bottles["Miller Lite"] || 0) + millerLiteBucket;
+    // Every OTHER beer that shows up in the Bucket Bottles report gets merged here
+    // automatically, matched by name against Master's actual Beer-category products.
+    // This used to be three separate hand-picked beers (Coors Light, Miller Lite, plus
+    // Bud Light above) - but that approach kept silently missing whichever beer next
+    // showed up in a bucket report that nobody had explicitly coded for (confirmed missing
+    // for both Miller High Life and Michelob Ultra before this fix). Speedline spells some
+    // names inconsistently (e.g. "Millter Lite" for Miller Lite) - normalize known typos,
+    // then fall back to a direct/loose name match against Master.
+    {
+        const beerMaster = getMaster().filter(m => m.category === "Beer");
+        const nameFixes = { "Millter Lite": "Miller Lite", "Miller Highlife": "Miller High Life" };
+        const bucketByName = {};
+        bucket.forEach(r => {
+            if (r.name === "Bud Light") return; // already handled above, don't double-count
+            const fixedName = nameFixes[r.name] || r.name;
+            bucketByName[fixedName] = (bucketByName[fixedName] || 0) + r.qty;
+        });
+        Object.entries(bucketByName).forEach(([name, qty]) => {
+            const match = beerMaster.find(m => m.product === name) ||
+                          beerMaster.find(m => m.product.toLowerCase() === name.toLowerCase());
+            if (match) {
+                results.bottles[match.product] = (results.bottles[match.product] || 0) + qty;
+            } else {
+                results.flags.push(`Bucket Bottles report has "${name}" (qty ${qty}) which doesn't match any Beer product in Master - this sale is being dropped from sold totals.`);
+            }
+        });
+    }
     // Other carryout beers (6-pack)
     for (const r of carryout) {
         const item = CARRYOUT_BEER_PLU[r.plu];
@@ -3765,7 +3783,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v10.8")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v10.9")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
