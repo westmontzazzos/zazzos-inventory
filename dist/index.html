@@ -2383,6 +2383,18 @@ const CARRYOUT_WINE_PLU = {
     "123123": "Ruffino Chianti", "3254": "Unshackled Red Blend", "3402": "Hahn Pinot Noir",
     "3404": "Harken Chard", "3405": "Lamarca Splitz", "3407": "Caposaldo Pinot Grigio",
 }; // carryout wine bottles (×1)
+// Bucket Bottles report PLUs - these are the actual, confirmed PLU numbers seen on real
+// uploaded reports. Checked FIRST (PLUs don't have spelling variants, so this is the
+// reliable path) - name-matching only runs as a fallback for beers not yet in this list.
+const BUCKET_PLU_MAP = {
+    "2945": "Bud Light", "2954": "Bud Light", "2963": "Bud Light", "2972": "Bud Light", "2981": "Bud Light",
+    "2947": "Coors Light", "2956": "Coors Light", "2965": "Coors Light", "2974": "Coors Light", "2983": "Coors Light",
+    "2951": "Miller Lite", "2960": "Miller Lite", "2969": "Miller Lite", "2978": "Miller Lite", "2987": "Miller Lite",
+    "2957": "Michelob Ultra",
+};
+// Known Speedline spelling inconsistencies for the Bucket Bottles report specifically -
+// add to this list any time a NEW variant shows up rather than treating it as a one-off.
+const BUCKET_NAME_ALIASES = { "Millter Lite": "Miller Lite", "Miller Highlife": "Miller High Life" };
 const CARRYOUT_OTHER_PLU = {
     "3196": { item: "Black Cherry White Claw", mult: 8 },
     "231334687": { item: "Zazzo's Vodka", mult: 1 },
@@ -2438,21 +2450,28 @@ function parseBeerReport(beerText, bucketText, carryoutText, hnText, vodkadeText
     // then fall back to a direct/loose name match against Master.
     {
         const beerMaster = getMaster().filter(m => m.category === "Beer");
-        const nameFixes = { "Millter Lite": "Miller Lite", "Miller Highlife": "Miller High Life" };
-        const bucketByName = {};
+        const bucketByProduct = {};
         bucket.forEach(r => {
             if (r.name === "Bud Light") return; // already handled above, don't double-count
-            const fixedName = nameFixes[r.name] || r.name;
-            bucketByName[fixedName] = (bucketByName[fixedName] || 0) + r.qty;
-        });
-        Object.entries(bucketByName).forEach(([name, qty]) => {
-            const match = beerMaster.find(m => m.product === name) ||
-                          beerMaster.find(m => m.product.toLowerCase() === name.toLowerCase());
-            if (match) {
-                results.bottles[match.product] = (results.bottles[match.product] || 0) + qty;
-            } else {
-                results.flags.push(`Bucket Bottles report has "${name}" (qty ${qty}) which doesn't match any Beer product in Master - this sale is being dropped from sold totals.`);
+            // Step 1: PLU match - the reliable path, no spelling variants possible.
+            let matchedProduct = BUCKET_PLU_MAP[r.plu];
+            // Step 2: alias/name match - fallback for beers not yet in BUCKET_PLU_MAP.
+            if (!matchedProduct) {
+                const fixedName = BUCKET_NAME_ALIASES[r.name] || r.name;
+                const match = beerMaster.find(m => m.product === fixedName) ||
+                              beerMaster.find(m => m.product.toLowerCase() === fixedName.toLowerCase());
+                if (match) matchedProduct = match.product;
             }
+            if (matchedProduct) {
+                bucketByProduct[matchedProduct] = (bucketByProduct[matchedProduct] || 0) + r.qty;
+            } else {
+                // Step 3: neither PLU nor name/alias matched anything - flag it loudly
+                // instead of silently dropping the sale, same failsafe pattern as carryout.
+                results.flags.push(`Bucket Bottles report has PLU ${r.plu} ("${r.name}", qty ${r.qty}) which doesn't match any known Beer product or alias - this sale is being dropped from sold totals. Add it to BUCKET_PLU_MAP or BUCKET_NAME_ALIASES.`);
+            }
+        });
+        Object.entries(bucketByProduct).forEach(([product, qty]) => {
+            results.bottles[product] = (results.bottles[product] || 0) + qty;
         });
     }
     // Other carryout beers (6-pack)
@@ -3783,7 +3802,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v10.9")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v11.0")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
