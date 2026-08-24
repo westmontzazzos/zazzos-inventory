@@ -2446,8 +2446,13 @@ function parseBeerReport(beerText, bucketText, carryoutText, hnText, vodkadeText
     // Bud Light above) - but that approach kept silently missing whichever beer next
     // showed up in a bucket report that nobody had explicitly coded for (confirmed missing
     // for both Miller High Life and Michelob Ultra before this fix). Speedline spells some
-    // names inconsistently (e.g. "Millter Lite" for Miller Lite) - normalize known typos,
-    // then fall back to a direct/loose name match against Master.
+    // names inconsistently, sometimes with different spacing/capitalization entirely, so
+    // matching is done on a NORMALIZED form (lowercase, no spaces, no punctuation) - this
+    // makes "Miller Highlife", "Miller High Life", "MILLER HIGH LIFE" etc. all resolve to
+    // the exact same comparison key, instead of needing every variant hand-added as an alias.
+    function normalizeBeerName(s) {
+        return (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    }
     {
         const beerMaster = getMaster().filter(m => m.category === "Beer");
         const bucketByProduct = {};
@@ -2455,19 +2460,21 @@ function parseBeerReport(beerText, bucketText, carryoutText, hnText, vodkadeText
             if (r.name === "Bud Light") return; // already handled above, don't double-count
             // Step 1: PLU match - the reliable path, no spelling variants possible.
             let matchedProduct = BUCKET_PLU_MAP[r.plu];
-            // Step 2: alias/name match - fallback for beers not yet in BUCKET_PLU_MAP.
+            // Step 2: normalized name match - fallback for beers not yet in BUCKET_PLU_MAP.
+            // Checks the alias table first (for genuinely different names, not just spacing),
+            // then falls back to normalized comparison against every Beer product in Master.
             if (!matchedProduct) {
                 const fixedName = BUCKET_NAME_ALIASES[r.name] || r.name;
-                const match = beerMaster.find(m => m.product === fixedName) ||
-                              beerMaster.find(m => m.product.toLowerCase() === fixedName.toLowerCase());
+                const normalizedTarget = normalizeBeerName(fixedName);
+                const match = beerMaster.find(m => normalizeBeerName(m.product) === normalizedTarget);
                 if (match) matchedProduct = match.product;
             }
             if (matchedProduct) {
                 bucketByProduct[matchedProduct] = (bucketByProduct[matchedProduct] || 0) + r.qty;
             } else {
-                // Step 3: neither PLU nor name/alias matched anything - flag it loudly
+                // Step 3: neither PLU nor normalized name matched anything - flag it loudly
                 // instead of silently dropping the sale, same failsafe pattern as carryout.
-                results.flags.push(`Bucket Bottles report has PLU ${r.plu} ("${r.name}", qty ${r.qty}) which doesn't match any known Beer product or alias - this sale is being dropped from sold totals. Add it to BUCKET_PLU_MAP or BUCKET_NAME_ALIASES.`);
+                results.flags.push(`Bucket Bottles report has PLU ${r.plu} ("${r.name}", qty ${r.qty}) which doesn't match any known Beer product - this sale is being dropped from sold totals. Add it to BUCKET_PLU_MAP.`);
             }
         });
         Object.entries(bucketByProduct).forEach(([product, qty]) => {
@@ -3802,7 +3809,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v11.0")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v11.1")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
