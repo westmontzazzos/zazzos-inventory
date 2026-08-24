@@ -2466,6 +2466,11 @@ function parseBeerReport(beerText, bucketText, carryoutText, hnText, vodkadeText
         const matchedPlus = new Set([...Object.keys(CARRYOUT_BEER_PLU), ...Object.keys(CARRYOUT_WINE_PLU), ...Object.keys(CARRYOUT_OTHER_PLU)]);
         for (const r of carryout) {
             if (matchedPlus.has(r.plu)) continue;
+            // Bud Light's carryout sale is tracked separately via a direct name match
+            // (see budCarryout above), not through the standard PLU dictionaries - without
+            // this exclusion the failsafe below would falsely flag it as unmapped even
+            // though it's already being counted correctly.
+            if (r.name && r.name.toLowerCase() === "budlight") continue;
             const rawName = (r.name || "").toLowerCase().trim();
             if (!rawName) continue;
             const match = masterList.find(m => {
@@ -3760,7 +3765,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v10.7")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v10.8")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
