@@ -291,6 +291,10 @@ const BEHIND_BAR_ERIKA_ORDER = [
 ];
 function forLoc(master, loc, user) {
     var items = master.filter(i => i.locations.includes(loc));
+    // Keg beer temporarily excluded from counting entirely, per Ely's instruction -
+    // staff should not see keg products on either the Sealed Inventory or Open Inventory
+    // count screens. Kegs remain in Master (not deleted), just filtered out here.
+    items = items.filter(i => i.class !== "Kegs");
     if (user === "erika") {
         items = items.filter(i => i.sold_as === "Partial");
     }
@@ -867,7 +871,7 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
             });
         });
         downloadReportPDF({
-            title: user === "selena" ? "Sealed Stock \u2014 All Locations" : "Open Stock \u2014 All Locations",
+            title: user === "selena" ? "Sealed Inventory \u2014 All Locations" : "Open Inventory \u2014 All Locations",
             weekInfo: "Date: " + (isBlank ? "" : new Date().toLocaleDateString()) + "   Counter: " + (isBlank ? "" : (user === "selena" ? "Selena" : "Erika")),
             columns: ["Product", "Category", "Count"],
             rows: rows,
@@ -987,7 +991,7 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
                 React.createElement("div", { className: "Complete-title" }, "Count Complete"),
                 React.createElement("div", { className: "Complete-sub" },
                     "All locations counted for ",
-                    user === "selena" ? "Sealed Stock" : "Open Stock",
+                    user === "selena" ? "Sealed Inventory" : "Open Inventory",
                     "."),
                 React.createElement("div", { className: "Complete-actions" },
                     React.createElement("button", { className: "B B-outline B-lg", onClick: () => triggerPrint(false) }, "\u2b07 Download Filled"),
@@ -1690,6 +1694,11 @@ function DepletionScreen({ archives, onBack, currentPreview }) {
 
     const rows = orders
         .filter(o => o.product && (o.total !== undefined || o.lastWeek !== undefined))
+        // Keg beer temporarily excluded from Depletion Analysis entirely, per Ely's
+        // instruction - no expected/actual/variance shown for kegs. Kegs remain in Master
+        // and in the Order Guide/received data untouched; this filter is scoped to the
+        // Depletion screen's display only.
+        .filter(o => (prodMap[o.product] ? prodMap[o.product].class : o.class) !== "Kegs")
         .sort((a, b) => {
             const am = prodMap[a.product] || (a.product === "Jack Daniels Fire" ? { class: a.class, category: a.category } : {});
             const bm = prodMap[b.product] || (b.product === "Jack Daniels Fire" ? { class: b.class, category: b.category } : {});
@@ -3815,14 +3824,14 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v11.2")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v11.3")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
-                    React.createElement("div", { className: "LCard-role" }, "Sealed Stock"),
-                    React.createElement("div", { className: "LCard-name" }, "Selena")),
+                    React.createElement("div", { className: "LCard-role" }, "Selena"),
+                    React.createElement("div", { className: "LCard-name" }, "Sealed Inventory")),
                 React.createElement("div", { className: "LCard", onClick: () => login("erika") },
-                    React.createElement("div", { className: "LCard-role" }, "Open Stock"),
-                    React.createElement("div", { className: "LCard-name" }, "Erika")),
+                    React.createElement("div", { className: "LCard-role" }, "Erika"),
+                    React.createElement("div", { className: "LCard-name" }, "Open Inventory")),
                 React.createElement("div", { className: "LCard", onClick: () => setScreen("received") },
                     React.createElement("div", { className: "LCard-role" }, "Received Items"),
                     React.createElement("div", { className: "LCard-name" }, "Log deliveries")),
