@@ -289,12 +289,16 @@ const BEHIND_BAR_ERIKA_ORDER = [
     "Wild Turkey","Blade and Bow","Red Breast","Benchmark","Row 94","Russell's","Bailey's","Kahlua",
     "Rumchata","Tippy Cow",
 ];
+// Products Ely marked inactive [8/30] - kept in Master (not deleted, so historical data
+// and recipes referencing them stay intact) but excluded from Selena/Erika count screens,
+// Received screen, and Depletion Analysis. Same treatment as keg beer, below.
+const INACTIVE_PRODUCTS = ["Fireball Apple", "Sambuca", "Peachtree", "Midori", "Don Q", "Milagro", "Franciscan Cabernet", "Daura", "Cider Boys", "High Noon Peach Tea", "High Noon Tea", "Lyric N/A Champagne"];
 function forLoc(master, loc, user) {
     var items = master.filter(i => i.locations.includes(loc));
-    // Keg beer temporarily excluded from counting entirely, per Ely's instruction -
-    // staff should not see keg products on either the Sealed Inventory or Open Inventory
-    // count screens. Kegs remain in Master (not deleted), just filtered out here.
-    items = items.filter(i => i.class !== "Kegs");
+    // Keg beer and Ely's inactive list excluded entirely from counting - staff should not
+    // see these on either the Sealed Inventory or Open Inventory count screens. They remain
+    // in Master (not deleted), just filtered out here.
+    items = items.filter(i => i.class !== "Kegs" && !INACTIVE_PRODUCTS.includes(i.product));
     if (user === "erika") {
         items = items.filter(i => i.sold_as === "Partial");
     }
@@ -1332,7 +1336,9 @@ function ReceivedPrintSheet({ vendors, master, received, blank }) {
 }
 
 function ReceivedScreen({ onBack, orders, setOrders }) {
-    const master = getMaster();
+    // Keg beer and Ely's inactive list excluded from Received entirely - same treatment
+    // as Selena/Erika and Depletion, so these products don't show up anywhere active.
+    const master = getMaster().filter(i => i.class !== "Kegs" && !INACTIVE_PRODUCTS.includes(i.product));
     const vendors = VENDOR_ORDER.filter(v => master.some(i => i.vendor === v));
     const [activeVendorIdx, setActiveVendorIdx] = useState(0);
     const [completedVendors, setCompletedVendors] = useState([]);
@@ -1698,7 +1704,7 @@ function DepletionScreen({ archives, onBack, currentPreview }) {
         // instruction - no expected/actual/variance shown for kegs. Kegs remain in Master
         // and in the Order Guide/received data untouched; this filter is scoped to the
         // Depletion screen's display only.
-        .filter(o => (prodMap[o.product] ? prodMap[o.product].class : o.class) !== "Kegs")
+        .filter(o => { const cls = prodMap[o.product] ? prodMap[o.product].class : o.class; return cls !== "Kegs" && !INACTIVE_PRODUCTS.includes(o.product); })
         .sort((a, b) => {
             const am = prodMap[a.product] || (a.product === "Jack Daniels Fire" ? { class: a.class, category: a.category } : {});
             const bm = prodMap[b.product] || (b.product === "Jack Daniels Fire" ? { class: b.class, category: b.category } : {});
@@ -3824,7 +3830,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v11.3")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v11.4")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Selena"),
