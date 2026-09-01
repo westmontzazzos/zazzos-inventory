@@ -1013,8 +1013,7 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
                             locs.length,
                             "."))),
                 React.createElement("div", { className: "Card" },
-                    React.createElement("div", { className: "Card-head" },
-                        React.createElement("span", { className: "Card-title" }, curLoc),
+                    React.createElement("div", { className: "Card-head", style: { justifyContent: "flex-end" } },
                         React.createElement("span", { className: "Card-badge" },
                             filled,
                             " / ",
@@ -3324,6 +3323,7 @@ function computeCompletenessReport(master, sealed, open, orders, weekLabelStr) {
     (master || []).forEach(item => {
         if (!item.locations || item.locations.length === 0) return;
         if (item.class === "Kegs") return;
+        if (INACTIVE_PRODUCTS.includes(item.product)) return;
         if (item.locations.length === 1 && item.locations[0] === "Inactive") return;
         const countedLocs = item.locations.filter(loc => {
             const v = sealed[loc] && sealed[loc][item.product];
@@ -3340,10 +3340,16 @@ function computeCompletenessReport(master, sealed, open, orders, weekLabelStr) {
         ...Object.values(VODKADE_PLU_MAP), ...Object.values(VODKADE_SF_BUCKET_PLU_MAP),
         ...Object.values(CARRYOUT_BEER_PLU), ...Object.values(CARRYOUT_WINE_PLU),
         ...Object.values(CARRYOUT_OTHER_PLU).map(m => m.item),
+        // Products counted via hand-written special-case logic instead of a PLU map entry -
+        // real depletion tracking exists for these, the completeness check just can't see it
+        // by scanning maps alone. Add here, not to a map, whenever depletion logic is bespoke.
+        "Bud Light", "High Noon Pineapple", "High Noon Watermelon",
     ]);
     const pluGaps = [];
     (master || []).forEach(item => {
         if (item.locations && item.locations.length === 1 && item.locations[0] === "Inactive") return;
+        if (item.class === "Kegs") return;
+        if (INACTIVE_PRODUCTS.includes(item.product)) return;
         if (!allMappedProducts.has(item.product)) {
             pluGaps.push({ category: item.category || "Other", product: item.product });
         }
@@ -3634,14 +3640,11 @@ function App() {
             t += Number(v); });
         return Math.round(t * 100) / 100;
     }, [sealed, open]);
-    const [lastWeekReport, setLastWeekReport] = useState(null);
-    const [showWeeklyReport, setShowWeeklyReport] = useState(false);
     // Checks every Master product's assigned locations against what was ACTUALLY counted
     // this week (sealed/Selena only - Erika's open/partial counts are always just Behind
     // Bar + Keg Cooler by design, so there's no "coverage gap" concept for her). Also
     // checks every Master product against every PLU map in the file to catch products that
     // can never show up in sold/depletion data because nothing points a PLU at them.
-    const buildWeeklyReport = () => computeCompletenessReport(master, sealed, open, orders, weekLabel());
     const doRollover = async () => {
         const fillBlanks = (obj) => { const f = JSON.parse(JSON.stringify(obj)); Object.keys(f).forEach(l => { Object.keys(f[l]).forEach(p => { if (f[l][p] === "" || f[l][p] === undefined || f[l][p] === null) f[l][p] = "0"; }); }); return f; };
         const archiveData = {
@@ -3693,7 +3696,6 @@ function App() {
             alert("Close Week failed: the archive could not be saved, so nothing has been changed. Your current counts and orders are untouched. Please try again, and if this keeps happening, stop and get help before trying further.");
             return;
         }
-        const report = buildWeeklyReport();
         const newOrders = orders.map(r => (Object.assign(Object.assign({}, r), { lastWeek: String(calcTotal(r.product)), received: "", sold: "", order: "" })));
         setOrders(newOrders);
         try {
@@ -3715,8 +3717,6 @@ function App() {
         }
         setSealed(mkSealed());
         setOpen(mkOpen());
-        setLastWeekReport(report);
-        setShowWeeklyReport(true);
     };
     const handleCornerTap = (corner) => {
         setCornerTaps(prev => {
@@ -3830,14 +3830,12 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v11.4")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v12.0")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
-                    React.createElement("div", { className: "LCard-role" }, "Selena"),
-                    React.createElement("div", { className: "LCard-name" }, "Sealed Inventory")),
+                    React.createElement("div", { className: "LCard-role" }, "Sealed Inventory")),
                 React.createElement("div", { className: "LCard", onClick: () => login("erika") },
-                    React.createElement("div", { className: "LCard-role" }, "Erika"),
-                    React.createElement("div", { className: "LCard-name" }, "Open Inventory")),
+                    React.createElement("div", { className: "LCard-role" }, "Open Inventory")),
                 React.createElement("div", { className: "LCard", onClick: () => setScreen("received") },
                     React.createElement("div", { className: "LCard-role" }, "Received Items"),
                     React.createElement("div", { className: "LCard-name" }, "Log deliveries")),
@@ -3862,8 +3860,7 @@ function App() {
                 React.createElement("div", { className: "LCard", onClick: () => setScreen("manualvsspeedline") },
                     React.createElement("div", { className: "LCard-role" }, "Manual vs Speedline"),
                     React.createElement("div", { className: "LCard-name" }, "Compare hand count to POS"))),
-            React.createElement("div", { onClick: () => { setClearResult(null); setShowClearMenu(true); }, style: { position:"fixed", left:"calc(50% - 24px)", transform:"translateX(-50%)", bottom:"40px", width:36, height:36, borderRadius:"50%", background:"#FFFFFF", border:"2px solid #1B6B3A", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Inter',system-ui,sans-serif", fontSize:14, fontWeight:700, color:"#1B6B3A", cursor:"pointer", boxShadow:"0 2px 8px rgba(0,0,0,0.12)", zIndex:50 } }, "C"),
-            React.createElement("div", { onClick: () => setScreen("reports"), style: { position:"fixed", left:"calc(50% + 24px)", transform:"translateX(-50%)", bottom:"40px", width:36, height:36, borderRadius:"50%", background:"#FFFFFF", border:"2px solid #1B6B3A", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Inter',system-ui,sans-serif", fontSize:14, fontWeight:700, color:"#1B6B3A", cursor:"pointer", boxShadow:"0 2px 8px rgba(0,0,0,0.12)", zIndex:50 } }, "R"))),
+            React.createElement("div", { onClick: () => { setClearResult(null); setShowClearMenu(true); }, style: { position:"fixed", left:"50%", transform:"translateX(-50%)", bottom:"40px", padding:"8px 18px", borderRadius:"20px", background:"#FFFFFF", border:"2px solid #1B6B3A", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Inter',system-ui,sans-serif", fontSize:13, fontWeight:700, color:"#1B6B3A", cursor:"pointer", boxShadow:"0 2px 8px rgba(0,0,0,0.12)", zIndex:50, whiteSpace:"nowrap" } }, "Clear Current Week"))),
         showRolloverConfirm && React.createElement("div", { style: { position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:24 } },
             React.createElement("div", { style: { background:"#fff", borderRadius:12, padding:24, width:"100%", maxWidth:360 } },
                 React.createElement("div", { style: { fontFamily:"'Inter',system-ui,sans-serif", fontSize:17, fontWeight:700, marginBottom:12 } }, "Start New Week?"),
@@ -3883,14 +3880,6 @@ function App() {
                     React.createElement("button", { className:"B B-outline", disabled: clearBusy, onClick: () => doClearWeek("erika") }, "Clear Erika"),
                     React.createElement("button", { className:"B B-outline", disabled: clearBusy, onClick: () => doClearWeek("speedline") }, "Clear Speedline Sales"),
                     React.createElement("button", { className:"B B-outline", style:{ marginTop:8 }, disabled: clearBusy, onClick: () => setShowClearMenu(false) }, clearResult ? "Done" : "Cancel")))),
-        showWeeklyReport && lastWeekReport && React.createElement("div", { style: { position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }, className: "ReportModalOverlay" },
-            React.createElement("div", { style: { background:"#fff", borderRadius:12, padding:24, width:"100%", maxWidth:480, maxHeight:"85vh", overflowY:"auto" }, className: "ReportModalCard" },
-                React.createElement("div", { style: { fontFamily:"'Inter',system-ui,sans-serif", fontSize:17, fontWeight:700, marginBottom:4 } }, "Weekly Count Report"),
-                React.createElement(ReportBody, { report: lastWeekReport }),
-                React.createElement("div", { style: { display:"flex", gap:8, marginTop:20 }, className: "no-print" },
-                    React.createElement("button", { className:"B B-outline", onClick: () => window.print() }, "\ud83d\uddb6 Print"),
-                    React.createElement("button", { className:"B B-red", onClick: () => setShowWeeklyReport(false) }, "Close")),
-                React.createElement("style", null, `@media print{.ReportModalOverlay{position:static!important;background:#fff!important;display:block!important;padding:0!important;}.ReportModalCard{max-height:none!important;overflow:visible!important;max-width:none!important;box-shadow:none!important;}}`))),
         screen === "count" && (React.createElement(CountScreen, { user: user, locs: user === "selena" ? SELENA_LOCS : ERIKA_LOCS, counts: user === "selena" ? sealed : open, setCounts: user === "selena" ? setSealed : setOpen, onBack: goHome, sealed: sealed, open: open })),
         screen === "reports" && React.createElement(ReportsScreen, { archives: archives, onBack: goHome, currentPreview: {
             label: "Current Week (Preview)", date: new Date().toLocaleDateString(),
