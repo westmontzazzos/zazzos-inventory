@@ -1644,8 +1644,13 @@ function DepletionScreen({ archives, onBack, currentPreview }) {
     // this week's numbers (e.g. after a parser fix) without needing to actually close the
     // week just to look at it.
     const sortedArchives = currentPreview ? [currentPreview, ...closedArchives] : closedArchives;
+    // Week numbers count up chronologically from the oldest archived week (Week 1). The
+    // live, not-yet-closed week (if shown) is always one number ahead of the last archive.
+    const weekNumberOf = (archive) => {
+        if (currentPreview && archive.label === currentPreview.label) return closedArchives.length + 1;
+        return closedArchives.findIndex(a => a.label === archive.label) + 1;
+    };
     const [selectedLabel, setSelectedLabel] = useState(sortedArchives.length ? sortedArchives[0].label : null);
-    const [showWeekDropdown, setShowWeekDropdown] = useState(false);
     const [showMathFor, setShowMathFor] = useState(null);
     const [showKey, setShowKey] = useState(false);
     const tapCountRef = useRef(0);
@@ -1817,8 +1822,8 @@ function DepletionScreen({ archives, onBack, currentPreview }) {
                     const curIdx = sortedArchives.findIndex(a => a.label === selectedLabel);
                     const idx = curIdx === -1 ? 0 : curIdx;
                     const a = sortedArchives[idx];
-                    const isPreview = currentPreview && a.label === currentPreview.label;
-                    const label = isPreview ? "Current (Preview)" : (a.label || a.date || ("Week " + idx));
+                    const weekLabel = "Week " + weekNumberOf(a);
+                    const dateLabel = a.date || a.archive_date || a.label || "";
                     // idx 0 is always the most recent (or the live preview); moving "left"
                     // steps to an older week (higher index), "right" steps to a newer one.
                     const canOlder = idx < sortedArchives.length - 1;
@@ -1829,26 +1834,14 @@ function DepletionScreen({ archives, onBack, currentPreview }) {
                             style: { fontSize: 16, padding: "4px 14px", height: "auto", opacity: canOlder ? 1 : 0.35 },
                             onClick: () => canOlder && setSelectedLabel(sortedArchives[idx + 1].label)
                         }, "\u2190"),
-                        React.createElement("span", {
-                            style: { fontSize: 13, fontWeight: 700, minWidth: 160, textAlign: "center", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 },
-                            onClick: () => setShowWeekDropdown(v => !v)
-                        }, label, React.createElement("span", { style: { fontSize: 9, color: "#999" } }, showWeekDropdown ? "\u25b2" : "\u25bc")),
+                        React.createElement("div", { style: { minWidth: 160, textAlign: "center" } },
+                            React.createElement("div", { style: { fontSize: 13, fontWeight: 700 } }, weekLabel),
+                            React.createElement("div", { style: { fontSize: 10, color: "#888", marginTop: 1 } }, dateLabel)),
                         React.createElement("button", {
                             className: "B B-outline", disabled: !canNewer,
                             style: { fontSize: 16, padding: "4px 14px", height: "auto", opacity: canNewer ? 1 : 0.35 },
                             onClick: () => canNewer && setSelectedLabel(sortedArchives[idx - 1].label)
-                        }, "\u2192"),
-                        showWeekDropdown && React.createElement("div", {
-                            style: { position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)", background: "#fff", border: "1px solid #ccc", borderRadius: 8, boxShadow: "0 4px 16px rgba(0,0,0,0.15)", zIndex: 100, maxHeight: 260, overflowY: "auto", minWidth: 180 }
-                        }, sortedArchives.map((w, i) => {
-                            const wIsPreview = currentPreview && w.label === currentPreview.label;
-                            const wLabel = wIsPreview ? "Current (Preview)" : (w.label || w.date || ("Week " + i));
-                            return React.createElement("div", {
-                                key: "wk-" + i,
-                                style: { padding: "8px 14px", fontSize: 12, fontWeight: w.label === selectedLabel ? 700 : 400, background: w.label === selectedLabel ? "#F0F7F1" : "#fff", cursor: "pointer", borderBottom: i < sortedArchives.length - 1 ? "1px solid #eee" : "none" },
-                                onClick: () => { setSelectedLabel(w.label); setShowWeekDropdown(false); }
-                            }, wLabel);
-                        })));
+                        }, "\u2192"));
                 })()),
         (() => {
             const isLive = currentPreview && selectedArchive && selectedArchive.label === currentPreview.label;
@@ -3857,11 +3850,11 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v12.2")),
-            React.createElement("div", { className: "Login-grid" },
-                React.createElement("div", { className: "LCard", style: { width:200, height:110 }, onClick: () => setScreen("current-menu") },
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v12.3")),
+            React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 14, alignItems: "center", padding: "0 20px", width: "100%", maxWidth: 320, margin: "0 auto" } },
+                React.createElement("div", { className: "LCard", style: { width: "100%", maxWidth: 280, height: 100 }, onClick: () => setScreen("current-menu") },
                     React.createElement("div", { className: "LCard-role", style: { fontSize:16 } }, "Current Analysis")),
-                React.createElement("div", { className: "LCard", style: { width:200, height:110 }, onClick: () => setScreen("historical-menu") },
+                React.createElement("div", { className: "LCard", style: { width: "100%", maxWidth: 280, height: 100 }, onClick: () => setScreen("historical-menu") },
                     React.createElement("div", { className: "LCard-role", style: { fontSize:16 } }, "Historical Analysis"))))),
         !loading && screen === "current-menu" && (React.createElement("div", { className: "Login" },
             React.createElement("div", { className: "Login-brand" },
