@@ -292,7 +292,7 @@ const BEHIND_BAR_ERIKA_ORDER = [
 // Products Ely marked inactive [8/30] - kept in Master (not deleted, so historical data
 // and recipes referencing them stay intact) but excluded from Selena/Erika count screens,
 // Received screen, and Depletion Analysis. Same treatment as keg beer, below.
-const INACTIVE_PRODUCTS = ["Fireball Apple", "Sambuca", "Peachtree", "Midori", "Don Q", "Milagro", "Franciscan Cabernet", "Daura", "Cider Boys", "High Noon Peach Tea", "High Noon Tea", "Lyric N/A Champagne"];
+const INACTIVE_PRODUCTS = ["Fireball Apple", "Sambuca", "Peachtree", "Midori", "Don Q", "Milagro", "Franciscan Cabernet", "Daura", "Cider Boys", "High Noon Peach Tea", "High Noon Tea", "Lyric N/A Champagne", "Guinness", "Benchmark", "Blade and Bow", "Redemption", "Row 94", "Hennessy", "Select Aperitif", "B&B", "Gentleman Jack", "Altos Malbec", "Decoy Cabernet", "Decoy Pinot Noir", "Santa Margherita Pinot Grigio"];
 function forLoc(master, loc, user) {
     var items = master.filter(i => i.locations.includes(loc));
     // Keg beer and Ely's inactive list excluded entirely from counting - staff should not
@@ -1645,6 +1645,7 @@ function DepletionScreen({ archives, onBack, currentPreview }) {
     // week just to look at it.
     const sortedArchives = currentPreview ? [currentPreview, ...closedArchives] : closedArchives;
     const [selectedLabel, setSelectedLabel] = useState(sortedArchives.length ? sortedArchives[0].label : null);
+    const [showWeekDropdown, setShowWeekDropdown] = useState(false);
     const [showMathFor, setShowMathFor] = useState(null);
     const [showKey, setShowKey] = useState(false);
     const tapCountRef = useRef(0);
@@ -1809,20 +1810,46 @@ function DepletionScreen({ archives, onBack, currentPreview }) {
             React.createElement("div", { style: { fontWeight: 700, marginBottom: 6, textTransform: "uppercase", letterSpacing: 1 } }, "Week Key"),
             sortedArchives.map((a, i) => React.createElement("div", { key: "key-" + i, style: { padding: "2px 0" } },
                 (currentPreview && a.label === currentPreview.label ? "Current (Preview)" : "Week " + i) + ":  " + (a.label || a.date)))),
-        React.createElement("div", { className: "no-print", style: { padding: "10px 16px", background: "#fff", borderBottom: "1px solid #ddd", marginTop: showKey ? 0 : 60, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" } },
-            React.createElement("span", { style: { fontSize: 12, color: "#666", fontWeight: 600, marginRight: 4 } }, "Week:"),
+        React.createElement("div", { className: "no-print", style: { padding: "10px 16px", background: "#fff", borderBottom: "1px solid #ddd", marginTop: showKey ? 0 : 60, display: "flex", gap: 12, alignItems: "center", justifyContent: "center", position: "relative" } },
             sortedArchives.length === 0
                 ? React.createElement("span", { style: { fontSize: 12, color: "#999" } }, "No archived weeks yet")
-                : sortedArchives.map((a, i) => {
-                    const isActive = a.label === selectedLabel;
+                : (() => {
+                    const curIdx = sortedArchives.findIndex(a => a.label === selectedLabel);
+                    const idx = curIdx === -1 ? 0 : curIdx;
+                    const a = sortedArchives[idx];
                     const isPreview = currentPreview && a.label === currentPreview.label;
-                    return React.createElement("button", {
-                        key: a.label + "-" + i,
-                        className: "B " + (isActive ? "B-primary" : "B-outline"),
-                        style: { fontSize: 11, padding: "6px 10px", height: "auto" },
-                        onClick: () => setSelectedLabel(a.label)
-                    }, isActive ? (a.label || a.date) : (isPreview ? "Current (Preview)" : ("Week " + i)));
-                })),
+                    const label = isPreview ? "Current (Preview)" : (a.label || a.date || ("Week " + idx));
+                    // idx 0 is always the most recent (or the live preview); moving "left"
+                    // steps to an older week (higher index), "right" steps to a newer one.
+                    const canOlder = idx < sortedArchives.length - 1;
+                    const canNewer = idx > 0;
+                    return React.createElement(React.Fragment, null,
+                        React.createElement("button", {
+                            className: "B B-outline", disabled: !canOlder,
+                            style: { fontSize: 16, padding: "4px 14px", height: "auto", opacity: canOlder ? 1 : 0.35 },
+                            onClick: () => canOlder && setSelectedLabel(sortedArchives[idx + 1].label)
+                        }, "\u2190"),
+                        React.createElement("span", {
+                            style: { fontSize: 13, fontWeight: 700, minWidth: 160, textAlign: "center", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 },
+                            onClick: () => setShowWeekDropdown(v => !v)
+                        }, label, React.createElement("span", { style: { fontSize: 9, color: "#999" } }, showWeekDropdown ? "\u25b2" : "\u25bc")),
+                        React.createElement("button", {
+                            className: "B B-outline", disabled: !canNewer,
+                            style: { fontSize: 16, padding: "4px 14px", height: "auto", opacity: canNewer ? 1 : 0.35 },
+                            onClick: () => canNewer && setSelectedLabel(sortedArchives[idx - 1].label)
+                        }, "\u2192"),
+                        showWeekDropdown && React.createElement("div", {
+                            style: { position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)", background: "#fff", border: "1px solid #ccc", borderRadius: 8, boxShadow: "0 4px 16px rgba(0,0,0,0.15)", zIndex: 100, maxHeight: 260, overflowY: "auto", minWidth: 180 }
+                        }, sortedArchives.map((w, i) => {
+                            const wIsPreview = currentPreview && w.label === currentPreview.label;
+                            const wLabel = wIsPreview ? "Current (Preview)" : (w.label || w.date || ("Week " + i));
+                            return React.createElement("div", {
+                                key: "wk-" + i,
+                                style: { padding: "8px 14px", fontSize: 12, fontWeight: w.label === selectedLabel ? 700 : 400, background: w.label === selectedLabel ? "#F0F7F1" : "#fff", cursor: "pointer", borderBottom: i < sortedArchives.length - 1 ? "1px solid #eee" : "none" },
+                                onClick: () => { setSelectedLabel(w.label); setShowWeekDropdown(false); }
+                            }, wLabel);
+                        })));
+                })()),
         (() => {
             const isLive = currentPreview && selectedArchive && selectedArchive.label === currentPreview.label;
             return React.createElement("div", { className: "no-print", style: { padding: "6px 16px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "center",
@@ -3830,7 +3857,16 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v12.0")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v12.2")),
+            React.createElement("div", { className: "Login-grid" },
+                React.createElement("div", { className: "LCard", style: { width:200, height:110 }, onClick: () => setScreen("current-menu") },
+                    React.createElement("div", { className: "LCard-role", style: { fontSize:16 } }, "Current Analysis")),
+                React.createElement("div", { className: "LCard", style: { width:200, height:110 }, onClick: () => setScreen("historical-menu") },
+                    React.createElement("div", { className: "LCard-role", style: { fontSize:16 } }, "Historical Analysis"))))),
+        !loading && screen === "current-menu" && (React.createElement("div", { className: "Login" },
+            React.createElement("div", { className: "Login-brand" },
+                React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
+                React.createElement("div", { className: "Login-tag" }, "Current Analysis")),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Inventory")),
@@ -3845,6 +3881,16 @@ function App() {
                 React.createElement("div", { className: "LCard", onClick: () => setScreen("depletion") },
                     React.createElement("div", { className: "LCard-role" }, "Depletion Analysis"),
                     React.createElement("div", { className: "LCard-name" }, "Theoretical vs actual")),
+                React.createElement("div", { className: "LCard", onClick: () => setShowRolloverConfirm(true) },
+                    React.createElement("div", { className: "LCard-role" }, "Start New Week"),
+                    React.createElement("div", { className: "LCard-name" }, "Archive & reset counts"))),
+            React.createElement("button", { className: "B B-ghost", style: { marginTop:20 }, onClick: () => setScreen("login") }, "← Back"),
+            React.createElement("div", { onClick: () => { setClearResult(null); setShowClearMenu(true); }, style: { position:"fixed", left:"50%", transform:"translateX(-50%)", bottom:"40px", padding:"8px 18px", borderRadius:"20px", background:"#FFFFFF", border:"2px solid #1B6B3A", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Inter',system-ui,sans-serif", fontSize:13, fontWeight:700, color:"#1B6B3A", cursor:"pointer", boxShadow:"0 2px 8px rgba(0,0,0,0.12)", zIndex:50, whiteSpace:"nowrap" } }, "Clear Current Week"))),
+        !loading && screen === "historical-menu" && (React.createElement("div", { className: "Login" },
+            React.createElement("div", { className: "Login-brand" },
+                React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
+                React.createElement("div", { className: "Login-tag" }, "Historical Analysis")),
+            React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => setScreen("counthistory") },
                     React.createElement("div", { className: "LCard-role" }, "Count History"),
                     React.createElement("div", { className: "LCard-name" }, "Weekly averages")),
@@ -3854,13 +3900,10 @@ function App() {
                 React.createElement("div", { className: "LCard", onClick: () => setScreen("orderguide") },
                     React.createElement("div", { className: "LCard-role" }, "Order Guide"),
                     React.createElement("div", { className: "LCard-name" }, "Weekly ordering")),
-                React.createElement("div", { className: "LCard", onClick: () => setShowRolloverConfirm(true) },
-                    React.createElement("div", { className: "LCard-role" }, "Start New Week"),
-                    React.createElement("div", { className: "LCard-name" }, "Archive & reset counts")),
                 React.createElement("div", { className: "LCard", onClick: () => setScreen("manualvsspeedline") },
                     React.createElement("div", { className: "LCard-role" }, "Manual vs Speedline"),
                     React.createElement("div", { className: "LCard-name" }, "Compare hand count to POS"))),
-            React.createElement("div", { onClick: () => { setClearResult(null); setShowClearMenu(true); }, style: { position:"fixed", left:"50%", transform:"translateX(-50%)", bottom:"40px", padding:"8px 18px", borderRadius:"20px", background:"#FFFFFF", border:"2px solid #1B6B3A", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Inter',system-ui,sans-serif", fontSize:13, fontWeight:700, color:"#1B6B3A", cursor:"pointer", boxShadow:"0 2px 8px rgba(0,0,0,0.12)", zIndex:50, whiteSpace:"nowrap" } }, "Clear Current Week"))),
+            React.createElement("button", { className: "B B-ghost", style: { marginTop:20 }, onClick: () => setScreen("login") }, "← Back"))),
         showRolloverConfirm && React.createElement("div", { style: { position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:24 } },
             React.createElement("div", { style: { background:"#fff", borderRadius:12, padding:24, width:"100%", maxWidth:360 } },
                 React.createElement("div", { style: { fontFamily:"'Inter',system-ui,sans-serif", fontSize:17, fontWeight:700, marginBottom:12 } }, "Start New Week?"),
