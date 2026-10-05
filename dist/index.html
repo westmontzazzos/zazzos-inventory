@@ -977,7 +977,7 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
             React.createElement("div", { className: "H-right" },
                 React.createElement("button", { className: "B B-ghost", onClick: () => triggerPrint(true) }, "\u2b07 Blank"),
                 React.createElement("button", { className: "B B-ghost", onClick: () => triggerPrint(false) }, "\u2b07 Filled"),
-                React.createElement("button", { className: "B B-ghost", onClick: onBack }, "\u2190 Home"))),
+                React.createElement("button", { className: "B B-ghost", onClick: onBack }, "\u2190 Back"))),
         React.createElement("div", { className: "LocBar no-print" },
             managerMode && React.createElement("div", { className: "MgrBanner" }, "Manager Mode \u2014 Triple Tap Logo to Lock"),
             React.createElement("div", { className: "LocBar-grid", style: { gridTemplateColumns: `repeat(${cols},1fr)` } }, locs.map((loc, i) => {
@@ -1001,7 +1001,7 @@ function CountScreen({ user, locs, counts, setCounts, onBack, sealed, open }) {
                     React.createElement("button", { className: "B B-outline B-lg", onClick: () => triggerPrint(false) }, "\u2b07 Download Filled"),
                     React.createElement("button", { className: "B B-outline B-lg", onClick: () => triggerPrint(true) }, "\u2b07 Download Blank"),
                     React.createElement("button", { className: "B B-outline B-lg", onClick: () => { setActiveIdx(0); setCompleted([]); } }, "Start Over"),
-                    React.createElement("button", { className: "B B-red B-lg", onClick: onBack }, "\u2190 Home")))) : (React.createElement(React.Fragment, null,
+                    React.createElement("button", { className: "B B-red B-lg", onClick: onBack }, "\u2190 Back")))) : (React.createElement(React.Fragment, null,
                 React.createElement("div", { className: "SHead", style: { marginBottom: 12 } },
                     React.createElement("div", null,
                         React.createElement("div", { className: "STitle" }, curLoc),
@@ -1169,7 +1169,7 @@ function OrderGuideScreen({ orders, setOrders, calcTotal, onBack, archives }) {
                 className: "B B-ghost",
                 style: { marginTop: 20, pointerEvents: 'auto' },
                 onClick: onBack
-            }, "← Home")
+            }, "← Back")
         );
     }
 
@@ -1216,7 +1216,7 @@ function OrderGuideScreen({ orders, setOrders, calcTotal, onBack, archives }) {
             justifyContent: 'space-between', zIndex: 600
         }},
             React.createElement("span", { style: { color:'#fff', fontSize:16, fontWeight:700, fontFamily:'Georgia,serif' }}, "Zazzo's"),
-            React.createElement("button", { className:"B B-ghost", onClick: onBack }, "← Home")
+            React.createElement("button", { className:"B B-ghost", onClick: onBack }, "← Back")
         ),
 
         // Class overlay
@@ -1442,7 +1442,7 @@ function ReceivedScreen({ onBack, orders, setOrders }) {
             React.createElement("div", { className: "H-right" },
                 React.createElement("button", { className: "B B-ghost", onClick: () => triggerPrint(true) }, "\u2b07 Blank"),
                 React.createElement("button", { className: "B B-ghost", onClick: () => triggerPrint(false) }, "\u2b07 Filled"),
-                React.createElement("button", { className: "B B-ghost", onClick: onBack }, "\u2190 Home"))),
+                React.createElement("button", { className: "B B-ghost", onClick: onBack }, "\u2190 Back"))),
         React.createElement("div", { className: "LocBar no-print" },
             managerMode && React.createElement("div", { className: "MgrBanner" }, "Manager Mode \u2014 Triple Tap Logo to Lock"),
             React.createElement("div", { className: "LocBar-grid", style: { gridTemplateColumns: `repeat(${cols},1fr)` } }, vendors.map((v, i) => {
@@ -1460,7 +1460,7 @@ function ReceivedScreen({ onBack, orders, setOrders }) {
             React.createElement("div", { className: "Complete-sub" }, "All vendor deliveries have been logged."),
             React.createElement("div", { className: "Complete-actions" },
                 React.createElement("button", { className: "B B-outline B-lg", onClick: () => { setActiveVendorIdx(0); setCompletedVendors([]); } }, "Start Over"),
-                React.createElement("button", { className: "B B-red B-lg", onClick: onBack }, "\u2190 Home")))) : (React.createElement(React.Fragment, null,
+                React.createElement("button", { className: "B B-red B-lg", onClick: onBack }, "\u2190 Back")))) : (React.createElement(React.Fragment, null,
             React.createElement("div", { className: "Card" },
                 React.createElement("div", { className: "Card-head" },
                     React.createElement("span", { className: "Card-badge" },
@@ -1571,7 +1571,7 @@ function TrendScreen({ archives, calcTotal, onBack }) {
         React.createElement("header", { className: "H no-print" },
             React.createElement("div", { className: "H-logo", style: { cursor: "default" } }, "Zazzo's"),
             React.createElement("div", { className: "H-right" },
-                React.createElement("button", { className: "B B-ghost", onClick: onBack }, "\u2190 Home"))),
+                React.createElement("button", { className: "B B-ghost", onClick: onBack }, "\u2190 Back"))),
         React.createElement("div", { className: "Page" },
             React.createElement("div", { className: "SHead", style: { marginBottom: 16 } },
                 React.createElement("div", null,
@@ -1781,7 +1781,7 @@ function DepletionScreen({ archives, onBack, currentPreview }) {
             React.createElement("div", { className: "H-logo" }, "Zazzo's"),
             React.createElement("div", { className: "H-right" },
                 React.createElement("div", { onClick: handleKeyTap, style: { width: 24, height: 36, cursor: "default" } }),
-                React.createElement("button", { className: "B B-ghost", onClick: onBack }, "← Home"))),
+                React.createElement("button", { className: "B B-ghost", onClick: onBack }, "← Back"))),
         React.createElement("div", { className: "no-print", style: { display: "flex", gap: 8, padding: "8px 16px", background: "#fff", borderBottom: "1px solid #ddd", marginTop: 60, flexWrap: "wrap" } },
             React.createElement("button", { className: "B B-outline", style: { fontSize: 12 }, onClick: () => downloadReportPDF({
                 title: "Depletion Report",
@@ -1948,7 +1948,14 @@ function CountHistoryScreen({ archives, master, onBack }) {
     const CLASS_ORDER_CH = ["Beer & Seltzer", "Extras", "Kegs", "Liquor", "Wine"];
     const allArchivesSorted = [...(archives || [])].sort((a, b) => new Date(a.date || a.archive_date) - new Date(b.date || b.archive_date));
     const weekNumberOf = (archive) => allArchivesSorted.findIndex(a => a === archive) + 1;
-    const sortedArchives = allArchivesSorted.slice(-3);
+    // Shows a 3-week window that can slide back through every archived week, instead of
+    // being locked to only the most recent 3 (that hard cutoff made older weeks unreachable).
+    const [windowOffset, setWindowOffset] = useState(0); // 0 = most recent 3 weeks
+    const windowEnd = allArchivesSorted.length - windowOffset;
+    const windowStart = Math.max(0, windowEnd - 3);
+    const sortedArchives = allArchivesSorted.slice(windowStart, windowEnd);
+    const canShowOlder = windowStart > 0;
+    const canShowNewer = windowOffset > 0;
     const [showDates, setShowDates] = useState(false);
     const [showMathFor, setShowMathFor] = useState(null);
 
@@ -2038,8 +2045,21 @@ function CountHistoryScreen({ archives, master, onBack }) {
         React.createElement("header", { className: "H no-print" },
             React.createElement("div", { className: "H-logo" }, "Zazzo's"),
             React.createElement("div", { className: "H-right" },
-                React.createElement("button", { className: "B B-ghost", onClick: onBack }, "← Home"))),
-        React.createElement("div", { className: "no-print", style: { display: "flex", gap: 8, padding: "8px 16px", background: "#fff", borderBottom: "1px solid #ddd", marginTop: 60, flexWrap: "wrap" } },
+                React.createElement("button", { className: "B B-ghost", onClick: onBack }, "← Back"))),
+        React.createElement("div", { className: "no-print", style: { display: "flex", gap: 12, padding: "8px 16px", background: "#fff", borderBottom: "1px solid #ddd", marginTop: 60, alignItems: "center", justifyContent: "center" } },
+            React.createElement("button", {
+                className: "B B-outline", disabled: !canShowOlder,
+                style: { fontSize: 16, padding: "4px 14px", height: "auto", opacity: canShowOlder ? 1 : 0.35 },
+                onClick: () => canShowOlder && setWindowOffset(o => o + 1)
+            }, "\u2190 Older"),
+            React.createElement("span", { style: { fontSize: 12, fontWeight: 700, color: "#444" } },
+                sortedArchives.length ? ("Week " + weekNumberOf(sortedArchives[0]) + " \u2013 Week " + weekNumberOf(sortedArchives[sortedArchives.length - 1]) + " of " + allArchivesSorted.length) : "No weeks yet"),
+            React.createElement("button", {
+                className: "B B-outline", disabled: !canShowNewer,
+                style: { fontSize: 16, padding: "4px 14px", height: "auto", opacity: canShowNewer ? 1 : 0.35 },
+                onClick: () => canShowNewer && setWindowOffset(o => o - 1)
+            }, "Newer \u2192")),
+        React.createElement("div", { className: "no-print", style: { display: "flex", gap: 8, padding: "8px 16px", background: "#fff", borderBottom: "1px solid #ddd", flexWrap: "wrap" } },
             React.createElement("button", { className: "B B-outline", style: { fontSize: 12 }, onClick: () => downloadReportPDF({
                 title: "Count History",
                 weekInfo: "Weeks: " + sortedArchives.map(a => "Week " + weekNumberOf(a)).join(", "),
@@ -2131,7 +2151,15 @@ function ReceivedHistoryPrintSheet({ sortedArchives, rows, colSpan }) {
 }
 function ReceivedHistoryScreen({ archives, master, onBack }) {
     const CLASS_ORDER_CH = ["Beer & Seltzer", "Extras", "Kegs", "Liquor", "Wine"];
-    const sortedArchives = [...(archives || [])].sort((a, b) => new Date(a.date || a.archive_date) - new Date(b.date || b.archive_date)).slice(-3);
+    const allArchivesSorted_RH = [...(archives || [])].sort((a, b) => new Date(a.date || a.archive_date) - new Date(b.date || b.archive_date));
+    // Same fix as Count History: a sliding 3-week window instead of a hard cutoff that made
+    // anything older than the most recent 3 weeks permanently unreachable on this screen.
+    const [windowOffsetRH, setWindowOffsetRH] = useState(0);
+    const windowEndRH = allArchivesSorted_RH.length - windowOffsetRH;
+    const windowStartRH = Math.max(0, windowEndRH - 3);
+    const sortedArchives = allArchivesSorted_RH.slice(windowStartRH, windowEndRH);
+    const canShowOlderRH = windowStartRH > 0;
+    const canShowNewerRH = windowOffsetRH > 0;
 
     function getReceived(archive, product) {
         const row = (archive.orders || []).find(o => o.product === product);
@@ -2201,8 +2229,21 @@ function ReceivedHistoryScreen({ archives, master, onBack }) {
                     rows: pdfRows,
                     filename: "Received_History.pdf",
                 }) }, "\u2b07 Download PDF"),
-                React.createElement("button", { className: "B B-ghost", onClick: onBack }, "← Home"))),
-        React.createElement("div", { className: "no-print", style: { flex: 1, overflowY: "auto", fontFamily: "'Inter',system-ui,sans-serif", paddingTop: 60 } },
+                React.createElement("button", { className: "B B-ghost", onClick: onBack }, "← Back"))),
+        React.createElement("div", { className: "no-print", style: { display: "flex", gap: 12, padding: "8px 16px", background: "#fff", borderBottom: "1px solid #ddd", marginTop: 60, alignItems: "center", justifyContent: "center" } },
+            React.createElement("button", {
+                className: "B B-outline", disabled: !canShowOlderRH,
+                style: { fontSize: 16, padding: "4px 14px", height: "auto", opacity: canShowOlderRH ? 1 : 0.35 },
+                onClick: () => canShowOlderRH && setWindowOffsetRH(o => o + 1)
+            }, "\u2190 Older"),
+            React.createElement("span", { style: { fontSize: 12, fontWeight: 700, color: "#444" } },
+                sortedArchives.length ? ((sortedArchives[0].date || sortedArchives[0].archive_date || sortedArchives[0].label) + " \u2013 " + (sortedArchives[sortedArchives.length - 1].date || sortedArchives[sortedArchives.length - 1].archive_date || sortedArchives[sortedArchives.length - 1].label) + " (of " + allArchivesSorted_RH.length + " weeks)") : "No weeks yet"),
+            React.createElement("button", {
+                className: "B B-outline", disabled: !canShowNewerRH,
+                style: { fontSize: 16, padding: "4px 14px", height: "auto", opacity: canShowNewerRH ? 1 : 0.35 },
+                onClick: () => canShowNewerRH && setWindowOffsetRH(o => o - 1)
+            }, "Newer \u2192")),
+        React.createElement("div", { className: "no-print", style: { flex: 1, overflowY: "auto", fontFamily: "'Inter',system-ui,sans-serif" } },
             sortedArchives.length === 0
                 ? React.createElement("div", { style: { padding: 24, textAlign: "center", color: "#999" } }, "No archived weeks yet.")
                 : React.createElement("div", { style: { overflowX: "auto" } },
@@ -2266,7 +2307,7 @@ function ManualVsSpeedlineScreen({ orders, onBack }) {
         React.createElement("header", { className: "H no-print" },
             React.createElement("div", { className: "H-logo" }, "Zazzo's"),
             React.createElement("div", { className: "H-right" },
-                React.createElement("button", { className: "B B-ghost", onClick: onBack }, "← Home"))),
+                React.createElement("button", { className: "B B-ghost", onClick: onBack }, "← Back"))),
         React.createElement("div", { className: "no-print", style: { display: "flex", gap: 8, padding: "8px 16px", background: "#fff", borderBottom: "1px solid #ddd", marginTop: 60, flexWrap: "wrap", alignItems: "center" } },
             React.createElement("button", { className: "B B-outline", style: { fontSize: 12 }, onClick: () => fileRef.current && fileRef.current.click() }, "\u2b06 Upload Manual Counts"),
             React.createElement("input", { type: "file", accept: ".xlsx", ref: fileRef, onChange: handleManualUpload, style: { display: "none" } }),
@@ -2902,7 +2943,7 @@ function SalesUploadScreen({ onBack, onSaved, orders, setOrders }) {
         React.createElement("header", { className: "H no-print" },
             React.createElement("div", { className: "H-logo" }, "Zazzo's"),
             React.createElement("div", { className: "H-right" },
-                React.createElement("button", { className: "B B-ghost", onClick: onBack }, "← Home"))),
+                React.createElement("button", { className: "B B-ghost", onClick: onBack }, "← Back"))),
         React.createElement("div", { style: { flex: 1, overflowY: "auto", padding: 16, paddingTop: 76, fontFamily: "'Inter',system-ui,sans-serif" } },
             React.createElement("div", { style: { fontSize: 13, color: "#555", marginBottom: 16 } },
                 "Select all your Speedline PDF reports at once — the app identifies each one automatically."),
@@ -3193,7 +3234,7 @@ function OGHistoryScreen({ archives, onBack }) {
             React.createElement("header", { className:"H" },
                 React.createElement("div", { className:"H-logo", style:{cursor:'default'} }, "Zazzo's"),
                 React.createElement("div", { className:"H-right" },
-                    React.createElement("button", { className:"B B-ghost", onClick:onBack }, "\u2190 Home"))),
+                    React.createElement("button", { className:"B B-ghost", onClick:onBack }, "\u2190 Back"))),
             React.createElement("div", { className:"Page" },
                 React.createElement("div", { className:"SHead", style:{marginBottom:16} },
                     React.createElement("div", { className:"STitle" }, "Order Guide History")),
@@ -3537,6 +3578,7 @@ function ReportsScreen({ archives, onBack, currentPreview }) {
 }
 function App() {
     const [screen, setScreen] = useState("login");
+    const [lastMenu, setLastMenu] = useState("login");
     const [user, setUser] = useState(null);
     const [sealed, setSealed] = useState(mkSealed);
     const [open, setOpen] = useState(mkOpen);
@@ -3597,7 +3639,14 @@ function App() {
             try {
                 const archiveRows = await sbGet("archives", "select=*&order=created_at.desc");
                 if (Array.isArray(archiveRows) && archiveRows.length > 0) {
-                    const remoteArchives = archiveRows.map(a => ({
+                    // These two rows are confirmed accidental duplicate close-outs (Start New Week
+                    // triggered a second time, a day after the real one, for the same week). Ely
+                    // confirmed the Monday run is the real one for each; these Tuesday duplicates
+                    // are hidden from every screen here, but left untouched in the database so
+                    // they remain fully restorable if this call is ever reversed.
+                    const SUPPRESSED_DUPLICATE_ARCHIVE_IDS = ["9c7779da-9d86-4f73-9ac4-d237c39f5dca", "702ac5c3-aef1-4393-be58-84cda40a11ec", "f6482241-a216-4c94-bb51-c3f032ae5a1b"];
+                    const filteredArchiveRows = archiveRows.filter(a => !SUPPRESSED_DUPLICATE_ARCHIVE_IDS.includes(a.id));
+                    const remoteArchives = filteredArchiveRows.map(a => ({
                         label: a.week_label,
                         date: a.archive_date,
                         sealed: a.sealed_counts || {}, open: a.open_counts || {}, orders: a.orders || [],
@@ -3798,7 +3847,7 @@ function App() {
         }
     };
     const masterCancel = () => { setShowMasterPin(false); setMasterPinInput(""); setMasterPinError(false); };
-    const goHome = () => { setScreen("login"); setUser(null); };
+    const goHome = () => { setScreen(lastMenu); setUser(null); };
     const login = (u) => { setUser(u); setScreen("count"); };
     const [showClearMenu, setShowClearMenu] = useState(false);
     const [clearBusy, setClearBusy] = useState(false);
@@ -3850,11 +3899,11 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v12.3")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v12.4")),
             React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 14, alignItems: "center", padding: "0 20px", width: "100%", maxWidth: 320, margin: "0 auto" } },
-                React.createElement("div", { className: "LCard", style: { width: "100%", maxWidth: 280, height: 100 }, onClick: () => setScreen("current-menu") },
+                React.createElement("div", { className: "LCard", style: { width: "100%", maxWidth: 280, height: 100 }, onClick: () => { setScreen("current-menu"); setLastMenu("current-menu"); } },
                     React.createElement("div", { className: "LCard-role", style: { fontSize:16 } }, "Current Analysis")),
-                React.createElement("div", { className: "LCard", style: { width: "100%", maxWidth: 280, height: 100 }, onClick: () => setScreen("historical-menu") },
+                React.createElement("div", { className: "LCard", style: { width: "100%", maxWidth: 280, height: 100 }, onClick: () => { setScreen("historical-menu"); setLastMenu("historical-menu"); } },
                     React.createElement("div", { className: "LCard-role", style: { fontSize:16 } }, "Historical Analysis"))))),
         !loading && screen === "current-menu" && (React.createElement("div", { className: "Login" },
             React.createElement("div", { className: "Login-brand" },
@@ -3877,7 +3926,7 @@ function App() {
                 React.createElement("div", { className: "LCard", onClick: () => setShowRolloverConfirm(true) },
                     React.createElement("div", { className: "LCard-role" }, "Start New Week"),
                     React.createElement("div", { className: "LCard-name" }, "Archive & reset counts"))),
-            React.createElement("button", { className: "B B-ghost", style: { marginTop:20 }, onClick: () => setScreen("login") }, "← Back"),
+            React.createElement("button", { className: "B B-ghost", style: { marginTop:20 }, onClick: () => { setScreen("login"); setLastMenu("login"); } }, "← Home"),
             React.createElement("div", { onClick: () => { setClearResult(null); setShowClearMenu(true); }, style: { position:"fixed", left:"50%", transform:"translateX(-50%)", bottom:"40px", padding:"8px 18px", borderRadius:"20px", background:"#FFFFFF", border:"2px solid #1B6B3A", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Inter',system-ui,sans-serif", fontSize:13, fontWeight:700, color:"#1B6B3A", cursor:"pointer", boxShadow:"0 2px 8px rgba(0,0,0,0.12)", zIndex:50, whiteSpace:"nowrap" } }, "Clear Current Week"))),
         !loading && screen === "historical-menu" && (React.createElement("div", { className: "Login" },
             React.createElement("div", { className: "Login-brand" },
@@ -3896,7 +3945,7 @@ function App() {
                 React.createElement("div", { className: "LCard", onClick: () => setScreen("manualvsspeedline") },
                     React.createElement("div", { className: "LCard-role" }, "Manual vs Speedline"),
                     React.createElement("div", { className: "LCard-name" }, "Compare hand count to POS"))),
-            React.createElement("button", { className: "B B-ghost", style: { marginTop:20 }, onClick: () => setScreen("login") }, "← Back"))),
+            React.createElement("button", { className: "B B-ghost", style: { marginTop:20 }, onClick: () => { setScreen("login"); setLastMenu("login"); } }, "← Home"))),
         showRolloverConfirm && React.createElement("div", { style: { position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:24 } },
             React.createElement("div", { style: { background:"#fff", borderRadius:12, padding:24, width:"100%", maxWidth:360 } },
                 React.createElement("div", { style: { fontFamily:"'Inter',system-ui,sans-serif", fontSize:17, fontWeight:700, marginBottom:12 } }, "Start New Week?"),
