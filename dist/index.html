@@ -91,6 +91,7 @@ const ERIKA_LOCS = ["Behind Bar", "Keg Cooler"];
 const ALL_LOCS = ["Office", "Pepsi Cooler", "Display", "Closet", "Window/Party Room", "Keg Cooler", "Coffin Cooler", "Behind Bar", "Outside Cooler"];
 const VENDOR_ORDER = ["Breakthru", "Cello", "Euclid", "Schamberger", "Southern", "Superior", "Unknown", "Windy City"];
 const CORRECT_PIN = "2026";
+const CLEAR_WEEK_PIN = "1044";
 // ─── MASTER PRODUCT LIST ────────────────────────────────────────────────────
 
 const NAME_MAP = {
@@ -358,6 +359,45 @@ function weekLabel() {
     const prevMonday = new Date(now);
     prevMonday.setDate(now.getDate() - daysBack);
     return `Week of ${prevMonday.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+}
+// Hard rule: every place a week number appears anywhere in this app or its printed reports
+// must also show that week's actual date range (Monday-Sunday) - never just "Week N" alone,
+// and never "Current Week (Preview)" with no dates. These three helpers are the single
+// shared source for that date range, used by every screen below (Depletion, Count History,
+// Received History, Order Guide History) so the format can never drift apart between them.
+function mondayFromWeekOfLabel(label) {
+    // Parses the "Monday date" out of a week_label like "Week of Aug 24, 2026".
+    if (!label) return null;
+    const m = /Week of (.+)/.exec(label);
+    if (!m) return null;
+    const d = new Date(m[1]);
+    return isNaN(d.getTime()) ? null : d;
+}
+function thisWeekMonday(now) {
+    // The Monday of the calendar week we're currently in (for the live, not-yet-closed week) -
+    // distinct from weekLabel() above, which finds the Monday of the week that JUST ENDED.
+    const day = now.getDay();
+    const daysSinceMonday = day === 0 ? 6 : day - 1;
+    const d = new Date(now);
+    d.setDate(now.getDate() - daysSinceMonday);
+    d.setHours(0, 0, 0, 0);
+    return d;
+}
+function formatWeekDateRange(monday) {
+    const end = new Date(monday);
+    end.setDate(monday.getDate() + 6);
+    const startStr = monday.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const endStr = end.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    return startStr + "\u2013" + endStr;
+}
+// The one required format everywhere: "Week N \u2014 Mon D\u2013Mon D, YYYY". isLive=true uses
+// today's actual calendar week instead of parsing a week_label (the live week has no
+// week_label yet - it isn't archived). Falls back to the raw archive/click date only in the
+// rare case a week_label can't be parsed, so a date is always shown, never blank.
+function weekHeaderText(weekNum, archive, isLive) {
+    const monday = isLive ? thisWeekMonday(new Date()) : mondayFromWeekOfLabel(archive && (archive.label || archive.week_label));
+    const range = monday ? formatWeekDateRange(monday) : ((archive && (archive.date || archive.archive_date)) || "");
+    return "Week " + weekNum + (range ? " \u2014 " + range : "");
 }
 function getUnit(item, loc) {
     // Beer is counted in bottles everywhere, no exceptions - Keg Cooler used to be labeled
@@ -1638,12 +1678,17 @@ function TrendScreen({ archives, calcTotal, onBack }) {
 function DepletionScreen({ archives, onBack, currentPreview }) {
     const { useState: _useState } = React;
     const closedArchives = [...(archives || [])].sort((a, b) => new Date(a.date || a.archive_date) - new Date(b.date || b.archive_date));
+    // Navigation order must run newest-to-oldest (Current, then Week 11, Week 10, ... Week 1)
+    // so that idx 0 = most recent and increasing idx = stepping backward in order. closedArchives
+    // above is kept ascending (oldest-first) only because weekNumberOf below needs that order to
+    // number weeks chronologically - this separate descending copy is for display/navigation only.
+    const closedArchivesDesc = [...closedArchives].reverse();
     // The live, not-yet-closed week is shown first and selected by default - this uses the
     // exact same Depletion/Variance math as a real close, computed from the current live
     // counts and orders, but nothing is saved, archived, or cleared. Lets you sanity-check
     // this week's numbers (e.g. after a parser fix) without needing to actually close the
     // week just to look at it.
-    const sortedArchives = currentPreview ? [currentPreview, ...closedArchives] : closedArchives;
+    const sortedArchives = currentPreview ? [currentPreview, ...closedArchivesDesc] : closedArchivesDesc;
     // Week numbers count up chronologically from the oldest archived week (Week 1). The
     // live, not-yet-closed week (if shown) is always one number ahead of the last archive.
     const weekNumberOf = (archive) => {
@@ -1666,6 +1711,8 @@ function DepletionScreen({ archives, onBack, currentPreview }) {
         }
     };
     const selectedArchive = sortedArchives.find(a => a.label === selectedLabel) || sortedArchives[0] || null;
+    const selectedIsLive = !!(currentPreview && selectedArchive && selectedArchive.label === currentPreview.label);
+    const selectedWeekHeader = selectedArchive ? weekHeaderText(weekNumberOf(selectedArchive), selectedArchive, selectedIsLive) : "\u2014";
     const rawOrders = selectedArchive ? selectedArchive.orders || [] : [];
     const posSales = selectedArchive ? selectedArchive.pos_sales || {} : {};
     const master = getMaster();
@@ -1785,7 +1832,7 @@ function DepletionScreen({ archives, onBack, currentPreview }) {
         React.createElement("div", { className: "no-print", style: { display: "flex", gap: 8, padding: "8px 16px", background: "#fff", borderBottom: "1px solid #ddd", marginTop: 60, flexWrap: "wrap" } },
             React.createElement("button", { className: "B B-outline", style: { fontSize: 12 }, onClick: () => downloadReportPDF({
                 title: "Depletion Report",
-                weekInfo: "Week: " + (selectedArchive ? (selectedArchive.label || selectedArchive.date) : "\u2014"),
+                weekInfo: selectedWeekHeader,
                 columns: ["Product", "Depletion", "POS Sales", "Variance"],
                 rows: computedRows.map(r => r.type === "row" ? { type: "data", cells: [r.product, r.dep !== null ? fmt(r.dep) : "\u2014", r.pos !== null ? fmt(r.pos) : "\u2014", r.vari === null ? "\u2014" : (r.vari > 0 ? "+" + fmt(r.vari) : fmt(r.vari))] } : r),
                 filename: "Depletion_Report_" + (selectedArchive ? (selectedArchive.label || selectedArchive.date) : "current").replace(/[^a-z0-9]/gi, "_") + ".pdf",
@@ -1797,7 +1844,7 @@ function DepletionScreen({ archives, onBack, currentPreview }) {
                 const locCols = preferredOrder.filter(l => locSet.includes(l)).concat(locSet.filter(l => !preferredOrder.includes(l)));
                 downloadReportPDF({
                     title: "Depletion Report - Full Math Trace",
-                    weekInfo: "Week: " + (selectedArchive ? (selectedArchive.label || selectedArchive.date) : "\u2014"),
+                    weekInfo: selectedWeekHeader,
                     columns: ["Product", "Last Week", "Received", ...locCols, "Current Count", "Depletion", "POS Sales", "Variance"],
                     rows: computedRows.map(r => r.type === "row" ? { type: "data", cells: [
                         r.product,
@@ -1822,8 +1869,10 @@ function DepletionScreen({ archives, onBack, currentPreview }) {
                     const curIdx = sortedArchives.findIndex(a => a.label === selectedLabel);
                     const idx = curIdx === -1 ? 0 : curIdx;
                     const a = sortedArchives[idx];
+                    const isLiveWeek = currentPreview && a.label === currentPreview.label;
                     const weekLabel = "Week " + weekNumberOf(a);
-                    const dateLabel = a.date || a.archive_date || a.label || "";
+                    const weekMonday = isLiveWeek ? thisWeekMonday(new Date()) : mondayFromWeekOfLabel(a.label);
+                    const dateLabel = weekMonday ? formatWeekDateRange(weekMonday) : (a.date || a.archive_date || "");
                     // idx 0 is always the most recent (or the live preview); moving "left"
                     // steps to an older week (higher index), "right" steps to a newer one.
                     const canOlder = idx < sortedArchives.length - 1;
@@ -1921,7 +1970,7 @@ function DepletionPrintSheet({ computedRows, weekLabel }) {
 }
 
 // ─── COUNT HISTORY SCREEN ─────────────────────────────────────────────────────
-function CountHistoryPrintSheet({ sortedArchives, rows, colSpan }) {
+function CountHistoryPrintSheet({ sortedArchives, rows, colSpan, weekNumberOf }) {
     const FONT = "'Inter',system-ui,sans-serif";
     return React.createElement("div", { style: { display: "none" }, className: "print-show print-sheet-wrapper" },
         React.createElement("div", { style: { fontFamily: FONT, fontSize: 9 } },
@@ -1930,7 +1979,7 @@ function CountHistoryPrintSheet({ sortedArchives, rows, colSpan }) {
                     React.createElement("div", { style: { fontSize: 13, fontWeight: "700", color: "#C8102E", textTransform: "uppercase", letterSpacing: "0.05em" } }, "ZAZZO'S LIQUOR INVENTORY"),
                     React.createElement("div", { style: { fontSize: 8, fontWeight: "700", textTransform: "uppercase", color: "#333", marginTop: 1, letterSpacing: "0.06em" } }, "COUNT HISTORY")),
                 React.createElement("div", { style: { textAlign: "right", fontSize: 8, color: "#555", lineHeight: 1.6 } },
-                    React.createElement("div", null, "Weeks: " + sortedArchives.map(a => a.date || a.archive_date || a.label || "").join(", ")),
+                    React.createElement("div", null, "Weeks: " + sortedArchives.map(a => weekHeaderText(weekNumberOf(a), a, false)).join("  |  ")),
                     React.createElement("div", null, "Printed: " + new Date().toLocaleDateString()))),
             sortedArchives.length === 0
                 ? React.createElement("div", { style: { padding: 12, color: "#999" } }, "No archived weeks yet.")
@@ -1938,7 +1987,7 @@ function CountHistoryPrintSheet({ sortedArchives, rows, colSpan }) {
                     React.createElement("thead", null,
                         React.createElement("tr", { style: { background: "#1A1A2E" } },
                             React.createElement("th", { style: { padding: "3px 6px", textAlign: "left", color: "#fff", fontWeight: 700, fontSize: 8, textTransform: "uppercase" } }, "Product"),
-                            ...sortedArchives.map(a => React.createElement("th", { key: a.id || a.label, style: { padding: "3px 6px", textAlign: "center", color: "#fff", fontWeight: 700, fontSize: 8, textTransform: "uppercase" } }, a.date || a.archive_date || a.label || "")),
+                            ...sortedArchives.map(a => React.createElement("th", { key: a.id || a.label, style: { padding: "3px 6px", textAlign: "center", color: "#fff", fontWeight: 700, fontSize: 8, textTransform: "uppercase" } }, weekHeaderText(weekNumberOf(a), a, false))),
                             sortedArchives.length > 1 && React.createElement("th", { style: { padding: "3px 6px", textAlign: "center", background: "#2a3a6a", color: "#fff", fontWeight: 700, fontSize: 8, textTransform: "uppercase" } }, "Avg"))),
                     React.createElement("tbody", null, ...rows)),
             React.createElement("div", { style: { marginTop: 20, padding: "10px", background: "#000", color: "#0f0", fontFamily: "monospace", fontSize: 12, fontWeight: "bold", textAlign: "center", pageBreakInside: "avoid", breakInside: "avoid" } },
@@ -2053,7 +2102,7 @@ function CountHistoryScreen({ archives, master, onBack }) {
                 onClick: () => canShowOlder && setWindowOffset(o => o + 1)
             }, "\u2190 Older"),
             React.createElement("span", { style: { fontSize: 12, fontWeight: 700, color: "#444" } },
-                sortedArchives.length ? ("Week " + weekNumberOf(sortedArchives[0]) + " \u2013 Week " + weekNumberOf(sortedArchives[sortedArchives.length - 1]) + " of " + allArchivesSorted.length) : "No weeks yet"),
+                sortedArchives.length ? (weekHeaderText(weekNumberOf(sortedArchives[0]), sortedArchives[0], false) + "  to  " + weekHeaderText(weekNumberOf(sortedArchives[sortedArchives.length - 1]), sortedArchives[sortedArchives.length - 1], false) + "   (of " + allArchivesSorted.length + " weeks)") : "No weeks yet"),
             React.createElement("button", {
                 className: "B B-outline", disabled: !canShowNewer,
                 style: { fontSize: 16, padding: "4px 14px", height: "auto", opacity: canShowNewer ? 1 : 0.35 },
@@ -2062,7 +2111,7 @@ function CountHistoryScreen({ archives, master, onBack }) {
         React.createElement("div", { className: "no-print", style: { display: "flex", gap: 8, padding: "8px 16px", background: "#fff", borderBottom: "1px solid #ddd", flexWrap: "wrap" } },
             React.createElement("button", { className: "B B-outline", style: { fontSize: 12 }, onClick: () => downloadReportPDF({
                 title: "Count History",
-                weekInfo: "Weeks: " + sortedArchives.map(a => "Week " + weekNumberOf(a)).join(", "),
+                weekInfo: "Weeks: " + sortedArchives.map(a => weekHeaderText(weekNumberOf(a), a, false)).join("  |  "),
                 columns: ["Product", ...sortedArchives.map(a => "Week " + weekNumberOf(a)), ...(sortedArchives.length > 1 ? ["Avg"] : [])],
                 rows: pdfRows,
                 filename: "Count_History.pdf",
@@ -2095,7 +2144,7 @@ function CountHistoryScreen({ archives, master, onBack }) {
                 });
                 downloadReportPDF({
                     title: "Count History - Full Math Trace",
-                    weekInfo: "Week " + weekNumberOf(a) + " (" + (a.label || a.date) + ")",
+                    weekInfo: weekHeaderText(weekNumberOf(a), a, false),
                     columns: ["Product", ...locCols, "Total"],
                     rows: pdfMathRows,
                     filename: "Count_History_Math_Week" + weekNumberOf(a) + ".pdf",
@@ -2109,7 +2158,7 @@ function CountHistoryScreen({ archives, master, onBack }) {
                         React.createElement("thead", null,
                             React.createElement("tr", { style: { background: "#1A1A2E", color: "#fff" } },
                                 React.createElement("th", { style: { padding: "8px 10px", textAlign: "left", minWidth: 140 } }, "Product"),
-                                ...sortedArchives.map(a => React.createElement("th", { key: a.id || a.label, style: { padding: "8px 6px", textAlign: "center", minWidth: 70, cursor: "pointer" }, onClick: () => setShowDates(v => !v) }, showDates ? (a.date || a.archive_date || a.label || "") : ("Week " + weekNumberOf(a)))),
+                                ...sortedArchives.map(a => React.createElement("th", { key: a.id || a.label, style: { padding: "8px 6px", textAlign: "center", minWidth: 70, fontSize: 10, lineHeight: 1.3 } }, weekHeaderText(weekNumberOf(a), a, false))),
                                 sortedArchives.length > 1 && React.createElement("th", { style: { padding: "8px 6px", textAlign: "center", background: "#2a3a6a", minWidth: 60 } }, "Avg"))),
                         React.createElement("tbody", null, ...rows)))),
         showMathFor && React.createElement("div", { className: "no-print", style: { position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }, onClick: () => setShowMathFor(null) },
@@ -2122,11 +2171,11 @@ function CountHistoryScreen({ archives, master, onBack }) {
                         : Object.entries(showMathFor.locs).map(([loc, v]) => React.createElement("div", { key: loc }, loc + ": " + v)),
                     React.createElement("div", { style: { borderTop:"2px solid #1A1A2E", marginTop:6, paddingTop:6, fontWeight:700 } }, "= Total: " + fmt(showMathFor.count))),
                 React.createElement("button", { className:"B B-red", style:{marginTop:16, width:"100%"}, onClick: () => setShowMathFor(null) }, "Close"))),
-        React.createElement(CountHistoryPrintSheet, { sortedArchives: sortedArchives, rows: printRows, colSpan: colSpan }));
+        React.createElement(CountHistoryPrintSheet, { sortedArchives: sortedArchives, rows: printRows, colSpan: colSpan, weekNumberOf: weekNumberOf }));
 }
 
 // ─── RECEIVED HISTORY SCREEN ──────────────────────────────────────────────────
-function ReceivedHistoryPrintSheet({ sortedArchives, rows, colSpan }) {
+function ReceivedHistoryPrintSheet({ sortedArchives, rows, colSpan, weekNumberOf }) {
     const FONT = "'Inter',system-ui,sans-serif";
     return React.createElement("div", { style: { display: "none" }, className: "print-show print-sheet-wrapper" },
         React.createElement("div", { style: { fontFamily: FONT, fontSize: 9 } },
@@ -2135,7 +2184,7 @@ function ReceivedHistoryPrintSheet({ sortedArchives, rows, colSpan }) {
                     React.createElement("div", { style: { fontSize: 13, fontWeight: "700", color: "#C8102E", textTransform: "uppercase", letterSpacing: "0.05em" } }, "ZAZZO'S LIQUOR INVENTORY"),
                     React.createElement("div", { style: { fontSize: 8, fontWeight: "700", textTransform: "uppercase", color: "#333", marginTop: 1, letterSpacing: "0.06em" } }, "RECEIVED HISTORY")),
                 React.createElement("div", { style: { textAlign: "right", fontSize: 8, color: "#555", lineHeight: 1.6 } },
-                    React.createElement("div", null, "Weeks: " + sortedArchives.map(a => a.date || a.archive_date || a.label || "").join(", ")),
+                    React.createElement("div", null, "Weeks: " + sortedArchives.map(a => weekHeaderText(weekNumberOf(a), a, false)).join("  |  ")),
                     React.createElement("div", null, "Printed: " + new Date().toLocaleDateString()))),
             sortedArchives.length === 0
                 ? React.createElement("div", { style: { padding: 12, color: "#999" } }, "No archived weeks yet.")
@@ -2143,7 +2192,7 @@ function ReceivedHistoryPrintSheet({ sortedArchives, rows, colSpan }) {
                     React.createElement("thead", null,
                         React.createElement("tr", { style: { background: "#1A1A2E" } },
                             React.createElement("th", { style: { padding: "3px 6px", textAlign: "left", color: "#fff", fontWeight: 700, fontSize: 8, textTransform: "uppercase" } }, "Product"),
-                            ...sortedArchives.map(a => React.createElement("th", { key: a.id || a.label, style: { padding: "3px 6px", textAlign: "center", color: "#fff", fontWeight: 700, fontSize: 8, textTransform: "uppercase" } }, a.date || a.archive_date || a.label || "")),
+                            ...sortedArchives.map(a => React.createElement("th", { key: a.id || a.label, style: { padding: "3px 6px", textAlign: "center", color: "#fff", fontWeight: 700, fontSize: 8, textTransform: "uppercase" } }, weekHeaderText(weekNumberOf(a), a, false))),
                             sortedArchives.length > 1 && React.createElement("th", { style: { padding: "3px 6px", textAlign: "center", background: "#2a3a6a", color: "#fff", fontWeight: 700, fontSize: 8, textTransform: "uppercase" } }, "Avg"))),
                     React.createElement("tbody", null, rows)),
             React.createElement("div", { style: { marginTop: 20, padding: "10px", background: "#000", color: "#0f0", fontFamily: "monospace", fontSize: 12, fontWeight: "bold", textAlign: "center", pageBreakInside: "avoid", breakInside: "avoid" } },
@@ -2152,6 +2201,7 @@ function ReceivedHistoryPrintSheet({ sortedArchives, rows, colSpan }) {
 function ReceivedHistoryScreen({ archives, master, onBack }) {
     const CLASS_ORDER_CH = ["Beer & Seltzer", "Extras", "Kegs", "Liquor", "Wine"];
     const allArchivesSorted_RH = [...(archives || [])].sort((a, b) => new Date(a.date || a.archive_date) - new Date(b.date || b.archive_date));
+    const weekNumberOf = (archive) => allArchivesSorted_RH.findIndex(a => a === archive) + 1;
     // Same fix as Count History: a sliding 3-week window instead of a hard cutoff that made
     // anything older than the most recent 3 weeks permanently unreachable on this screen.
     const [windowOffsetRH, setWindowOffsetRH] = useState(0);
@@ -2224,8 +2274,8 @@ function ReceivedHistoryScreen({ archives, master, onBack }) {
             React.createElement("div", { className: "H-right" },
                 React.createElement("button", { className: "B B-ghost", onClick: () => downloadReportPDF({
                     title: "Received History",
-                    weekInfo: "Weeks: " + sortedArchives.map(a => a.date || a.archive_date || a.label || "").join(", "),
-                    columns: ["Product", ...sortedArchives.map(a => a.date || a.archive_date || a.label || ""), ...(sortedArchives.length > 1 ? ["Avg"] : [])],
+                    weekInfo: "Weeks: " + sortedArchives.map(a => weekHeaderText(weekNumberOf(a), a, false)).join("  |  "),
+                    columns: ["Product", ...sortedArchives.map(a => weekHeaderText(weekNumberOf(a), a, false)), ...(sortedArchives.length > 1 ? ["Avg"] : [])],
                     rows: pdfRows,
                     filename: "Received_History.pdf",
                 }) }, "\u2b07 Download PDF"),
@@ -2237,7 +2287,7 @@ function ReceivedHistoryScreen({ archives, master, onBack }) {
                 onClick: () => canShowOlderRH && setWindowOffsetRH(o => o + 1)
             }, "\u2190 Older"),
             React.createElement("span", { style: { fontSize: 12, fontWeight: 700, color: "#444" } },
-                sortedArchives.length ? ((sortedArchives[0].date || sortedArchives[0].archive_date || sortedArchives[0].label) + " \u2013 " + (sortedArchives[sortedArchives.length - 1].date || sortedArchives[sortedArchives.length - 1].archive_date || sortedArchives[sortedArchives.length - 1].label) + " (of " + allArchivesSorted_RH.length + " weeks)") : "No weeks yet"),
+                sortedArchives.length ? (weekHeaderText(weekNumberOf(sortedArchives[0]), sortedArchives[0], false) + "  to  " + weekHeaderText(weekNumberOf(sortedArchives[sortedArchives.length - 1]), sortedArchives[sortedArchives.length - 1], false) + "   (of " + allArchivesSorted_RH.length + " weeks)") : "No weeks yet"),
             React.createElement("button", {
                 className: "B B-outline", disabled: !canShowNewerRH,
                 style: { fontSize: 16, padding: "4px 14px", height: "auto", opacity: canShowNewerRH ? 1 : 0.35 },
@@ -2251,10 +2301,10 @@ function ReceivedHistoryScreen({ archives, master, onBack }) {
                         React.createElement("thead", null,
                             React.createElement("tr", { style: { background: "#1A1A2E", color: "#fff" } },
                                 React.createElement("th", { style: { padding: "8px 10px", textAlign: "left", minWidth: 140 } }, "Product"),
-                                ...sortedArchives.map(a => React.createElement("th", { key: a.id || a.label, style: { padding: "8px 6px", textAlign: "center", minWidth: 70 } }, a.date || a.archive_date || a.label || "")),
+                                ...sortedArchives.map(a => React.createElement("th", { key: a.id || a.label, style: { padding: "8px 6px", textAlign: "center", minWidth: 70, fontSize: 10, lineHeight: 1.3 } }, weekHeaderText(weekNumberOf(a), a, false))),
                                 sortedArchives.length > 1 && React.createElement("th", { style: { padding: "8px 6px", textAlign: "center", background: "#2a3a6a", minWidth: 60 } }, "Avg"))),
                         React.createElement("tbody", null, ...rows)))),
-        React.createElement(ReceivedHistoryPrintSheet, { sortedArchives: sortedArchives, rows: printRows, colSpan: colSpan }));
+        React.createElement(ReceivedHistoryPrintSheet, { sortedArchives: sortedArchives, rows: printRows, colSpan: colSpan, weekNumberOf: weekNumberOf }));
 }
 
 // ─── MANUAL VS SPEEDLINE SCREEN ───────────────────────────────────────────────
@@ -3136,12 +3186,12 @@ function MasterEditor({ master, onSave, onClose }) {
                     React.createElement("button", { className: "B B-red", onClick: confirmSave }, "Confirm & Save")))))));
 }
 // ─── MASTER GUARD MODAL ───────────────────────────────────────────────────────
-function MasterGuardModal({ show, input, error, onKey, onCancel }) {
+function MasterGuardModal({ show, input, error, onKey, onCancel, title }) {
     if (!show)
         return null;
     return (React.createElement("div", { className: "PinOverlay", style: { zIndex: 950 } },
         React.createElement("div", { className: "PinModal" },
-            React.createElement("div", { className: "PinModal-title" }, "Master Guide Access"),
+            React.createElement("div", { className: "PinModal-title" }, title || "Master Guide Access"),
             React.createElement("div", { className: "PinModal-sub" }, "Enter your 4-digit PIN"),
             React.createElement("div", { className: "PinDots" }, [0, 1, 2, 3].map(i => (React.createElement("div", { key: i, className: "PinDot" + (input.length > i ? " on" : "") + (error ? " err" : "") })))),
             error && React.createElement("div", { className: "PinErr" }, "Incorrect PIN. Try again."),
@@ -3152,6 +3202,8 @@ function MasterGuardModal({ show, input, error, onKey, onCancel }) {
 
 function OGHistoryScreen({ archives, onBack }) {
     const master = getMaster();
+    const allArchivesSorted_OG = [...(archives || [])].sort((a, b) => new Date(a.date || a.archive_date) - new Date(b.date || b.archive_date));
+    const weekNumberOf = (archive) => allArchivesSorted_OG.findIndex(a => a === archive) + 1;
     const latestPosSales = (archives && archives.length > 0 && archives[0].pos_sales) ? archives[0].pos_sales : {};
     const [selectedWeek, setSelectedWeek] = useState(null);
     const [isLandscape, setIsLandscape] = useState(window.innerWidth > window.innerHeight);
@@ -3243,7 +3295,7 @@ function OGHistoryScreen({ archives, onBack }) {
                     : React.createElement("div", { className:"Card" },
                         [...archives].sort((a,b) => new Date(b.date) - new Date(a.date)).map((arc, i) =>
                             React.createElement("div", { key:i, style:{padding:'14px 16px',borderBottom:'1px solid #F0F0F0',display:'flex',alignItems:'center',justifyContent:'space-between',cursor:'pointer'}, onClick:() => setSelectedWeek(arc) },
-                                React.createElement("div", { style:{fontWeight:600,fontSize:15} }, arc.label || arc.date),
+                                React.createElement("div", { style:{fontWeight:600,fontSize:15} }, weekHeaderText(weekNumberOf(arc), arc, false)),
                                 React.createElement("div", { style:{color:'#C8102E',fontSize:13,fontWeight:700} }, "View \u2192"))))));
     }
 
@@ -3257,7 +3309,7 @@ function OGHistoryScreen({ archives, onBack }) {
     return React.createElement("div", { style:{position:'fixed',inset:0,background:'#fff',zIndex:100} },
         React.createElement("style", null, ogCSS),
         React.createElement("div", { className: "no-print", style:{position:'fixed',top:0,left:0,right:0,height:44,background:'#C8102E',borderBottom:'3px solid #1B6B3A',display:'flex',alignItems:'center',padding:'0 16px',justifyContent:'space-between',zIndex:600} },
-            React.createElement("span", { style:{color:'#fff',fontSize:14,fontWeight:700,fontFamily:'Georgia,serif'} }, selectedWeek.label || selectedWeek.date),
+            React.createElement("span", { style:{color:'#fff',fontSize:14,fontWeight:700,fontFamily:'Georgia,serif'} }, weekHeaderText(weekNumberOf(selectedWeek), selectedWeek, false)),
             React.createElement("div", { style:{display:'flex',gap:8} },
                 React.createElement("button", { className:"B B-ghost", style:{fontSize:11}, onClick:() => {
                     const dataCols = ALL_COLS.filter(c => c.key !== "product");
@@ -3287,10 +3339,10 @@ function OGHistoryScreen({ archives, onBack }) {
                     });
                     downloadReportPDF({
                         title: "Order Guide History",
-                        weekInfo: "Week: " + (selectedWeek.label || selectedWeek.date),
+                        weekInfo: weekHeaderText(weekNumberOf(selectedWeek), selectedWeek, false),
                         columns: ["Item", ...dataCols.map(c => c.label)],
                         rows: pdfRowsOG,
-                        filename: "Order_Guide_History_" + (selectedWeek.label || selectedWeek.date).replace(/[^a-z0-9]/gi, "_") + ".pdf",
+                        filename: "Order_Guide_History_Week" + weekNumberOf(selectedWeek) + ".pdf",
                     });
                 } }, "\u2b07 PDF"),
                 React.createElement("button", { className:"B B-ghost", onClick:() => setSelectedWeek(null) }, "\u2190 Back"))),
@@ -3330,9 +3382,9 @@ function OGHistoryScreen({ archives, onBack }) {
                             return React.createElement("div", {key:col.key,className:cls,style:{...cs,justifyContent:'center'}}, val);
                         }));
                 })),
-        React.createElement(OGHistoryPrintSheet, { rowMeta: rowMeta, allCols: ALL_COLS, selectedWeek: selectedWeek, latestPosSales: latestPosSales })));
+        React.createElement(OGHistoryPrintSheet, { rowMeta: rowMeta, allCols: ALL_COLS, selectedWeek: selectedWeek, latestPosSales: latestPosSales, weekNumberOf: weekNumberOf })));
 }
-function OGHistoryPrintSheet({ rowMeta, allCols, selectedWeek, latestPosSales }) {
+function OGHistoryPrintSheet({ rowMeta, allCols, selectedWeek, latestPosSales, weekNumberOf }) {
     const dataCols = allCols.filter(c => c.key !== "product");
     return React.createElement("div", { style: { display: "none" }, className: "print-show print-sheet-wrapper" },
         React.createElement("div", { style: { fontFamily: "'Inter',system-ui,sans-serif", fontSize: 8 } },
@@ -3341,7 +3393,7 @@ function OGHistoryPrintSheet({ rowMeta, allCols, selectedWeek, latestPosSales })
                     React.createElement("div", { style: { fontSize: 13, fontWeight: "700", color: "#C8102E", textTransform: "uppercase", letterSpacing: "0.05em" } }, "ZAZZO'S LIQUOR INVENTORY"),
                     React.createElement("div", { style: { fontSize: 8, fontWeight: "700", textTransform: "uppercase", color: "#333", marginTop: 1, letterSpacing: "0.06em" } }, "ORDER GUIDE HISTORY")),
                 React.createElement("div", { style: { textAlign: "right", fontSize: 8, color: "#555", lineHeight: 1.6 } },
-                    React.createElement("div", null, "Week: " + (selectedWeek.label || selectedWeek.date)),
+                    React.createElement("div", null, weekHeaderText(weekNumberOf(selectedWeek), selectedWeek, false)),
                     React.createElement("div", null, "Printed: " + new Date().toLocaleDateString()))),
             React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 7, tableLayout: "fixed" } },
                 React.createElement("thead", null,
@@ -3373,7 +3425,7 @@ function OGHistoryPrintSheet({ rowMeta, allCols, selectedWeek, latestPosSales })
                         }));
                 }))),
             React.createElement("div", { style: { marginTop: 20, padding: "10px", background: "#000", color: "#0f0", fontFamily: "monospace", fontSize: 12, fontWeight: "bold", textAlign: "center", pageBreakInside: "avoid", breakInside: "avoid" } },
-                `=== END OF ORDER GUIDE HISTORY \u2014 ${selectedWeek.label || selectedWeek.date} \u2014 ${rowMeta.filter(r => r.type === "data").length} ROWS ===`)));
+                `=== END OF ORDER GUIDE HISTORY \u2014 ${weekHeaderText(weekNumberOf(selectedWeek), selectedWeek, false)} \u2014 ${rowMeta.filter(r => r.type === "data").length} ROWS ===`)));
 }
 // Builds the weekly completeness report from whatever sealed/open/orders data is handed to
 // it - works equally for the live in-progress week (Current Preview) or any already-closed
@@ -3852,6 +3904,35 @@ function App() {
     const [showClearMenu, setShowClearMenu] = useState(false);
     const [clearBusy, setClearBusy] = useState(false);
     const [clearResult, setClearResult] = useState(null);
+    const [showClearPin, setShowClearPin] = useState(false);
+    const [clearPinInput, setClearPinInput] = useState("");
+    const [clearPinError, setClearPinError] = useState(false);
+    const submitClearPin = (pin) => {
+        if (pin === CLEAR_WEEK_PIN) {
+            setShowClearPin(false);
+            setClearPinInput("");
+            setClearResult(null);
+            setShowClearMenu(true);
+        } else {
+            setClearPinError(true);
+            setClearPinInput("");
+        }
+    };
+    const clearPinPressKey = (k) => {
+        if (!k) return;
+        if (k === "⌫") {
+            setClearPinInput(p => p.slice(0, -1));
+            setClearPinError(false);
+            return;
+        }
+        const next = clearPinInput + k;
+        setClearPinInput(next);
+        setClearPinError(false);
+        if (next.length === 4) {
+            setTimeout(() => submitClearPin(next), 150);
+        }
+    };
+    const clearPinCancel = () => { setShowClearPin(false); setClearPinInput(""); setClearPinError(false); };
     // Clears THIS WEEK'S in-progress data only (orders.received/sold, and Selena/Erika's
     // counts table rows where week_label='current'). Never touches the archives table -
     // that only ever gets written by Close Week/Start New Week, which this has nothing to
@@ -3899,7 +3980,7 @@ function App() {
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
                 React.createElement("div", { className: "Login-tag" }, "Liquor Inventory"),
-                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v12.4")),
+                React.createElement("div", { style: { fontSize: 11, color: "#999", marginTop: 4 } }, "v12.6")),
             React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 14, alignItems: "center", padding: "0 20px", width: "100%", maxWidth: 320, margin: "0 auto" } },
                 React.createElement("div", { className: "LCard", style: { width: "100%", maxWidth: 280, height: 100 }, onClick: () => { setScreen("current-menu"); setLastMenu("current-menu"); } },
                     React.createElement("div", { className: "LCard-role", style: { fontSize:16 } }, "Current Analysis")),
@@ -3927,7 +4008,7 @@ function App() {
                     React.createElement("div", { className: "LCard-role" }, "Start New Week"),
                     React.createElement("div", { className: "LCard-name" }, "Archive & reset counts"))),
             React.createElement("button", { className: "B B-ghost", style: { marginTop:20 }, onClick: () => { setScreen("login"); setLastMenu("login"); } }, "← Home"),
-            React.createElement("div", { onClick: () => { setClearResult(null); setShowClearMenu(true); }, style: { position:"fixed", left:"50%", transform:"translateX(-50%)", bottom:"40px", padding:"8px 18px", borderRadius:"20px", background:"#FFFFFF", border:"2px solid #1B6B3A", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Inter',system-ui,sans-serif", fontSize:13, fontWeight:700, color:"#1B6B3A", cursor:"pointer", boxShadow:"0 2px 8px rgba(0,0,0,0.12)", zIndex:50, whiteSpace:"nowrap" } }, "Clear Current Week"))),
+            React.createElement("div", { onClick: () => { setClearPinError(false); setClearPinInput(""); setShowClearPin(true); }, style: { position:"fixed", left:"50%", transform:"translateX(-50%)", bottom:"40px", padding:"8px 18px", borderRadius:"20px", background:"#FFFFFF", border:"2px solid #1B6B3A", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Inter',system-ui,sans-serif", fontSize:13, fontWeight:700, color:"#1B6B3A", cursor:"pointer", boxShadow:"0 2px 8px rgba(0,0,0,0.12)", zIndex:50, whiteSpace:"nowrap" } }, "Clear Current Week"))),
         !loading && screen === "historical-menu" && (React.createElement("div", { className: "Login" },
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
@@ -4007,7 +4088,8 @@ function App() {
         screen === "manualvsspeedline" && React.createElement(ManualVsSpeedlineScreen, { orders: orders, onBack: goHome }),
 
         showMaster && (React.createElement(MasterEditor, { master: master, onSave: (updated) => { setMaster(updated); setOrders(mkOrders(updated)); }, onClose: () => setShowMaster(false) })),
-        React.createElement(MasterGuardModal, { show: showMasterPin, input: masterPinInput, error: masterPinError, onKey: masterPressKey, onCancel: masterCancel })));
+        React.createElement(MasterGuardModal, { show: showMasterPin, input: masterPinInput, error: masterPinError, onKey: masterPressKey, onCancel: masterCancel }),
+        React.createElement(MasterGuardModal, { show: showClearPin, input: clearPinInput, error: clearPinError, onKey: clearPinPressKey, onCancel: clearPinCancel, title: "Clear Current Week" })));
 }
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(React.createElement(App, null));
