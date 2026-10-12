@@ -3989,7 +3989,19 @@ function App() {
         !loading && screen === "current-menu" && (React.createElement("div", { className: "Login" },
             React.createElement("div", { className: "Login-brand" },
                 React.createElement("div", { className: "Login-logo" }, "Zazzo's"),
-                React.createElement("div", { className: "Login-tag" }, "Current Analysis")),
+                React.createElement("div", { className: "Login-tag" }, "Current Analysis"),
+                (() => {
+                    const curMonday = thisWeekMonday(new Date());
+                    const curRange = curMonday ? formatWeekDateRange(curMonday) : "";
+                    const curMondayStr = curMonday ? curMonday.toDateString() : null;
+                    const isClosed = curMondayStr ? (archives || []).some(a => {
+                        const m = mondayFromWeekOfLabel(a.label || a.week_label);
+                        return m && m.toDateString() === curMondayStr;
+                    }) : false;
+                    return React.createElement("div", { style: { marginTop: 6, fontFamily: "'Inter',system-ui,sans-serif" } },
+                        React.createElement("div", { style: { fontSize: 13, fontWeight: 800, letterSpacing: 0.5, color: isClosed ? "#B3261E" : "#1B6B3A" } }, isClosed ? "CLOSED" : "OPEN"),
+                        React.createElement("div", { style: { fontSize: 12, color: "#777", marginTop: 2 } }, curRange));
+                })()),
             React.createElement("div", { className: "Login-grid" },
                 React.createElement("div", { className: "LCard", onClick: () => login("selena") },
                     React.createElement("div", { className: "LCard-role" }, "Sealed Inventory")),
